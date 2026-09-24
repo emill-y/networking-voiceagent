@@ -1,10 +1,76 @@
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Button, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+const apiUrl = (
+  process.env.EXPO_PUBLIC_API_URL?.trim() ||
+  (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000")
+).replace(/\/+$/, "");
+
+const connectionMessages = {
+  checking: "Connecting to backend…",
+  connected: "Backend connected",
+  error: "Could not connect to backend",
+};
+
 export default function Index() {
+  const [connection, setConnection] =
+    useState<keyof typeof connectionMessages>("checking");
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    setConnection("checking");
+
+    async function checkHealth() {
+      try {
+        const response = await fetch(`${apiUrl}/health`, {
+          method: "GET",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`Health request failed: ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (data?.status !== "ok") {
+          throw new Error("Unexpected health response");
+        }
+
+        if (active) setConnection("connected");
+      } catch {
+        if (active) setConnection("error");
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
+    void checkHealth();
+
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [attempt]);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
+        <View style={styles.connectionSection}>
+          <Text style={styles.connectionStatus} accessibilityLiveRegion="polite">
+            {connectionMessages[connection]}
+          </Text>
+          {connection === "error" && (
+            <Button
+              title="Retry connection"
+              onPress={() => setAttempt((previous) => previous + 1)}
+            />
+          )}
+        </View>
+
         <Text style={styles.prompt}>Who did you meet?</Text>
 
         <Pressable
@@ -47,6 +113,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111111",
     marginBottom: 40,
+  },
+  connectionSection: {
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 24,
+  },
+  connectionStatus: {
+    fontSize: 15,
+    color: "#333333",
+    textAlign: "center",
   },
   micButton: {
     width: 96,
