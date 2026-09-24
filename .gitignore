@@ -1,0 +1,58 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Secrets and local env
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+dist/
+build/
+.next/
+.turbo/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Mobile — iOS
+*.xcuserstate
+*.xcuserdata/
+DerivedData/
+Pods/
+*.ipa
+
+# Mobile — Android
+*.apk
+*.aab
+.gradle/
+local.properties
+*.iml
+
+# Mobile — Expo / React Native
+.expo/
+ios/Pods/
+
+# Logs and coverage
+*.log
+coverage/
