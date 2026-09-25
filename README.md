@@ -71,7 +71,7 @@ filters, with keyword fallback and "why it matched" reasons.
 Also: follow-up due dates ("next week" → a date), a grounded pre-meeting
 briefing on each profile, and data export / delete-everything.
 
-Sign-in uses Supabase Auth (email and password); the API verifies every
+Sign-in uses Supabase Auth (email/password or phone code); the API verifies every
 request's token. People can be brought in from the phone's contacts: matching
 happens on the device and only the people you pick are added.
 

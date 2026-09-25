@@ -39,9 +39,10 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 The publishable key is designed to ship inside apps: it can't read anything
 without a signed-in user's token. `.env.local` is still kept out of Git.
 
-People sign in with **email and password**. (Phone sign-in was left out: it
-needs a paid SMS provider.) Whether new accounts must confirm their email is set
-in the Supabase dashboard under Authentication → Sign In / Providers → Email.
+People sign in with **email and password** or a **text-message code**. Phone
+codes need an SMS provider (Twilio, MessageBird, Vonage or TextLocal) set up in
+the Supabase dashboard under Authentication → Sign In / Providers → Phone.
+Until then, use email, or add test numbers with fixed codes there.
 
 `lib/supabase.ts` creates the client and keeps the session in AsyncStorage
 (localStorage on web). `hooks/useSession.tsx` tracks it, and `app/_layout.tsx`
@@ -54,7 +55,7 @@ backend rejects it. Without the two settings above, the app skips sign-in
 
 | Route | File | What it does |
 | --- | --- | --- |
-| `/sign-in` | `app/sign-in.tsx` | Email and password |
+| `/sign-in` | `app/sign-in.tsx` | Email/password or phone code |
 | `/` | `app/index.tsx` | Greeting, the mic, open follow-ups, recent people |
 | `/record` | `app/record.tsx` | Ask for mic permission, record (auto-stops at 3 min), listen back |
 | `/write` | `app/write.tsx` | Type a note instead of speaking |
