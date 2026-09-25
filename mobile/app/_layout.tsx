@@ -67,6 +67,7 @@ function RootNavigator() {
           <Stack.Screen name="follow-ups" />
           <Stack.Screen name="search" />
           <Stack.Screen name="you" />
+          <Stack.Screen name="import-contacts" />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />

@@ -41,6 +41,12 @@
           "enableBackgroundRecording": false,
           "enableBackgroundPlayback": false
         }
+      ],
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Nomi lets you choose people from your contacts to remember. Your address book stays on your phone."
+        }
       ]
     ],
     "experiments": {

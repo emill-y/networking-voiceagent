@@ -7,6 +7,7 @@ import { MicButton } from "@/components/MicButton";
 import { PersonRow } from "@/components/PersonRow";
 import { Screen } from "@/components/Screen";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { contactsSupported } from "@/lib/deviceContacts";
 import { subtitle } from "@/lib/memory";
 import { colors, spacing, type } from "@/lib/theme";
 import { listContacts, listFollowUps } from "@/services/nomi";
@@ -100,16 +101,23 @@ export default function Home() {
 
       <View style={styles.sectionHeader}>
         <Text style={type.label}>Recent people</Text>
-        {people && people.length > RECENT_COUNT && (
+        {people && people.length > 0 && (
           <Pressable onPress={() => router.push("/people")} accessibilityRole="button" hitSlop={8}>
             <Text style={type.meta}>See all</Text>
           </Pressable>
         )}
       </View>
       {people && people.length === 0 && (
-        <Text style={[type.body, styles.empty]}>
-          No one yet. The people you meet will gather here.
-        </Text>
+        <>
+          <Text style={[type.body, styles.empty]}>
+            No one yet. The people you meet will gather here.
+          </Text>
+          {contactsSupported && (
+            <Pressable onPress={() => router.push("/import-contacts")} accessibilityRole="button" hitSlop={8}>
+              <Text style={[type.meta, styles.importLink]}>Or bring in people from your contacts</Text>
+            </Pressable>
+          )}
+        </>
       )}
       <View style={styles.list}>
         {people?.slice(0, RECENT_COUNT).map((person) => (
@@ -177,5 +185,9 @@ const styles = StyleSheet.create({
   },
   list: {
     marginTop: spacing.sm,
+  },
+  importLink: {
+    marginTop: spacing.md,
+    color: colors.accent,
   },
 });

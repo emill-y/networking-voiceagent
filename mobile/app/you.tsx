@@ -8,6 +8,7 @@ import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { localToday } from "@/lib/dates";
+import { contactsSupported } from "@/lib/deviceContacts";
 import { colors, spacing, type } from "@/lib/theme";
 import { useSession } from "@/hooks/useSession";
 import { supabase } from "@/lib/supabase";
@@ -92,10 +93,15 @@ export default function You() {
         <Text style={type.body}>Nomi only listens while you’re recording, and says so on screen.</Text>
         <Text style={type.body}>Recordings are deleted as soon as they’re transcribed.</Text>
         <Text style={type.body}>Nothing is looked up about people behind your back, and nothing is sent to them.</Text>
+        <Text style={type.body}>Your address book stays on your phone; only people you pick are added.</Text>
       </View>
 
       <Divider />
       <View style={styles.actions}>
+        {contactsSupported && (
+          <Button title="Import from contacts" variant="quiet"
+            onPress={() => router.push("/import-contacts")} />
+        )}
         <Button title="Export my memories" variant="quiet" onPress={() => void exportMemories()}
           loading={busy === "export"} />
         <Button title="Delete all memories" variant="danger" onPress={() => void deleteEverything()}

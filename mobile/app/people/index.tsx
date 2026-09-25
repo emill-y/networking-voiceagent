@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { PersonRow } from "@/components/PersonRow";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
+import { contactsSupported } from "@/lib/deviceContacts";
 import { subtitle } from "@/lib/memory";
 import { colors, spacing, type } from "@/lib/theme";
 import { listContacts } from "@/services/nomi";
@@ -25,9 +26,16 @@ export default function People() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Back</Text>
-      </Pressable>
+      <View style={styles.topBar}>
+        <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
+          <Text style={type.meta}>Back</Text>
+        </Pressable>
+        {contactsSupported && (
+          <Pressable onPress={() => router.push("/import-contacts")} accessibilityRole="button" hitSlop={12}>
+            <Text style={type.meta}>Import from contacts</Text>
+          </Pressable>
+        )}
+      </View>
       <Text style={[type.display, styles.title]}>People</Text>
       {!people ? (
         <View style={styles.loading}>
@@ -49,6 +57,10 @@ export default function People() {
 }
 
 const styles = StyleSheet.create({
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
   title: {
     marginTop: spacing.xl,
     marginBottom: spacing.lg,

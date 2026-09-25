@@ -74,6 +74,8 @@ export type ContactSummary = {
   company: string | null;
   role: string | null;
   school: string | null;
+  email: string | null;
+  phone: string | null;
   lastInteractionAt: string | null;
   lastEvent: string | null;
   openFollowUps: number;

@@ -1,17 +1,26 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Divider } from "@/components/Divider";
 import { Monogram } from "@/components/Monogram";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
+import { bestPhone } from "@/lib/addressBook";
 import { confirm } from "@/lib/confirm";
+import { contactsSupported, pickContact } from "@/lib/deviceContacts";
 import { formatRelative, formatShortDate } from "@/lib/format";
 import { briefing, memoryLines, subtitle } from "@/lib/memory";
 import { colors, fonts, radius, spacing, type } from "@/lib/theme";
-import { createFollowUp, deleteContact, deleteInteraction, getContact, updateFollowUp } from "@/services/nomi";
+import {
+  createFollowUp,
+  deleteContact,
+  deleteInteraction,
+  getContact,
+  updateContact,
+  updateFollowUp,
+} from "@/services/nomi";
 import type { ContactDetail, FollowUp } from "@/types/api";
 
 export default function Person() {
@@ -45,6 +54,23 @@ export default function Person() {
     setNewFollowUp("");
     await createFollowUp(person.id, action);
     load();
+  }
+
+  // Link this person to an address-book entry the user picks, filling in
+  // only what's missing.
+  async function addFromContacts() {
+    if (!person) return;
+    const entry = await pickContact();
+    if (!entry) return;
+    const changes: Record<string, string> = {};
+    const phone = bestPhone(entry.phones);
+    if (!person.phone && phone) changes.phone = phone;
+    if (!person.email && entry.emails[0]) changes.email = entry.emails[0];
+    if (!person.company && entry.company) changes.company = entry.company;
+    if (!person.role && entry.role) changes.role = entry.role;
+    if (Object.keys(changes).length) {
+      setPerson(await updateContact(person.id, changes));
+    }
   }
 
   async function removeMoment(interactionId: string) {
@@ -104,6 +130,30 @@ export default function Person() {
           <Text style={type.meta}>{[person.school, person.location].filter(Boolean).join(" · ")}</Text>
         ) : null}
         {person.summary ? <Text style={[type.body, styles.summary]}>{person.summary}</Text> : null}
+
+        {/* Opens the phone's own apps; Nomi never sends anything itself. */}
+        <View style={styles.reach}>
+          {person.phone ? (
+            <>
+              <Pressable onPress={() => void Linking.openURL(`tel:${dialable(person.phone!)}`)} accessibilityRole="link" style={styles.reachButton}>
+                <Text style={styles.reachText}>Call</Text>
+              </Pressable>
+              <Pressable onPress={() => void Linking.openURL(`sms:${dialable(person.phone!)}`)} accessibilityRole="link" style={styles.reachButton}>
+                <Text style={styles.reachText}>Text</Text>
+              </Pressable>
+            </>
+          ) : null}
+          {person.email ? (
+            <Pressable onPress={() => void Linking.openURL(`mailto:${person.email}`)} accessibilityRole="link" style={styles.reachButton}>
+              <Text style={styles.reachText}>Email</Text>
+            </Pressable>
+          ) : null}
+          {contactsSupported && (!person.phone || !person.email) ? (
+            <Pressable onPress={() => void addFromContacts()} accessibilityRole="button" style={styles.reachButton}>
+              <Text style={styles.reachText}>Add from contacts</Text>
+            </Pressable>
+          ) : null}
+        </View>
       </View>
 
       {brief && (
@@ -172,6 +222,11 @@ export default function Person() {
 
       <Divider />
       <Text style={type.label}>Timeline</Text>
+      {person.interactions.length === 0 && (
+        <Text style={[type.body, styles.noMoments]}>
+          No moments yet. Record one after you next talk.
+        </Text>
+      )}
       <View style={styles.timeline}>
         {[latest, ...earlier].filter(Boolean).map((moment) => {
           const open = expanded === moment.id;
@@ -214,6 +269,11 @@ export default function Person() {
   );
 }
 
+// "+1 (415) 555-0123" -> "+14155550123" for tel:/sms: links.
+function dialable(phone: string): string {
+  return phone.replace(/[^\d+]/g, "");
+}
+
 function BackLink() {
   const router = useRouter();
   return (
@@ -246,6 +306,26 @@ const styles = StyleSheet.create({
   },
   details: {
     color: colors.text,
+  },
+  reach: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  reachButton: {
+    paddingVertical: 8,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+  },
+  reachText: {
+    fontSize: 14,
+    color: colors.text,
+  },
+  noMoments: {
+    marginTop: spacing.sm,
+    color: colors.muted,
   },
   summary: {
     marginTop: spacing.md,

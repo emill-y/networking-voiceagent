@@ -39,10 +39,9 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 The publishable key is designed to ship inside apps: it can't read anything
 without a signed-in user's token. `.env.local` is still kept out of Git.
 
-People sign in with **email and password** or a **text-message code**. Phone
-codes need an SMS provider (Twilio, MessageBird, Vonage or TextLocal) set up in
-the Supabase dashboard under Authentication → Sign In / Providers → Phone.
-Until then, use email, or add test numbers with fixed codes there.
+People sign in with **email and password**. (Phone sign-in was left out: it
+needs a paid SMS provider.) Whether new accounts must confirm their email is set
+in the Supabase dashboard under Authentication → Sign In / Providers → Email.
 
 `lib/supabase.ts` creates the client and keeps the session in AsyncStorage
 (localStorage on web). `hooks/useSession.tsx` tracks it, and `app/_layout.tsx`
@@ -55,7 +54,7 @@ backend rejects it. Without the two settings above, the app skips sign-in
 
 | Route | File | What it does |
 | --- | --- | --- |
-| `/sign-in` | `app/sign-in.tsx` | Email/password or phone code |
+| `/sign-in` | `app/sign-in.tsx` | Email and password |
 | `/` | `app/index.tsx` | Greeting, the mic, open follow-ups, recent people |
 | `/record` | `app/record.tsx` | Ask for mic permission, record (auto-stops at 3 min), listen back |
 | `/write` | `app/write.tsx` | Type a note instead of speaking |
@@ -65,6 +64,7 @@ backend rejects it. Without the two settings above, the app skips sign-in
 | `/people/[id]/edit` | `app/people/[id]/edit.tsx` | Edit details and contact info |
 | `/follow-ups` | `app/follow-ups.tsx` | Complete or dismiss commitments |
 | `/search` | `app/search.tsx` | Ask in plain language; results show why each person matched |
+| `/import-contacts` | `app/import-contacts.tsx` | Pick people from the phone's contacts to add, or to fill in phone/email for people you know |
 | `/you` | `app/you.tsx` | Account, sign out, export, delete memories or the account |
 
 ## Code layout
@@ -91,6 +91,16 @@ recording is disabled in `app.json`.
 **Briefing.** `lib/memory.ts` builds "Before you meet again" on each profile
 from stored facts only: when and where you last met, open follow-ups, and
 questions drawn from their projects, needs and uncertain notes.
+
+**Contacts.** `lib/deviceContacts.ts` reads the address book with
+`expo-contacts` (after the system permission prompt; iOS 18's "limited access"
+is supported). `lib/addressBook.ts` matches entries to people already in Nomi
+by phone number, then email, then a name only one person has, all on the
+phone. Only the entries the user ticks are sent to `POST /contacts/import`,
+which fills blanks but never overwrites what the user wrote. On a profile,
+"Add from contacts" opens the system picker for that one person, and Call,
+Text and Email open the phone's own apps; Nomi never sends anything itself.
+Contacts need the iOS or Android app; the web preview explains that instead.
 
 **Review.** `lib/review.ts` converts extracted people into editable drafts and
 back into the save payload. A strong duplicate match must be answered

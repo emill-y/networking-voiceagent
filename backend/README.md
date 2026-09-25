@@ -66,6 +66,7 @@ JSON uses camelCase. Errors look like `{"detail": "message"}`.
 | POST | `/duplicate-check` | `{people: [{name, company, school}]}` → possible existing matches per person |
 | POST | `/captures` | Save one reviewed note (people, moments, follow-ups) atomically |
 | GET | `/contacts` | People, most recently seen first |
+| POST | `/contacts/import` | Add people picked from the address book, or fill in their blanks |
 | GET / PATCH / DELETE | `/contacts/{id}` | Profile with timeline and follow-ups; edit; forget |
 | DELETE | `/interactions/{id}` | Forget one moment |
 | GET / POST | `/follow-ups` | List (`?status=open`) or add |

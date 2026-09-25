@@ -1,6 +1,7 @@
 // One function per backend endpoint. Screens call these instead of fetch.
 import { Platform } from "react-native";
 
+import type { ImportedPerson } from "@/lib/addressBook";
 import { request } from "@/lib/api";
 import { localToday } from "@/lib/dates";
 import type {
@@ -114,4 +115,12 @@ export function deleteAllData() {
 
 export function deleteAccount() {
   return request<void>("/me", { method: "DELETE" });
+}
+
+export function importContacts(people: ImportedPerson[]) {
+  return request<{ created: number; updated: number; unchanged: number }>("/contacts/import", {
+    method: "POST",
+    body: { people },
+    timeoutMs: 60_000,
+  });
 }
