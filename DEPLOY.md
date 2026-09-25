@@ -20,7 +20,7 @@ iPhone (Nomi app)
 |---|---|
 | Apple Developer Program | **$99/year**, required to publish on the App Store |
 | Expo / EAS builds | Free tier (limited builds per month) is enough to start |
-| Groq (AI model) | Free tier with rate limits; paid usage is fractions of a cent per note |
+| Groq (AI model) | Free tier: about 8 notes a minute across all users on gpt-oss-120b (more with the fallback model). Enough for testing; switch to Groq's pay-as-you-go Dev tier before launch (fractions of a cent per note) |
 | Google Cloud Run (API) | Free tier covers light use (a billing account is still required) |
 | Supabase | Free tier. **Free projects pause after a week without activity**; move to Pro ($25/mo) before real users depend on it |
 | Email for magic links | Supabase's built-in mailer is fine for testing; use Resend's free tier for real users |

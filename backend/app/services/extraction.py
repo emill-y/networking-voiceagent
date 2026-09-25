@@ -34,6 +34,10 @@ Rules:
   a structured field. Leave that field null and add a note starting with "Unsure:",
   for example "Unsure: may work at Google".
 - If the speaker corrects themselves, keep only the corrected fact.
+- company is only a named organization ("Figma", "Google"). A description without a
+  name ("a small bakery", "a startup") is not a company: put it in role or projects,
+  e.g. role "Bakery owner".
+- projects are what they work on or build: "works on robotics" -> projects ["robotics"].
 - metAt is the event or place where they met (e.g. "Berkeley founders mixer").
 - followUp is what the user plans to do with this person, as a short action that
   keeps any timing, e.g. "Reach out next week". Use null if none was mentioned.

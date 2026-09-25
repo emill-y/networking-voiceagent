@@ -51,6 +51,8 @@ class Settings:
     llm_model: str = "openai/gpt-oss-120b"
     # For reasoning models (e.g. gpt-oss): "low" | "medium" | "high". Empty = don't send.
     llm_reasoning_effort: str | None = None
+    # Tried when the main model is rate-limited (limits are per model).
+    llm_fallback_model: str | None = "openai/gpt-oss-20b"
     llm_timeout_seconds: float = 30.0
 
     # Ollama
@@ -91,6 +93,7 @@ def get_settings() -> Settings:
         llm_api_key=env.get("LLM_API_KEY") or None,
         llm_model=env.get("LLM_MODEL", "openai/gpt-oss-120b"),
         llm_reasoning_effort=env.get("LLM_REASONING_EFFORT") or None,
+        llm_fallback_model=env.get("LLM_FALLBACK_MODEL", "openai/gpt-oss-20b") or None,
         llm_timeout_seconds=float(env.get("LLM_TIMEOUT_SECONDS", "30")),
         ollama_url=env.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/"),
         ollama_model=env.get("OLLAMA_MODEL", "qwen3:4b"),

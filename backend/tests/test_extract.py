@@ -165,7 +165,7 @@ def test_openai_compatible_request(monkeypatch):
     assert seen["payload"]["response_format"] == {"type": "json_object"}
     assert seen["payload"]["temperature"] == 0
     system = seen["payload"]["messages"][0]["content"]
-    assert "Extract people." in system and '"type": "object"' in system
+    assert "Extract people." in system and '"type":"object"' in system
 
 
 def test_openai_compatible_errors(monkeypatch):
@@ -222,3 +222,63 @@ def test_reasoning_effort_is_sent_only_when_set(monkeypatch):
     OpenAICompatibleClient("https://x", "k", "llama", 5).chat_json("s", "u", {})
     assert payloads[0]["reasoning_effort"] == "low"
     assert "reasoning_effort" not in payloads[1]
+
+
+def _limited(url, message="Rate limit reached. Please try again in 3.405s."):
+    return httpx.Response(429, json={"error": {"message": message}}, request=httpx.Request("POST", url))
+
+
+def _ok(url, content='{"people": []}'):
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]},
+                          request=httpx.Request("POST", url))
+
+
+def test_rate_limit_falls_back_to_second_model(monkeypatch):
+    models = []
+
+    def fake_post(url, json, headers, timeout):
+        models.append(json["model"])
+        return _limited(url) if json["model"] == "big" else _ok(url)
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    slept = []
+    client = OpenAICompatibleClient("https://x", "k", "big", 5, fallback_model="small", sleep=slept.append)
+    assert client.chat_json("s", "u", {}) == '{"people": []}'
+    assert models == ["big", "small"] and slept == []
+
+
+def test_rate_limit_waits_briefly_then_retries(monkeypatch):
+    calls = []
+
+    def fake_post(url, json, headers, timeout):
+        calls.append(json["model"])
+        return _limited(url) if len(calls) < 3 else _ok(url)
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    slept = []
+    client = OpenAICompatibleClient("https://x", "k", "big", 5, fallback_model="small", sleep=slept.append)
+    assert client.chat_json("s", "u", {}) == '{"people": []}'
+    assert calls == ["big", "small", "big"]
+    assert slept == [3.405]
+
+
+def test_long_rate_limit_gives_a_friendly_error(monkeypatch):
+    monkeypatch.setattr(llm_module.httpx, "post",
+                        lambda url, json, headers, timeout: _limited(url, "try again in 45.2s"))
+    slept = []
+    client = OpenAICompatibleClient("https://x", "k", "big", 5, sleep=slept.append)
+    with pytest.raises(LLMUnavailable, match="busy"):
+        client.chat_json("s", "u", {})
+    assert slept == []
+
+
+def test_schema_is_sent_compactly(monkeypatch):
+    seen = {}
+
+    def fake_post(url, json, headers, timeout):
+        seen["system"] = json["messages"][0]["content"]
+        return _ok(url)
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", EXTRACTION_JSON_SCHEMA)
+    assert '", "' not in seen["system"] and '": ' not in seen["system"]
