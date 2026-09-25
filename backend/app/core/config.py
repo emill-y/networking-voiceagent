@@ -28,7 +28,14 @@ def _csv(value: str) -> list[str]:
 
 @dataclass(frozen=True)
 class Settings:
-    # Speech-to-text (faster-whisper)
+    # Speech-to-text. "local" = faster-whisper on this machine;
+    # "huggingface" = Hugging Face Inference Providers (audio leaves the machine).
+    transcription_provider: str = "local"
+    hf_token: str | None = None
+    hf_inference_provider: str = "fal-ai"
+    hf_asr_model: str = "openai/whisper-large-v3"
+
+    # faster-whisper (local)
     whisper_model: str = "small.en"
     whisper_device: str = "auto"
     whisper_compute_type: str = "int8"
@@ -53,6 +60,10 @@ def get_settings() -> Settings:
     _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     env = os.environ
     return Settings(
+        transcription_provider=env.get("TRANSCRIPTION_PROVIDER", "local").strip().lower(),
+        hf_token=env.get("HF_TOKEN") or None,
+        hf_inference_provider=env.get("HF_INFERENCE_PROVIDER", "fal-ai"),
+        hf_asr_model=env.get("HF_ASR_MODEL", "openai/whisper-large-v3"),
         whisper_model=env.get("WHISPER_MODEL", "small.en"),
         whisper_device=env.get("WHISPER_DEVICE", "auto"),
         whisper_compute_type=env.get("WHISPER_COMPUTE_TYPE", "int8"),

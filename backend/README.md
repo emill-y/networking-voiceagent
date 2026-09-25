@@ -21,6 +21,12 @@ Every setting is listed in `.env.example`.
 - **Speech-to-text:** [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
   downloads `small.en` (~480 MB) from Hugging Face the first time `/transcribe`
   runs, then reuses it. Set `WHISPER_MODEL=tiny.en` for quicker experiments.
+- **Hosted speech-to-text (optional):** set `TRANSCRIPTION_PROVIDER=huggingface`
+  and `HF_TOKEN` to use `openai/whisper-large-v3` through Hugging Face
+  Inference Providers (`fal-ai` by default). It's faster and more accurate
+  than `small.en` on a laptop, but **recordings leave your machine** and go to
+  a third party, so it's off by default. The file is still decoded locally
+  first, so corrupt uploads are rejected before anything is sent.
 - **LLM:** install [Ollama](https://ollama.com), then `ollama pull qwen3:4b`.
   Ollama serves it at `http://127.0.0.1:11434`.
 
@@ -82,8 +88,8 @@ app/
 
 **Transcription** (`services/transcription.py`). The upload is streamed to a
 temp file with a size cap, decoded to 16 kHz mono with PyAV (corrupt audio → 422),
-transcribed by a Whisper model loaded once per process, and deleted before the
-response is sent. Timings are logged; transcripts are not.
+transcribed by the configured `Transcriber` (local Whisper loaded once per
+process, or hosted Whisper), and deleted before the response is sent. Timings are logged; transcripts are not.
 
 **Extraction** (`services/extraction.py`, `services/llm.py`). The transcript goes
 to Qwen3 with a JSON Schema (Ollama *structured outputs* constrain generation to

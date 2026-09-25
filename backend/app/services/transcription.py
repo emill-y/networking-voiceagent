@@ -1,10 +1,15 @@
-"""Speech-to-text with faster-whisper.
+"""Speech-to-text.
 
 Data in:  a path to an audio file (m4a, webm, wav, mp3, ...).
 Data out: a `Transcript` with the text, detected language, and timings.
 
-The Whisper model is large (hundreds of MB) and slow to load, so it is
-loaded once, lazily, on the first request, and reused afterwards.
+Two interchangeable implementations of `Transcriber`:
+
+- `WhisperTranscriber` runs faster-whisper locally. The model is large and
+  slow to load, so it is loaded once, lazily, and reused.
+- `HuggingFaceTranscriber` sends the audio to a hosted Whisper through
+  Hugging Face Inference Providers. Faster on a laptop, but the recording
+  leaves your machine, so it is opt-in (TRANSCRIPTION_PROVIDER=huggingface).
 """
 
 import logging
@@ -106,15 +111,69 @@ class WhisperTranscriber:
         )
 
 
+class HuggingFaceTranscriber:
+    def __init__(self, token: str | None, provider: str, model: str, client=None) -> None:
+        self._token = token
+        self._provider = provider
+        self._model = model
+        self._client = client  # injectable for tests
+
+    def _get_client(self):
+        if self._client is None:
+            if not self._token:
+                raise TranscriptionUnavailable("HF_TOKEN is not set for hosted transcription.")
+            from huggingface_hub import InferenceClient
+
+            self._client = InferenceClient(
+                provider=self._provider, api_key=self._token, timeout=120
+            )
+        return self._client
+
+    def transcribe(self, audio_path: str) -> Transcript:
+        started = time.perf_counter()
+        # Decode locally first: rejects corrupt files before uploading them
+        # anywhere, and tells us the duration.
+        audio = decode_audio(audio_path)
+        client = self._get_client()
+        try:
+            output = client.automatic_speech_recognition(audio_path, model=self._model)
+        except Exception as exc:  # network, auth, quota, provider errors
+            logger.warning("Hosted transcription failed: %s", type(exc).__name__)
+            raise TranscriptionUnavailable(
+                f"Hosted transcription ({self._provider}/{self._model}) is unavailable."
+            ) from exc
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        audio_seconds = round(audio.size / SAMPLE_RATE, 2)
+        logger.info("Hosted transcription of %.1fs took %dms", audio_seconds, latency_ms)
+        return Transcript(
+            text=(output.text or "").strip(),
+            language=None,
+            audio_seconds=audio_seconds,
+            latency_ms=latency_ms,
+        )
+
+
 _transcriber: Transcriber | None = None
+
+
+def build_transcriber(settings) -> Transcriber:
+    if settings.transcription_provider == "huggingface":
+        return HuggingFaceTranscriber(
+            settings.hf_token, settings.hf_inference_provider, settings.hf_asr_model
+        )
+    if settings.transcription_provider != "local":
+        raise ValueError(
+            f"Unknown TRANSCRIPTION_PROVIDER '{settings.transcription_provider}' "
+            "(use 'local' or 'huggingface')."
+        )
+    return WhisperTranscriber(
+        settings.whisper_model, settings.whisper_device, settings.whisper_compute_type
+    )
 
 
 def get_transcriber() -> Transcriber:
     """FastAPI dependency. Tests override this with a fake."""
     global _transcriber
     if _transcriber is None:
-        settings = get_settings()
-        _transcriber = WhisperTranscriber(
-            settings.whisper_model, settings.whisper_device, settings.whisper_compute_type
-        )
+        _transcriber = build_transcriber(get_settings())
     return _transcriber

@@ -93,3 +93,79 @@ def test_model_unavailable_is_503(client):
     use(Broken())
     response = client.post("/transcribe", files={"audio": ("note.wav", make_wav(), "audio/wav")})
     assert response.status_code == 503
+
+
+# ---------- Hosted (Hugging Face) provider ----------
+
+import pytest  # noqa: E402
+
+from app.services.transcription import (  # noqa: E402
+    HuggingFaceTranscriber,
+    WhisperTranscriber,
+    build_transcriber,
+)
+from tests.conftest import make_wav as _wav  # noqa: E402
+
+
+class FakeInferenceClient:
+    def __init__(self, text="I met Jason Chen.", error=None):
+        self.text, self.error, self.calls = text, error, []
+
+    def automatic_speech_recognition(self, audio, model):
+        self.calls.append((audio, model))
+        if self.error:
+            raise self.error
+
+        class Output:
+            pass
+
+        output = Output()
+        output.text = self.text
+        return output
+
+
+def _wav_file(tmp_path):
+    path = tmp_path / "note.wav"
+    path.write_bytes(_wav())
+    return str(path)
+
+
+def test_hosted_transcription(tmp_path):
+    client = FakeInferenceClient(text="  I met Jason Chen.  ")
+    transcriber = HuggingFaceTranscriber("hf_x", "fal-ai", "openai/whisper-large-v3", client=client)
+    result = transcriber.transcribe(_wav_file(tmp_path))
+    assert result.text == "I met Jason Chen."
+    assert result.audio_seconds == 1.0
+    assert client.calls[0][1] == "openai/whisper-large-v3"
+
+
+def test_hosted_rejects_corrupt_audio_before_uploading(tmp_path):
+    path = tmp_path / "bad.m4a"
+    path.write_bytes(b"not audio" * 20)
+    client = FakeInferenceClient()
+    transcriber = HuggingFaceTranscriber("hf_x", "fal-ai", "m", client=client)
+    with pytest.raises(Exception) as info:
+        transcriber.transcribe(str(path))
+    assert type(info.value).__name__ == "AudioDecodeError"
+    assert client.calls == []
+
+
+def test_hosted_errors_become_unavailable(tmp_path):
+    client = FakeInferenceClient(error=RuntimeError("401"))
+    transcriber = HuggingFaceTranscriber("hf_x", "fal-ai", "m", client=client)
+    with pytest.raises(TranscriptionUnavailable):
+        transcriber.transcribe(_wav_file(tmp_path))
+
+
+def test_hosted_without_token_is_unavailable(tmp_path):
+    with pytest.raises(TranscriptionUnavailable, match="HF_TOKEN"):
+        HuggingFaceTranscriber(None, "fal-ai", "m").transcribe(_wav_file(tmp_path))
+
+
+def test_provider_selection():
+    base = get_settings()
+    assert isinstance(build_transcriber(replace(base, transcription_provider="local")), WhisperTranscriber)
+    hosted = build_transcriber(replace(base, transcription_provider="huggingface", hf_token="hf_x"))
+    assert isinstance(hosted, HuggingFaceTranscriber)
+    with pytest.raises(ValueError):
+        build_transcriber(replace(base, transcription_provider="cloud"))
