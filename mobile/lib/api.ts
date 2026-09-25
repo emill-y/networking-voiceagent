@@ -46,6 +46,10 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
       body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
   } catch {
+    // Our own timeout aborts the request; say so rather than "unreachable".
+    if (controller.signal.aborted) {
+      throw new ApiError("Nomi's backend took too long to respond. Please try again.", null);
+    }
     throw new ApiError("Could not reach Nomi's backend.", null);
   } finally {
     clearTimeout(timeout);

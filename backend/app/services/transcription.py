@@ -74,6 +74,10 @@ class WhisperTranscriber:
                     from faster_whisper import WhisperModel
 
                     started = time.perf_counter()
+                    logger.info(
+                        "Loading Whisper %s (the first time, this downloads it; can take minutes)",
+                        self._model_name,
+                    )
                     try:
                         self._model = WhisperModel(
                             self._model_name,

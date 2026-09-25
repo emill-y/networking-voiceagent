@@ -1,3 +1,4 @@
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -16,6 +17,7 @@ from app.services.transcription import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {".m4a", ".mp4", ".aac", ".caf", ".wav", ".webm", ".ogg", ".mp3", ".3gp"}
 CHUNK_BYTES = 64 * 1024
@@ -64,6 +66,7 @@ def transcribe(
         if written == 0:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The recording is empty.")
 
+        logger.info("Received %.1f KB of audio; transcribing", written / 1024)
         try:
             result = transcriber.transcribe(temp_path)
         except AudioDecodeError as exc:
