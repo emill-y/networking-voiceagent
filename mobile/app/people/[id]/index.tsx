@@ -9,8 +9,8 @@ import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { formatRelative, formatShortDate } from "@/lib/format";
-import { memoryLines, subtitle } from "@/lib/memory";
-import { colors, spacing, type } from "@/lib/theme";
+import { briefing, memoryLines, subtitle } from "@/lib/memory";
+import { colors, fonts, radius, spacing, type } from "@/lib/theme";
 import { createFollowUp, deleteContact, deleteInteraction, getContact, updateFollowUp } from "@/services/nomi";
 import type { ContactDetail, FollowUp } from "@/types/api";
 
@@ -81,6 +81,7 @@ export default function Person() {
   const openFollowUps = person.followUps.filter((f) => f.status === "open");
   const doneFollowUps = person.followUps.filter((f) => f.status === "done").slice(0, 3);
   const details = subtitle(person);
+  const brief = briefing(person);
 
   return (
     <Screen>
@@ -104,6 +105,16 @@ export default function Person() {
         ) : null}
         {person.summary ? <Text style={[type.body, styles.summary]}>{person.summary}</Text> : null}
       </View>
+
+      {brief && (
+        <View style={styles.brief}>
+          <Text style={type.label}>Before you meet again</Text>
+          <Text style={[type.body, styles.briefHeadline]}>{brief.headline}</Text>
+          {brief.remember.map((line) => (
+            <Text key={line} style={[type.body, styles.briefLine]}>· {line}</Text>
+          ))}
+        </View>
+      )}
 
       {latest && (
         <>
@@ -239,6 +250,22 @@ const styles = StyleSheet.create({
   summary: {
     marginTop: spacing.md,
     fontStyle: "italic",
+  },
+  brief: {
+    marginTop: spacing.xl,
+    padding: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    gap: spacing.sm,
+  },
+  briefHeadline: {
+    fontFamily: fonts.serifItalic,
+    fontSize: 21,
+    lineHeight: 28,
+    color: colors.text,
+  },
+  briefLine: {
+    color: colors.textSoft,
   },
   sectionTitle: {
     marginTop: spacing.sm,
