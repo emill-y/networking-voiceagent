@@ -7,6 +7,7 @@ import { MicButton } from "@/components/MicButton";
 import { PersonRow } from "@/components/PersonRow";
 import { Screen } from "@/components/Screen";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { apiUrl } from "@/lib/api";
 import { contactsSupported } from "@/lib/deviceContacts";
 import { subtitle } from "@/lib/memory";
 import { colors, spacing, type } from "@/lib/theme";
@@ -79,6 +80,11 @@ export default function Home() {
           <Text style={[type.meta, styles.offlineText]}>
             Can’t reach Nomi’s backend. Tap to retry.
           </Text>
+          {__DEV__ && (
+            // Development only: the address this build is using (from
+            // EXPO_PUBLIC_API_URL in mobile/.env.local).
+            <Text style={[type.meta, styles.devHint]} selectable>Dev: backend is {apiUrl}</Text>
+          )}
         </Pressable>
       )}
 
@@ -168,6 +174,11 @@ const styles = StyleSheet.create({
   },
   offlineText: {
     color: colors.danger,
+    textAlign: "center",
+  },
+  devHint: {
+    marginTop: spacing.xs,
+    color: colors.faint,
     textAlign: "center",
   },
   followUpCount: {
