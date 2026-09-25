@@ -18,6 +18,11 @@ export function authRedirectUrl(): string {
   return Linking.createURL("auth/callback");
 }
 
+if (__DEV__) {
+  // Handy when setting up Supabase's Redirect URLs list.
+  console.log(`[auth] sign-in redirect: ${authRedirectUrl()}`);
+}
+
 function client() {
   if (!supabase) throw new Error("Sign-in isn’t configured.");
   return supabase;

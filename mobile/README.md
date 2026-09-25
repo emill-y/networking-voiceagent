@@ -74,6 +74,12 @@ link is useless. `app/auth/callback.tsx` exchanges the code for a session.
    Authentication → Emails → SMTP.
 5. Turn **Phone** and **Email password sign-ups** off if you don't want them.
 
+If a sign-in link or Google opens `localhost` in Safari, Supabase rejected the
+app's return address and fell back to the Site URL. In development the sign-in
+screen prints the exact address (`Dev: sign-in returns to exp://…`); add it to
+Redirect URLs. It changes when your Mac's IP changes or you switch to
+`--tunnel`, which is why `exp://**` is on the list.
+
 `lib/supabase.ts` creates the client and keeps the session in AsyncStorage
 (localStorage on web). `hooks/useSession.tsx` tracks it, and `app/_layout.tsx`
 uses `Stack.Protected` so signed-out users only reach `/sign-in`. `lib/api.ts`
