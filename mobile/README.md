@@ -40,6 +40,7 @@ restart Expo after changing `.env.local`.
 | `/people/[id]/edit` | `app/people/[id]/edit.tsx` | Edit details and contact info |
 | `/follow-ups` | `app/follow-ups.tsx` | Complete or dismiss commitments |
 | `/search` | `app/search.tsx` | Ask in plain language; results show why each person matched |
+| `/you` | `app/you.tsx` | Privacy promises, export your data, delete everything |
 
 ## Code layout
 
@@ -61,6 +62,10 @@ use these tokens rather than raw colors.
 and Android and WebM in browsers. Audio stays on the device until you tap
 "Remember this"; the backend deletes it right after transcribing. Background
 recording is disabled in `app.json`.
+
+**Briefing.** `lib/memory.ts` builds "Before you meet again" on each profile
+from stored facts only: when and where you last met, open follow-ups, and
+questions drawn from their projects, needs and uncertain notes.
 
 **Review.** `lib/review.ts` converts extracted people into editable drafts and
 back into the save payload. A strong duplicate match must be answered

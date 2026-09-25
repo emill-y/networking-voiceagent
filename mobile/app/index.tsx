@@ -50,11 +50,16 @@ export default function Home() {
     <Screen>
       <View style={styles.topBar}>
         <Text style={styles.wordmark}>Nomi</Text>
-        {people && people.length > 0 && (
-          <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
-            <Text style={type.meta}>Search</Text>
+        <View style={styles.nav}>
+          {people && people.length > 0 && (
+            <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
+              <Text style={type.meta}>Search</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={() => router.push("/you")} accessibilityRole="button" hitSlop={12}>
+            <Text style={type.meta}>You</Text>
           </Pressable>
-        )}
+        </View>
       </View>
 
       <View style={styles.hero}>
@@ -126,6 +131,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+  },
+  nav: {
+    flexDirection: "row",
+    gap: spacing.lg,
   },
   wordmark: {
     ...type.heading,

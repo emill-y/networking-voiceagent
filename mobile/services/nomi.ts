@@ -101,3 +101,13 @@ export function updateFollowUp(
 export function search(query: string) {
   return request<SearchResponse>("/search", { method: "POST", body: { query, today: localToday() }, timeoutMs: 60_000 });
 }
+
+export function exportData() {
+  return request<{ exportedAt: string; contacts: ContactDetail[] }>("/me/export", {
+    timeoutMs: 60_000,
+  });
+}
+
+export function deleteAllData() {
+  return request<void>("/me/data", { method: "DELETE" });
+}

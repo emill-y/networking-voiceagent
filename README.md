@@ -67,5 +67,8 @@ deleting people and moments, and follow-ups you can complete or dismiss.
 Phase 3 (search) is in place: conversational questions become validated
 filters, with keyword fallback and "why it matched" reasons.
 
+Also: follow-up due dates ("next week" → a date), a grounded pre-meeting
+briefing on each profile, and data export / delete-everything.
+
 Not yet: Supabase Auth (every request currently acts as one development user —
 do not deploy publicly), personalization, integrations.
