@@ -186,3 +186,24 @@ def test_llm_provider_selection():
     assert isinstance(hosted, OpenAICompatibleClient)
     with pytest.raises(ValueError):
         build_llm_client(replace(base, llm_provider="magic"))
+
+
+def test_reasoning_tags_are_stripped(monkeypatch):
+    def fake_post(url, json, headers, timeout):
+        content = '<think>The user met Jason.</think>\n{"people": []}'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    assert OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", {}) == '{"people": []}'
+
+
+def test_provider_error_message_is_logged(monkeypatch, caplog):
+    def missing_model(url, json, headers, timeout):
+        return httpx.Response(404, json={"error": {"message": "The model `m` does not exist"}},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", missing_model)
+    with pytest.raises(LLMUnavailable):
+        OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", {})
+    assert "does not exist" in caplog.text

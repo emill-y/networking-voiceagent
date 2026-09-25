@@ -94,11 +94,17 @@ def check_llm(settings) -> None:
         if response.status_code == 401:
             report("Language model", False, "LLM_API_KEY was rejected (401)")
             return
-        ids = [m.get("id") for m in response.json().get("data", [])] if response.is_success else []
+        ids = sorted(m.get("id") for m in response.json().get("data", [])) if response.is_success else []
         found = settings.llm_model in ids
         report("Language model", response.is_success and found,
                f"{settings.llm_model} at {settings.llm_base_url}" if found
                else f"{settings.llm_model} not offered at {settings.llm_base_url} (status {response.status_code})")
+        if ids and not found:
+            skip = ("whisper", "tts", "guard", "embed", "audio", "orpheus")
+            chat = [i for i in ids if not any(word in i.lower() for word in skip)]
+            print("      Models your key can use (set one as LLM_MODEL in backend/.env):")
+            for model_id in chat:
+                print(f"        {model_id}")
         return
     check_ollama(settings)
 

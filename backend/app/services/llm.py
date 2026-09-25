@@ -11,6 +11,7 @@ returns JSON text, can implement `LLMClient`.
 """
 
 import json
+import re
 
 import logging
 import time
@@ -98,11 +99,35 @@ class OpenAICompatibleClient:
             response.raise_for_status()
             content = response.json()["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError, ValueError) as exc:
-            status = getattr(getattr(exc, "response", None), "status_code", None)
-            logger.warning("Hosted LLM call failed (%s, status %s)", type(exc).__name__, status)
+            response = getattr(exc, "response", None)
+            logger.warning(
+                "Hosted LLM call failed (%s, status %s): %s",
+                type(exc).__name__,
+                getattr(response, "status_code", None),
+                _provider_error(response),
+            )
             raise LLMUnavailable(f"The language model ({self._model}) is unavailable.") from exc
         logger.info("LLM %s responded in %dms", self._model, (time.perf_counter() - started) * 1000)
-        return content
+        return strip_reasoning(content)
+
+
+def _provider_error(response) -> str:
+    """The provider's own explanation, e.g. 'model ... does not exist'."""
+    if response is None:
+        return ""
+    try:
+        error = response.json().get("error", {})
+        return error.get("message", "") if isinstance(error, dict) else str(error)
+    except ValueError:
+        return response.text[:200]
+
+
+_THINK = re.compile(r"<think>.*?</think>", re.DOTALL)
+
+
+def strip_reasoning(content: str) -> str:
+    """Some reasoning models prefix their answer with <think>…</think>."""
+    return _THINK.sub("", content).strip()
 
 
 _client: LLMClient | None = None
