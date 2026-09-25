@@ -64,11 +64,19 @@ class OllamaClient:
 
 
 class OpenAICompatibleClient:
-    def __init__(self, base_url: str, api_key: str | None, model: str, timeout_seconds: float) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str | None,
+        model: str,
+        timeout_seconds: float,
+        reasoning_effort: str | None = None,
+    ) -> None:
         self._url = f"{base_url}/chat/completions"
         self._api_key = api_key
         self._model = model
         self._timeout = timeout_seconds
+        self._reasoning_effort = reasoning_effort
 
     def chat_json(self, system: str, user: str, schema: dict) -> str:
         if not self._api_key:
@@ -88,6 +96,9 @@ class OpenAICompatibleClient:
             "response_format": {"type": "json_object"},
             "temperature": 0,
         }
+        if self._reasoning_effort:
+            # Reasoning models think before answering; extraction needs little.
+            payload["reasoning_effort"] = self._reasoning_effort
         started = time.perf_counter()
         try:
             response = httpx.post(
@@ -136,7 +147,11 @@ _client: LLMClient | None = None
 def build_llm_client(settings) -> LLMClient:
     if settings.llm_provider == "openai_compatible":
         return OpenAICompatibleClient(
-            settings.llm_base_url, settings.llm_api_key, settings.llm_model, settings.llm_timeout_seconds
+            settings.llm_base_url,
+            settings.llm_api_key,
+            settings.llm_model,
+            settings.llm_timeout_seconds,
+            settings.llm_reasoning_effort,
         )
     if settings.llm_provider != "ollama":
         raise ValueError(

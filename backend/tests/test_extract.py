@@ -207,3 +207,18 @@ def test_provider_error_message_is_logged(monkeypatch, caplog):
     with pytest.raises(LLMUnavailable):
         OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", {})
     assert "does not exist" in caplog.text
+
+
+def test_reasoning_effort_is_sent_only_when_set(monkeypatch):
+    payloads = []
+
+    def fake_post(url, json, headers, timeout):
+        payloads.append(json)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    OpenAICompatibleClient("https://x", "k", "openai/gpt-oss-120b", 5, "low").chat_json("s", "u", {})
+    OpenAICompatibleClient("https://x", "k", "llama", 5).chat_json("s", "u", {})
+    assert payloads[0]["reasoning_effort"] == "low"
+    assert "reasoning_effort" not in payloads[1]
