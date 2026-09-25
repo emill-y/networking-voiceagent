@@ -29,11 +29,13 @@ def check_settings(settings) -> None:
     report("SUPABASE_URL", bool(settings.supabase_url), settings.supabase_url or "not set in backend/.env")
     url = settings.database_url or ""
     masked = re.sub(r":[^:@/]+@", ":****@", url) if url else "not set in backend/.env"
-    ok = bool(url) and "[YOUR-PASSWORD]" not in url
+    # postgresql://user:password@host — an empty password looks like "user:@host".
+    has_password = bool(re.search(r"://[^:/@]+:[^@]+@", url))
+    ok = bool(url) and "[YOUR-PASSWORD]" not in url and has_password
     if not url or ok:
         report("DATABASE_URL", ok, masked)
     else:
-        report("DATABASE_URL", False, f"{masked} (replace [YOUR-PASSWORD] with the database password)")
+        report("DATABASE_URL", False, f"{masked} (the database password is missing)")
     report("NOMI_DEV_AUTH", not settings.dev_auth, "off" if not settings.dev_auth else "ON (every request is the dev user)")
 
 
