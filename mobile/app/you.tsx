@@ -9,11 +9,14 @@ import { ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { localToday } from "@/lib/dates";
 import { colors, spacing, type } from "@/lib/theme";
-import { deleteAllData, exportData } from "@/services/nomi";
+import { useSession } from "@/hooks/useSession";
+import { supabase } from "@/lib/supabase";
+import { deleteAccount, deleteAllData, exportData } from "@/services/nomi";
 
 export default function You() {
   const router = useRouter();
-  const [busy, setBusy] = useState<"export" | "delete" | null>(null);
+  const { session } = useSession();
+  const [busy, setBusy] = useState<"export" | "delete" | "account" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   async function exportMemories() {
@@ -57,12 +60,32 @@ export default function You() {
     }
   }
 
+  async function removeAccount() {
+    const ok = await confirm(
+      "Delete your account?",
+      "Your account and every memory in it will be permanently deleted.",
+      "Delete account",
+    );
+    if (!ok) return;
+    setBusy("account");
+    try {
+      await deleteAccount();
+      await supabase?.auth.signOut();
+    } catch (e) {
+      setMessage(e instanceof ApiError ? e.message : "Couldn’t delete your account.");
+      setBusy(null);
+    }
+  }
+
+  const who = session?.user.email ?? session?.user.phone;
+
   return (
     <Screen>
       <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
         <Text style={type.meta}>Back</Text>
       </Pressable>
       <Text style={[type.display, styles.title]}>You</Text>
+      {who ? <Text style={[type.body, styles.who]}>Signed in as {who}</Text> : null}
 
       <Text style={type.label}>Your memories are yours</Text>
       <View style={styles.principles}>
@@ -75,9 +98,19 @@ export default function You() {
       <View style={styles.actions}>
         <Button title="Export my memories" variant="quiet" onPress={() => void exportMemories()}
           loading={busy === "export"} />
-        <Button title="Delete everything" variant="danger" onPress={() => void deleteEverything()}
+        <Button title="Delete all memories" variant="danger" onPress={() => void deleteEverything()}
           loading={busy === "delete"} />
       </View>
+      {session && (
+        <>
+          <Divider />
+          <View style={styles.actions}>
+            <Button title="Sign out" variant="quiet" onPress={() => void supabase?.auth.signOut()} />
+            <Button title="Delete my account" variant="danger" onPress={() => void removeAccount()}
+              loading={busy === "account"} />
+          </View>
+        </>
+      )}
       {message && <Text style={[type.meta, styles.message]}>{message}</Text>}
     </Screen>
   );
@@ -87,6 +120,11 @@ const styles = StyleSheet.create({
   title: {
     marginTop: spacing.xl,
     marginBottom: spacing.lg,
+  },
+  who: {
+    marginTop: -spacing.md,
+    marginBottom: spacing.lg,
+    color: colors.muted,
   },
   principles: {
     marginTop: spacing.md,

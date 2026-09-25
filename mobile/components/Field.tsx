@@ -8,7 +8,10 @@ type Props = {
   onChangeText: (value: string) => void;
   multiline?: boolean;
   hint?: string;
-} & Pick<TextInputProps, "autoCapitalize" | "keyboardType" | "placeholder" | "autoCorrect">;
+} & Pick<
+  TextInputProps,
+  "autoCapitalize" | "keyboardType" | "placeholder" | "autoCorrect" | "secureTextEntry" | "textContentType"
+>;
 
 // A labelled text input. Understated: surface contrast, no heavy borders.
 export function Field({ label, value, onChangeText, multiline, hint, ...rest }: Props) {

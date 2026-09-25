@@ -27,10 +27,35 @@ For a physical phone, copy `.env.example` to `.env.local` and set
 backend with `--host 0.0.0.0`, keep both devices on the same network, and
 restart Expo after changing `.env.local`.
 
+## Sign-in (Supabase)
+
+Copy `.env.example` to `.env.local` and set:
+
+```
+EXPO_PUBLIC_SUPABASE_URL=https://qebslfifekeswyesddpr.supabase.co
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+The publishable key is designed to ship inside apps: it can't read anything
+without a signed-in user's token. `.env.local` is still kept out of Git.
+
+People sign in with **email and password** or a **text-message code**. Phone
+codes need an SMS provider (Twilio, MessageBird, Vonage or TextLocal) set up in
+the Supabase dashboard under Authentication → Sign In / Providers → Phone.
+Until then, use email, or add test numbers with fixed codes there.
+
+`lib/supabase.ts` creates the client and keeps the session in AsyncStorage
+(localStorage on web). `hooks/useSession.tsx` tracks it, and `app/_layout.tsx`
+uses `Stack.Protected` so signed-out users only reach `/sign-in`. `lib/api.ts`
+attaches the access token to every backend request, and signs out if the
+backend rejects it. Without the two settings above, the app skips sign-in
+(local development; the backend then needs `NOMI_DEV_AUTH=true`).
+
 ## Screens
 
 | Route | File | What it does |
 | --- | --- | --- |
+| `/sign-in` | `app/sign-in.tsx` | Email/password or phone code |
 | `/` | `app/index.tsx` | Greeting, the mic, open follow-ups, recent people |
 | `/record` | `app/record.tsx` | Ask for mic permission, record (auto-stops at 3 min), listen back |
 | `/write` | `app/write.tsx` | Type a note instead of speaking |
@@ -40,7 +65,7 @@ restart Expo after changing `.env.local`.
 | `/people/[id]/edit` | `app/people/[id]/edit.tsx` | Edit details and contact info |
 | `/follow-ups` | `app/follow-ups.tsx` | Complete or dismiss commitments |
 | `/search` | `app/search.tsx` | Ask in plain language; results show why each person matched |
-| `/you` | `app/you.tsx` | Privacy promises, export your data, delete everything |
+| `/you` | `app/you.tsx` | Account, sign out, export, delete memories or the account |
 
 ## Code layout
 

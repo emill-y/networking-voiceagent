@@ -111,3 +111,7 @@ export function exportData() {
 export function deleteAllData() {
   return request<void>("/me/data", { method: "DELETE" });
 }
+
+export function deleteAccount() {
+  return request<void>("/me", { method: "DELETE" });
+}

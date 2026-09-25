@@ -40,7 +40,7 @@ python -m scripts.migrate --local-shim  # plain PostgreSQL
 ```
 
 With a hosted Supabase project, copy the connection string from
-Project Settings → Database. You can also apply `supabase/migrations/*.sql`
+Project Settings → Database (the password is a secret: keep it in `.env`). You can also apply `supabase/migrations/*.sql`
 with the Supabase CLI (`supabase db push`). `--local-shim` creates tiny
 stand-ins for Supabase's `auth` schema so the Row Level Security policies
 also work on plain Postgres. Never use it against Supabase.
@@ -73,6 +73,9 @@ JSON uses camelCase. Errors look like `{"detail": "message"}`.
 | POST | `/search` | `{query}` → people, each with the reasons it matched |
 | GET | `/me/export` | Everything you've saved, as JSON |
 | DELETE | `/me/data` | Permanently delete everything you've saved |
+| DELETE | `/me` | Delete your account and everything in it |
+
+All endpoints except `/health` require `Authorization: Bearer <Supabase access token>`.
 
 ## How it's organized
 
@@ -123,11 +126,18 @@ matching for names. One- or two-word queries skip the LLM, and if the model is
 down or returns invalid filters, search falls back to plain keywords. Each
 result carries short reasons drawn from stored evidence ("Looking for designers").
 
-**Users and security.** Every repository query filters by `user_id`, so ids from
-other users return 404. Row Level Security in the migration protects the tables
-if they're reached through Supabase's public API. Until Supabase Auth is wired
-in, `core/auth.py` returns a fixed development user, so do not expose this
-server publicly yet.
+**Sign-in and security** (`core/auth.py`). The app signs people in with
+Supabase Auth and sends the access token as `Authorization: Bearer <jwt>`.
+Every endpoint except `/health` verifies it: signature against your project's
+published keys (`SUPABASE_URL/auth/v1/.well-known/jwks.json`, or the legacy
+`SUPABASE_JWT_SECRET`), expiry, issuer and audience. The token's `sub` is the
+user id every query is scoped to, so other users' ids return 404. Row Level
+Security protects the tables if they're reached through Supabase's public API,
+and rows reference `auth.users` with `ON DELETE CASCADE`, so deleting an account
+(`DELETE /me`) deletes everything in it.
+
+For local development without Supabase, set `NOMI_DEV_AUTH=true`: every request
+then acts as one development user. Never enable it on a server others can reach.
 
 ## Tests
 

@@ -1,5 +1,7 @@
 import { Platform } from "react-native";
 
+import { getAccessToken, supabase } from "@/lib/supabase";
+
 // Backend base URL. See mobile/README.md for device-specific values.
 export const apiUrl = (
   process.env.EXPO_PUBLIC_API_URL?.trim() ||
@@ -29,18 +31,30 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
+  // Prove who we are: the signed-in user's Supabase access token.
+  const token = await getAccessToken();
+  const headers: Record<string, string> = {};
+  if (body !== undefined && !isForm) headers["Content-Type"] = "application/json";
+  if (token) headers.Authorization = `Bearer ${token}`;
+
   let response: Response;
   try {
     response = await fetch(`${apiUrl}${path}`, {
       method,
       signal: controller.signal,
-      headers: body !== undefined && !isForm ? { "Content-Type": "application/json" } : undefined,
+      headers,
       body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
     });
   } catch {
     throw new ApiError("Could not reach Nomi's backend.", null);
   } finally {
     clearTimeout(timeout);
+  }
+
+  // The backend no longer accepts this session: sign out, which returns
+  // the app to the sign-in screen.
+  if (response.status === 401 && token && supabase) {
+    void supabase.auth.signOut();
   }
 
   if (!response.ok) {

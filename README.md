@@ -46,13 +46,14 @@ ollama pull qwen3:4b        # Whisper small.en downloads on first transcription
 cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-cp .env.example .env         # then set DATABASE_URL
+cp .env.example .env         # then set DATABASE_URL (SUPABASE_URL is prefilled)
 python -m scripts.migrate    # add --local-shim for plain (non-Supabase) Postgres
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 
 # 3. App (new terminal)
 cd mobile
 npm ci
+cp .env.example .env.local   # then set EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 npm start
 ```
 
@@ -70,5 +71,7 @@ filters, with keyword fallback and "why it matched" reasons.
 Also: follow-up due dates ("next week" → a date), a grounded pre-meeting
 briefing on each profile, and data export / delete-everything.
 
-Not yet: Supabase Auth (every request currently acts as one development user —
-do not deploy publicly), personalization, integrations.
+Sign-in uses Supabase Auth (email/password or phone code); the API verifies
+every request's token.
+
+Not yet: personalization, integrations (including device contacts sync).
