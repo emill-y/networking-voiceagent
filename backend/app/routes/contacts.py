@@ -6,7 +6,14 @@ from psycopg import Connection
 from app.core.auth import get_current_user_id
 from app.core.db import get_db
 from app.repositories import contacts as repo
-from app.schemas.contacts import ContactDetail, ContactSummary, ContactUpdate
+from app.schemas.contacts import (
+    ContactDetail,
+    ContactSummary,
+    ContactUpdate,
+    ImportRequest,
+    ImportResponse,
+)
+from app.services.contact_import import import_people
 
 router = APIRouter()
 
@@ -31,6 +38,16 @@ def list_contacts(
     user_id: UUID = Depends(get_current_user_id),
 ):
     return repo.list_contacts(conn, user_id, limit)
+
+
+@router.post("/contacts/import", response_model=ImportResponse)
+def import_contacts(
+    body: ImportRequest,
+    conn: Connection = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    """Add people the user picked from their phone's address book."""
+    return import_people(conn, user_id, body.people)
 
 
 @router.get("/contacts/{contact_id}", response_model=ContactDetail)

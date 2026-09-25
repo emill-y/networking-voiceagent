@@ -41,7 +41,8 @@ def list_contacts(conn: Connection, user_id: UUID, limit: int | None = 50) -> li
     """Most recently seen first. limit=None returns everyone."""
     return conn.execute(
         """
-        select c.id, c.name, c.company, c.role, c.school, c.last_interaction_at,
+        select c.id, c.name, c.company, c.role, c.school, c.email, c.phone,
+               c.last_interaction_at,
                (select i.event from interactions i
                  where i.contact_id = c.id
                  order by i.interaction_date desc limit 1) as last_event,
@@ -59,7 +60,7 @@ def list_contacts(conn: Connection, user_id: UUID, limit: int | None = 50) -> li
 def list_identity_fields(conn: Connection, user_id: UUID) -> list[Row]:
     """The fields duplicate detection compares against."""
     return conn.execute(
-        "select id, name, company, role, school, last_interaction_at "
+        "select id, name, company, role, school, email, phone, last_interaction_at "
         "from contacts where user_id = %s",
         (user_id,),
     ).fetchall()
@@ -75,13 +76,14 @@ def get_contact(conn: Connection, user_id: UUID, contact_id: UUID) -> Row | None
 def create_contact(conn: Connection, user_id: UUID, fields: dict[str, Any]) -> UUID:
     row = conn.execute(
         """
-        insert into contacts (user_id, name, company, role, school, major, location)
-        values (%s, %s, %s, %s, %s, %s, %s)
+        insert into contacts (user_id, name, company, role, school, major, location, email, phone)
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         returning id
         """,
         (
             user_id, fields["name"], fields.get("company"), fields.get("role"),
             fields.get("school"), fields.get("major"), fields.get("location"),
+            fields.get("email"), fields.get("phone"),
         ),
     ).fetchone()
     return row["id"]

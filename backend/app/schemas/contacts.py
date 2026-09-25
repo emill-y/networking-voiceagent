@@ -126,6 +126,8 @@ class ContactSummary(ApiModel):
     company: str | None
     role: str | None
     school: str | None
+    email: str | None = None
+    phone: str | None = None
     last_interaction_at: datetime | None
     last_event: str | None
     open_follow_ups: int
@@ -176,6 +178,29 @@ class ContactDetail(ApiModel):
     created_at: datetime
     interactions: list[Interaction]
     follow_ups: list[FollowUp]
+
+
+# ---------- Import from the phone's address book ----------
+
+
+class ImportedPerson(_BlankToNone):
+    # Set when the app matched this address-book entry to someone in Nomi.
+    contact_id: UUID | None = None
+    name: Name
+    company: ShortText | None = None
+    role: ShortText | None = None
+    email: ShortText | None = None
+    phone: ShortText | None = None
+
+
+class ImportRequest(ApiModel):
+    people: Annotated[list[ImportedPerson], Field(min_length=1, max_length=500)]
+
+
+class ImportResponse(ApiModel):
+    created: int
+    updated: int
+    unchanged: int
 
 
 # ---------- Duplicate check ----------
