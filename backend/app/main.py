@@ -1,17 +1,31 @@
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-# Disable generated documentation routes so /health is the only endpoint.
-app = FastAPI(openapi_url=None)
+from app.core.config import get_settings
+from app.routes import account, captures, contacts, extract, follow_ups, health, search, transcribe
 
-# Allow the Expo web preview to read the health response in a browser.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+
+settings = get_settings()
+
+# Generated docs stay disabled; the API surface is documented in backend/README.md.
+app = FastAPI(title="Nomi", openapi_url=None)
+
+# Browsers (the Expo web preview) need CORS; native apps do not.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8081", "http://127.0.0.1:8081"],
-    allow_methods=["GET"],
+    allow_origins=settings.cors_origins,
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
-
-@app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+app.include_router(health.router)
+app.include_router(transcribe.router)
+app.include_router(extract.router)
+app.include_router(captures.router)
+app.include_router(contacts.router)
+app.include_router(follow_ups.router)
+app.include_router(search.router)
+app.include_router(account.router)

@@ -1,157 +1,193 @@
-import { useEffect, useState } from "react";
-import { Button, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-const apiUrl = (
-  process.env.EXPO_PUBLIC_API_URL?.trim() ||
-  (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000")
-).replace(/\/+$/, "");
+import { Divider } from "@/components/Divider";
+import { MicButton } from "@/components/MicButton";
+import { PersonRow } from "@/components/PersonRow";
+import { Screen } from "@/components/Screen";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { contactsSupported } from "@/lib/deviceContacts";
+import { subtitle } from "@/lib/memory";
+import { colors, spacing, type } from "@/lib/theme";
+import { listContacts, listFollowUps } from "@/services/nomi";
+import type { ContactSummary, FollowUp } from "@/types/api";
 
-const connectionMessages = {
-  checking: "Connecting to backend…",
-  connected: "Backend connected",
-  error: "Could not connect to backend",
-};
+const RECENT_COUNT = 5;
 
-export default function Index() {
-  const [connection, setConnection] =
-    useState<keyof typeof connectionMessages>("checking");
-  const [attempt, setAttempt] = useState(0);
+function greeting(date = new Date()): string {
+  const hour = date.getHours();
+  if (hour < 5) return "Good night";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    setConnection("checking");
+export default function Home() {
+  const router = useRouter();
+  const health = useBackendHealth();
+  const [people, setPeople] = useState<ContactSummary[] | null>(null);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
 
-    async function checkHealth() {
-      try {
-        const response = await fetch(`${apiUrl}/health`, {
-          method: "GET",
-          signal: controller.signal,
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all([listContacts(), listFollowUps("open")])
+        .then(([contacts, open]) => {
+          if (!active) return;
+          setPeople(contacts);
+          setFollowUps(open);
+        })
+        .catch(() => {
+          if (active) setPeople((current) => current ?? []);
         });
-        if (!response.ok) {
-          throw new Error(`Health request failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data?.status !== "ok") {
-          throw new Error("Unexpected health response");
-        }
-
-        if (active) setConnection("connected");
-      } catch {
-        if (active) setConnection("error");
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-
-    void checkHealth();
-
-    return () => {
-      active = false;
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [attempt]);
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.connectionSection}>
-          <Text style={styles.connectionStatus} accessibilityLiveRegion="polite">
-            {connectionMessages[connection]}
-          </Text>
-          {connection === "error" && (
-            <Button
-              title="Retry connection"
-              onPress={() => setAttempt((previous) => previous + 1)}
-            />
+    <Screen>
+      <View style={styles.topBar}>
+        <Text style={styles.wordmark}>Nomi</Text>
+        <View style={styles.nav}>
+          {people && people.length > 0 && (
+            <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
+              <Text style={type.meta}>Search</Text>
+            </Pressable>
           )}
-        </View>
-
-        <Text style={styles.prompt}>Who did you meet?</Text>
-
-        <Pressable
-          style={styles.micButton}
-          disabled
-          accessibilityRole="button"
-          accessibilityLabel="Microphone (coming soon)"
-          accessibilityState={{ disabled: true }}
-        >
-          <Text style={styles.micIcon}>🎙</Text>
-        </Pressable>
-
-        <Text style={styles.hint}>Recording coming soon</Text>
-
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Recent Contacts</Text>
-          <Text style={styles.placeholder}>No contacts yet</Text>
+          <Pressable onPress={() => router.push("/you")} accessibilityRole="button" hitSlop={12}>
+            <Text style={type.meta}>You</Text>
+          </Pressable>
         </View>
       </View>
-    </SafeAreaView>
+
+      <View style={styles.hero}>
+        <Text style={type.meta}>{greeting()}</Text>
+        <Text style={[type.display, styles.prompt]}>Who did you meet?</Text>
+
+        <MicButton
+          onPress={() => router.push("/record")}
+          accessibilityLabel="Record a new memory"
+        />
+        <Text style={[type.meta, styles.hint]}>Tap to record</Text>
+      </View>
+
+      {health.state === "error" && (
+        <Pressable onPress={health.retry} accessibilityRole="button" style={styles.offline}>
+          <Text style={[type.meta, styles.offlineText]}>
+            Can’t reach Nomi’s backend. Tap to retry.
+          </Text>
+        </Pressable>
+      )}
+
+      {followUps.length > 0 && (
+        <>
+          <Divider />
+          <Pressable onPress={() => router.push("/follow-ups")} accessibilityRole="button">
+            <Text style={type.label}>Follow-ups</Text>
+            <Text style={[type.heading, styles.followUpCount]}>
+              {followUps.length === 1 ? "1 thing to remember" : `${followUps.length} things to remember`}
+            </Text>
+            <Text style={type.meta} numberOfLines={1}>
+              {followUps[0].action} · {followUps[0].contactName}
+            </Text>
+          </Pressable>
+        </>
+      )}
+
+      <Divider />
+
+      <View style={styles.sectionHeader}>
+        <Text style={type.label}>Recent people</Text>
+        {people && people.length > 0 && (
+          <Pressable onPress={() => router.push("/people")} accessibilityRole="button" hitSlop={8}>
+            <Text style={type.meta}>See all</Text>
+          </Pressable>
+        )}
+      </View>
+      {people && people.length === 0 && (
+        <>
+          <Text style={[type.body, styles.empty]}>
+            No one yet. The people you meet will gather here.
+          </Text>
+          {contactsSupported && (
+            <Pressable onPress={() => router.push("/import-contacts")} accessibilityRole="button" hitSlop={8}>
+              <Text style={[type.meta, styles.importLink]}>Or bring in people from your contacts</Text>
+            </Pressable>
+          )}
+        </>
+      )}
+      <View style={styles.list}>
+        {people?.slice(0, RECENT_COUNT).map((person) => (
+          <PersonRow
+            key={person.id}
+            name={person.name}
+            detail={subtitle(person) || person.lastEvent || person.school}
+            when={person.lastInteractionAt}
+            onPress={() => router.push({ pathname: "/people/[id]", params: { id: person.id } })}
+          />
+        ))}
+      </View>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-  },
-  container: {
-    flex: 1,
-    width: "100%",
-    maxWidth: 480,
-    alignSelf: "center",
+  topBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 48,
+  },
+  nav: {
+    flexDirection: "row",
+    gap: spacing.lg,
+  },
+  wordmark: {
+    ...type.heading,
+    color: colors.muted,
+    letterSpacing: 1,
+  },
+  hero: {
+    alignItems: "center",
+    paddingTop: spacing.xl,
   },
   prompt: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: "#111111",
-    marginBottom: 40,
-  },
-  connectionSection: {
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 24,
-  },
-  connectionStatus: {
-    fontSize: 15,
-    color: "#333333",
     textAlign: "center",
-  },
-  micButton: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#666666",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  micIcon: {
-    fontSize: 36,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
   },
   hint: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#333333",
+    marginTop: spacing.xs,
   },
-  recentSection: {
-    marginTop: 56,
-    alignSelf: "stretch",
+  offline: {
+    marginTop: spacing.lg,
+    alignSelf: "center",
+    paddingVertical: spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111111",
-    marginBottom: 12,
+  offlineText: {
+    color: colors.danger,
+    textAlign: "center",
   },
-  placeholder: {
-    fontSize: 15,
-    color: "#888888",
+  followUpCount: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  empty: {
+    marginTop: spacing.sm,
+    color: colors.muted,
+  },
+  list: {
+    marginTop: spacing.sm,
+  },
+  importLink: {
+    marginTop: spacing.md,
+    color: colors.accent,
   },
 });
