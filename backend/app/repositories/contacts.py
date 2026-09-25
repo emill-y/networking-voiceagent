@@ -37,7 +37,8 @@ FOLLOW_UP_SELECT = """
 # ---------- Contacts ----------
 
 
-def list_contacts(conn: Connection, user_id: UUID, limit: int = 50) -> list[Row]:
+def list_contacts(conn: Connection, user_id: UUID, limit: int | None = 50) -> list[Row]:
+    """Most recently seen first. limit=None returns everyone."""
     return conn.execute(
         """
         select c.id, c.name, c.company, c.role, c.school, c.last_interaction_at,

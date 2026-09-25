@@ -65,6 +65,8 @@ JSON uses camelCase. Errors look like `{"detail": "message"}`.
 | GET / POST | `/follow-ups` | List (`?status=open`) or add |
 | PATCH | `/follow-ups/{id}` | Edit, complete (`status: done`), or dismiss |
 | POST | `/search` | `{query}` → people, each with the reasons it matched |
+| GET | `/me/export` | Everything you've saved, as JSON |
+| DELETE | `/me/data` | Permanently delete everything you've saved |
 
 ## How it's organized
 
