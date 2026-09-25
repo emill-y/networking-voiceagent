@@ -7,12 +7,16 @@ Two interchangeable implementations of `Transcriber`:
 
 - `WhisperTranscriber` runs faster-whisper locally. The model is large and
   slow to load, so it is loaded once, lazily, and reused.
+- `OpenAICompatibleTranscriber` sends the audio to a hosted Whisper that
+  speaks OpenAI's /audio/transcriptions format (Groq by default). Fast
+  (about a second) and uses the same key as the language model.
 - `HuggingFaceTranscriber` sends the audio to a hosted Whisper through
   Hugging Face Inference Providers. Faster on a laptop, but the recording
   leaves your machine, so it is opt-in (TRANSCRIPTION_PROVIDER=huggingface).
 """
 
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -177,10 +181,49 @@ class HuggingFaceTranscriber:
         )
 
 
+class OpenAICompatibleTranscriber:
+    def __init__(self, base_url: str, api_key: str | None, model: str, timeout_seconds: float = 60) -> None:
+        self._url = f"{base_url}/audio/transcriptions"
+        self._api_key = api_key
+        self._model = model
+        self._timeout = timeout_seconds
+
+    def transcribe(self, audio_path: str) -> Transcript:
+        import httpx
+
+        started = time.perf_counter()
+        # Decode locally first: rejects bad files before uploading, and gives the duration.
+        audio = decode_audio(audio_path)
+        if not self._api_key:
+            raise TranscriptionUnavailable("LLM_API_KEY is not set for hosted transcription.")
+        try:
+            with open(audio_path, "rb") as file:
+                response = httpx.post(
+                    self._url,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    data={"model": self._model, "language": "en", "response_format": "json", "temperature": "0"},
+                    files={"file": (os.path.basename(audio_path), file)},
+                    timeout=self._timeout,
+                )
+            response.raise_for_status()
+            text = response.json()["text"]
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            logger.warning("Hosted transcription failed (%s, status %s)", type(exc).__name__, status)
+            raise TranscriptionUnavailable(f"Hosted transcription ({self._model}) is unavailable.") from exc
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        audio_seconds = round(audio.size / SAMPLE_RATE, 2)
+        logger.info("Hosted transcription of %.1fs took %dms", audio_seconds, latency_ms)
+        return Transcript(text=(text or "").strip(), language="en",
+                          audio_seconds=audio_seconds, latency_ms=latency_ms)
+
+
 _transcriber: Transcriber | None = None
 
 
 def build_transcriber(settings) -> Transcriber:
+    if settings.transcription_provider == "openai_compatible":
+        return OpenAICompatibleTranscriber(settings.llm_base_url, settings.llm_api_key, settings.stt_model)
     if settings.transcription_provider == "huggingface":
         return HuggingFaceTranscriber(
             settings.hf_token, settings.hf_inference_provider, settings.hf_asr_model
@@ -188,7 +231,7 @@ def build_transcriber(settings) -> Transcriber:
     if settings.transcription_provider != "local":
         raise ValueError(
             f"Unknown TRANSCRIPTION_PROVIDER '{settings.transcription_provider}' "
-            "(use 'local' or 'huggingface')."
+            "(use 'local', 'openai_compatible' or 'huggingface')."
         )
     return WhisperTranscriber(
         settings.whisper_model, settings.whisper_device, settings.whisper_compute_type

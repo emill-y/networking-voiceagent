@@ -122,6 +122,11 @@ def check_ollama(settings) -> None:
 
 
 def check_transcription(settings) -> None:
+    if settings.transcription_provider == "openai_compatible":
+        ok = bool(settings.llm_api_key)
+        report("Speech-to-text", ok, f"hosted {settings.stt_model} at {settings.llm_base_url}"
+               if ok else "TRANSCRIPTION_PROVIDER=openai_compatible needs LLM_API_KEY")
+        return
     if settings.transcription_provider == "huggingface":
         report("Speech-to-text", bool(settings.hf_token),
                "Hugging Face" + ("" if settings.hf_token else ": set HF_TOKEN"))

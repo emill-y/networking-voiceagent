@@ -28,9 +28,11 @@ def _csv(value: str) -> list[str]:
 
 @dataclass(frozen=True)
 class Settings:
-    # Speech-to-text. "local" = faster-whisper on this machine;
-    # "huggingface" = Hugging Face Inference Providers (audio leaves the machine).
+    # Speech-to-text on the server (the app transcribes on the phone when it can).
+    # "local" = faster-whisper on this machine; "openai_compatible" = hosted
+    # Whisper at LLM_BASE_URL (e.g. Groq); "huggingface" = HF Inference Providers.
     transcription_provider: str = "local"
+    stt_model: str = "whisper-large-v3"
     hf_token: str | None = None
     hf_inference_provider: str = "fal-ai"
     hf_asr_model: str = "openai/whisper-large-v3"
@@ -74,6 +76,7 @@ def get_settings() -> Settings:
     env = os.environ
     return Settings(
         transcription_provider=env.get("TRANSCRIPTION_PROVIDER", "local").strip().lower(),
+        stt_model=env.get("STT_MODEL", "whisper-large-v3"),
         hf_token=env.get("HF_TOKEN") or None,
         hf_inference_provider=env.get("HF_INFERENCE_PROVIDER", "fal-ai"),
         hf_asr_model=env.get("HF_ASR_MODEL", "openai/whisper-large-v3"),
