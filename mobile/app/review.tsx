@@ -53,7 +53,7 @@ function describe(error: unknown): string {
 export default function Review() {
   const router = useRouter();
   // `uri` comes from the record screen; `transcript` lets you type a note instead.
-  const params = useLocalSearchParams<{ uri?: string; transcript?: string }>();
+  const params = useLocalSearchParams<{ uri?: string; transcript?: string; source?: string }>();
   const [stage, setStage] = useState<Stage>(params.transcript ? "extracting" : "transcribing");
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState(params.transcript ?? "");
@@ -127,7 +127,7 @@ export default function Review() {
       const { saved } = await saveCapture(
         transcript || null,
         included.map(toCapturedPerson),
-        params.uri ? "voice" : "manual",
+        params.uri || params.source === "voice" ? "voice" : "manual",
       );
       if (saved.length === 1) {
         router.replace({ pathname: "/people/[id]", params: { id: saved[0].contactId } });

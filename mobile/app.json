@@ -51,7 +51,14 @@
           "contactsPermission": "Nomi lets you choose people from your contacts to remember. Your address book stays on your phone."
         }
       ],
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Nomi uses the microphone only while you record a note about someone you met.",
+          "speechRecognitionPermission": "Nomi turns your spoken notes into text, on your iPhone whenever possible."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
