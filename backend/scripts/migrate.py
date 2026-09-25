@@ -29,6 +29,9 @@ def apply_migrations(url: str, local_shim: bool = False) -> list[str]:
             "create table if not exists public.nomi_migrations ("
             " name text primary key, applied_at timestamptz not null default now())"
         )
+        # Supabase exposes public tables through its API; RLS with no policies
+        # makes this bookkeeping table invisible there.
+        conn.execute("alter table public.nomi_migrations enable row level security")
         done = {row[0] for row in conn.execute("select name from public.nomi_migrations")}
         for path in sorted(MIGRATIONS_DIR.glob("*.sql")):
             if path.name in done:
