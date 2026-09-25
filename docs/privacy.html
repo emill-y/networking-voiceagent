@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<title>Nomi · Privacy</title>
+</head>
+<body><main>
+<a class="wordmark" href="./">Nomi</a>
+<h1>Privacy</h1>
+<p class="meta">Last updated: September 25, 2026</p>
+
+<p>Nomi exists to help you remember people, so it holds personal information about you and about the people you meet. We treat that as a responsibility. In short: you decide what goes in, it's only used to provide Nomi to you, we never sell it or use it for ads, and you can delete all of it at any time.</p>
+
+<h2>What we collect</h2>
+<ul>
+<li><strong>Your account.</strong> Your email address, and your name if you sign in with Apple and choose to share it. Sign-in is handled by Supabase.</li>
+<li><strong>What you save.</strong> The notes you record or type about people you meet: their names and details, what you talked about, follow-ups, and the text of your notes.</li>
+<li><strong>Contacts you choose.</strong> If you import from your phone's contacts, only the people you select (name, company, job title, phone number and email) are sent to Nomi. Your address book is read and matched on your phone and is never uploaded as a whole.</li>
+</ul>
+<p>We don't collect your location, don't use advertising or tracking SDKs, and don't build profiles about you for anyone else.</p>
+
+<h2>Your voice</h2>
+<p>Nomi only listens while you're recording, and shows that it's listening. Speech is turned into text on your iPhone using Apple's speech recognition. On devices that support it, this happens entirely on the phone; on older devices, Apple may process the audio under <a href="https://www.apple.com/legal/privacy/">Apple's privacy policy</a>. Nomi does not store your recordings.</p>
+<p>In the rare cases where on-phone transcription isn't available, the recording is sent to our server, transcribed by our speech-recognition provider, and deleted as soon as the text is returned.</p>
+
+<h2>How your notes are processed</h2>
+<p>To pull out names, details and follow-ups, the text of a note is sent to our AI provider (currently Groq, Inc.) and the structured result is shown to you to confirm. Nothing is saved until you confirm it. Searching your people in plain language sends the question the same way. We use the provider only to process your request, not to train models on your notes.</p>
+
+<h2>Where it's stored</h2>
+<p>Your account and memories are stored with Supabase (hosted PostgreSQL in Canada), protected by row-level security so each account can only ever read its own data. Our API runs on Google Cloud. Data is encrypted in transit (HTTPS) and at rest by these providers.</p>
+
+<h2>What we never do</h2>
+<ul>
+<li>Sell or rent your data, or share it for advertising.</li>
+<li>Look people up or enrich their profiles behind your back.</li>
+<li>Contact anyone on your behalf. Call, Text and Email buttons open your phone's own apps.</li>
+<li>Record in the background.</li>
+</ul>
+
+<h2>Your choices</h2>
+<ul>
+<li><strong>Edit or delete</strong> any person or moment in the app.</li>
+<li><strong>Export</strong> everything: <em>You → Export my memories</em>.</li>
+<li><strong>Delete your account</strong>: <em>You → Delete my account</em>. This permanently removes your account and everything in it.</li>
+<li>Turn off microphone, speech recognition or contacts access at any time in iOS Settings.</li>
+</ul>
+
+<h2>Children</h2>
+<p>Nomi isn't directed to children under 13, and we don't knowingly collect their information.</p>
+
+<h2>Changes and contact</h2>
+<p>If this policy changes in a meaningful way we'll update the date above and tell you in the app. Questions: <a href="mailto:SUPPORT_EMAIL">SUPPORT_EMAIL</a>.</p>
+</main></body>
+</html>

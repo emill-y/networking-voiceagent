@@ -121,7 +121,15 @@ spacing, radii and type styles. Cormorant Garamond is used for names and titles
 (memory and emotion); the platform sans-serif for everything functional. Screens
 use these tokens rather than raw colors.
 
-**Recording.** `expo-audio`'s `useAudioRecorder` records AAC (`.m4a`) on iOS
+**Recording.** In real builds (development, TestFlight, App Store), the
+record screen (`components/LiveCapture.tsx`) uses on-device speech recognition
+via `expo-speech-recognition`: words appear live, and the transcript is ready the
+moment you stop. Expo Go doesn't include that native module, so there, and on
+web, the app falls back to `components/AudioCapture.tsx`, described next. To
+test live transcription, build the development app (`eas build --profile
+development`; see `DEPLOY.md`).
+
+**Fallback recording.** `expo-audio`'s `useAudioRecorder` records AAC (`.m4a`) on iOS
 and Android and WebM in browsers. Audio stays on the device until you tap
 "Remember this"; the backend deletes it right after transcribing. Background
 recording is disabled in `app.json`.

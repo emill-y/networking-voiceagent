@@ -21,12 +21,16 @@ networking-voiceagent/
 ## How a memory is made
 
 ```
-tap mic ─► record (expo-audio) ─► POST /transcribe ─► faster-whisper ─► transcript
-                                                                          │
-review & edit ◄─ POST /duplicate-check ◄─ people ◄─ Qwen3 via Ollama ◄─ POST /extract
+tap mic ─► on-device speech recognition (live transcript as you talk)
+                                                     │
+review & edit ◄─ POST /duplicate-check ◄─ people ◄─ POST /extract (hosted LLM, e.g. Groq)
       │
-      └─► POST /captures ─► contacts + interactions + follow_ups (PostgreSQL)
+      └─► POST /captures ─► contacts + interactions + follow_ups (Supabase Postgres)
 ```
+
+Where on-device recognition isn't available (Expo Go, web), the app records
+audio and the backend transcribes it (`POST /transcribe`). In development the
+backend can run everything locally: faster-whisper and Qwen3 via Ollama.
 
 Every stage is its own request, so each can be tested and can fail on its own
 with a clear message. The LLM never writes to the database: its output is
@@ -58,6 +62,9 @@ npm start
 ```
 
 Details: [backend/README.md](backend/README.md) · [mobile/README.md](mobile/README.md)
+
+**Shipping to the App Store:** see [DEPLOY.md](DEPLOY.md). It covers hosting the API,
+fast hosted AI, the privacy policy, EAS builds and App Store submission.
 
 ## Status
 
