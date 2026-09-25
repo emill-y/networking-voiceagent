@@ -6,6 +6,7 @@ Nothing here writes to the database; the user confirms first.
 """
 
 import logging
+from datetime import date
 
 from pydantic import ValidationError
 
@@ -14,6 +15,7 @@ from app.schemas.extraction import (
     ContactExtractionResult,
     ExtractedPerson,
 )
+from app.services.dates import resolve_due_date
 from app.services.llm import LLMClient
 
 logger = logging.getLogger(__name__)
@@ -71,14 +73,20 @@ def clean_person(person: ExtractedPerson) -> ExtractedPerson | None:
     """
     data = {}
     for field_name, value in person:
-        data[field_name] = _clean_list(value) if isinstance(value, list) else _clean_text(value)
+        if isinstance(value, list):
+            data[field_name] = _clean_list(value)
+        elif isinstance(value, str) or value is None:
+            data[field_name] = _clean_text(value)
+        else:
+            data[field_name] = value
     cleaned = ExtractedPerson(**data)
     if not any(v for _, v in cleaned):
         return None
     return cleaned
 
 
-def extract_people(transcript: str, llm: LLMClient) -> ContactExtractionResult:
+def extract_people(transcript: str, llm: LLMClient, today: date | None = None) -> ContactExtractionResult:
+    today = today or date.today()
     user_message = f"Voice note transcript:\n\"\"\"\n{transcript.strip()}\n\"\"\""
     last_error: Exception | None = None
 
@@ -92,6 +100,8 @@ def extract_people(transcript: str, llm: LLMClient) -> ContactExtractionResult:
             last_error = exc
             continue
         people = [p for p in (clean_person(person) for person in parsed.people) if p]
+        for person in people:
+            person.follow_up_due = resolve_due_date(person.follow_up, today)
         return ContactExtractionResult(people=people)
 
     raise ExtractionFailed("The model returned output that didn't match the schema.") from last_error

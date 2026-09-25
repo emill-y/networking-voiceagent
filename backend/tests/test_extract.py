@@ -50,6 +50,7 @@ def test_extracts_and_cleans_people(client):
     assert person["notes"] == ["sophomore"]  # blanks dropped
     assert person["topicsDiscussed"] == ["Magic Hour"]
     assert person["followUp"] == "Reach out next week"
+    assert person["followUpDue"] is None or len(person["followUpDue"]) == 10
     assert fake.calls[0]["schema"] is EXTRACTION_JSON_SCHEMA
     assert "Jason Chen" in fake.calls[0]["user"]
 
@@ -127,3 +128,11 @@ def test_ollama_client_connection_error(monkeypatch):
     monkeypatch.setattr(llm_module.httpx, "post", fake_post)
     with pytest.raises(LLMUnavailable):
         OllamaClient("http://ollama:11434", "qwen3:4b", 5).chat_json("s", "u", {})
+
+
+def test_follow_up_due_uses_the_callers_date(client):
+    use(FakeLLM(json.dumps({"people": [JASON]})))
+    response = client.post(
+        "/extract", json={"transcript": "I met Jason Chen.", "today": "2026-09-24"}
+    )
+    assert response.json()["people"][0]["followUpDue"] == "2026-09-28"

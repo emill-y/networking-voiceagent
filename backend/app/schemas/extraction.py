@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import Field
 
 from app.schemas.base import ApiModel
@@ -17,6 +19,8 @@ class ExtractedPerson(ApiModel):
     topics_discussed: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
     follow_up: str | None = None
+    # Resolved by the backend from follow_up's wording, not by the model.
+    follow_up_due: date | None = None
 
 
 class ContactExtractionResult(ApiModel):
@@ -25,6 +29,8 @@ class ContactExtractionResult(ApiModel):
 
 class ExtractionRequest(ApiModel):
     transcript: str = Field(min_length=1, max_length=20_000)
+    # The user's local date, so "next week" means their next week.
+    today: date | None = None
 
 
 def _nullable_string(description: str) -> dict:

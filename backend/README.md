@@ -91,6 +91,12 @@ rather than structured fields. The reply is validated with Pydantic (one retry),
 cleaned (whitespace, placeholders, duplicates), and returned for review. The LLM
 sits behind an `LLMClient` interface so the model or provider can change.
 
+**Due dates** (`services/dates.py`). After extraction, the follow-up's wording
+("next week", "by Friday", "in two weeks") is turned into a date with a small
+deterministic parser, relative to the phone's local date sent as `today`.
+Language models are unreliable at calendar arithmetic, so the model only
+supplies the words; unknown phrasing gives no date rather than a wrong one.
+
 **Identity** (`services/identity.py`). Suggests "is this the Jason you met
 before?" from normalized names, with company or school as supporting evidence.
 Strong matches must be answered in the app; nothing merges automatically.

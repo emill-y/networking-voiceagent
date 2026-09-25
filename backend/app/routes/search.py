@@ -20,7 +20,7 @@ def search(
     user_id: UUID = Depends(get_current_user_id),
     llm: LLMClient = Depends(get_llm_client),
 ) -> SearchResponse:
-    filters, interpreted = interpret(body.query, llm, date.today())
+    filters, interpreted = interpret(body.query, llm, body.today or date.today())
     return SearchResponse(
         filters=filters, interpreted=interpreted, results=run_search(conn, user_id, filters)
     )

@@ -11,6 +11,8 @@ Term = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 
 class SearchRequest(ApiModel):
     query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+    # The user's local date, for phrases like "last two weeks".
+    today: date | None = None
 
 
 class SearchFilters(ApiModel):

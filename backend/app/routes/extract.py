@@ -13,7 +13,7 @@ def extract(
     llm: LLMClient = Depends(get_llm_client),
 ) -> ContactExtractionResult:
     try:
-        return extract_people(body.transcript, llm)
+        return extract_people(body.transcript, llm, body.today)
     except LLMUnavailable as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
     except ExtractionFailed as exc:
