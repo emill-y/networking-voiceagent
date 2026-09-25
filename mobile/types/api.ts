@@ -21,6 +21,7 @@ export type ExtractedPerson = {
   topicsDiscussed: string[];
   notes: string[];
   followUp: string | null;
+  followUpDue: string | null; // "YYYY-MM-DD", resolved by the backend
 };
 
 export type ContactExtractionResult = {

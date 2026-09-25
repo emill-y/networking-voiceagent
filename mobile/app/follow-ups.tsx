@@ -5,10 +5,19 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 import { Divider } from "@/components/Divider";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
+import { dueGroup, type DueGroup } from "@/lib/dates";
 import { formatRelative, formatShortDate } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { listFollowUps, updateFollowUp } from "@/services/nomi";
 import type { FollowUp, FollowUpStatus } from "@/types/api";
+
+const GROUPS: { key: DueGroup; label: string }[] = [
+  { key: "overdue", label: "Overdue" },
+  { key: "today", label: "Today" },
+  { key: "week", label: "This week" },
+  { key: "later", label: "Later" },
+  { key: "none", label: "Anytime" },
+];
 
 export default function FollowUps() {
   const router = useRouter();
@@ -51,11 +60,20 @@ export default function FollowUps() {
           {open.length === 0 && (
             <Text style={[type.body, styles.muted]}>Nothing waiting on you. Nicely done.</Text>
           )}
-          {open.map((item) => (
-            <Row key={item.id} item={item} onToggle={() => void setStatus(item, "done")}
-              onDismiss={() => void setStatus(item, "dismissed")}
-              onOpenPerson={() => router.push({ pathname: "/people/[id]", params: { id: item.contactId } })} />
-          ))}
+          {GROUPS.map(({ key, label }) => {
+            const inGroup = open.filter((item) => dueGroup(item.dueAt) === key);
+            if (inGroup.length === 0) return null;
+            return (
+              <View key={key} style={styles.group}>
+                <Text style={[type.label, key === "overdue" && styles.overdue]}>{label}</Text>
+                {inGroup.map((item) => (
+                  <Row key={item.id} item={item} onToggle={() => void setStatus(item, "done")}
+                    onDismiss={() => void setStatus(item, "dismissed")}
+                    onOpenPerson={() => router.push({ pathname: "/people/[id]", params: { id: item.contactId } })} />
+                ))}
+              </View>
+            );
+          })}
           {done.length > 0 && (
             <>
               <Divider />
@@ -123,6 +141,12 @@ const styles = StyleSheet.create({
   },
   muted: {
     color: colors.muted,
+  },
+  group: {
+    marginBottom: spacing.lg,
+  },
+  overdue: {
+    color: colors.danger,
   },
   row: {
     flexDirection: "row",

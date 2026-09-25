@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Divider } from "@/components/Divider";
@@ -11,7 +11,7 @@ import { confirm } from "@/lib/confirm";
 import { formatRelative, formatShortDate } from "@/lib/format";
 import { memoryLines, subtitle } from "@/lib/memory";
 import { colors, spacing, type } from "@/lib/theme";
-import { deleteContact, deleteInteraction, getContact, updateFollowUp } from "@/services/nomi";
+import { createFollowUp, deleteContact, deleteInteraction, getContact, updateFollowUp } from "@/services/nomi";
 import type { ContactDetail, FollowUp } from "@/types/api";
 
 export default function Person() {
@@ -20,6 +20,7 @@ export default function Person() {
   const [person, setPerson] = useState<ContactDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [newFollowUp, setNewFollowUp] = useState("");
 
   const load = useCallback(() => {
     getContact(id)
@@ -35,6 +36,14 @@ export default function Person() {
 
   async function toggleFollowUp(followUp: FollowUp) {
     await updateFollowUp(followUp.id, { status: followUp.status === "open" ? "done" : "open" });
+    load();
+  }
+
+  async function addFollowUp() {
+    const action = newFollowUp.trim();
+    if (!action || !person) return;
+    setNewFollowUp("");
+    await createFollowUp(person.id, action);
     load();
   }
 
@@ -115,28 +124,40 @@ export default function Person() {
         </>
       )}
 
-      {openFollowUps.length + doneFollowUps.length > 0 && (
-        <>
-          <Divider />
-          <Text style={type.label}>Follow up</Text>
-          <View style={styles.lines}>
-            {[...openFollowUps, ...doneFollowUps].map((f) => (
-              <Pressable
-                key={f.id}
-                onPress={() => void toggleFollowUp(f)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: f.status === "done" }}
-                style={styles.followUp}
-              >
-                <View style={[styles.check, f.status === "done" && styles.checkDone]} />
-                <Text style={[type.body, styles.followUpText, f.status === "done" && styles.done]}>
-                  {f.action}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </>
-      )}
+      <Divider />
+      <Text style={type.label}>Follow up</Text>
+      <View style={styles.lines}>
+        {[...openFollowUps, ...doneFollowUps].map((f) => (
+          <Pressable
+            key={f.id}
+            onPress={() => void toggleFollowUp(f)}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: f.status === "done" }}
+            style={styles.followUp}
+          >
+            <View style={[styles.check, f.status === "done" && styles.checkDone]} />
+            <View style={styles.followUpBody}>
+              <Text style={[type.body, styles.followUpText, f.status === "done" && styles.done]}>
+                {f.action}
+              </Text>
+              {f.dueAt && f.status === "open" ? (
+                <Text style={type.meta}>Due {formatShortDate(f.dueAt)}</Text>
+              ) : null}
+            </View>
+          </Pressable>
+        ))}
+        <TextInput
+          value={newFollowUp}
+          onChangeText={setNewFollowUp}
+          onSubmitEditing={() => void addFollowUp()}
+          returnKeyType="done"
+          placeholder="+ Add something to do"
+          placeholderTextColor={colors.faint}
+          selectionColor={colors.accent}
+          accessibilityLabel="Add a follow-up"
+          style={styles.addFollowUp}
+        />
+      </View>
 
       <Divider />
       <Text style={type.label}>Timeline</Text>
@@ -246,9 +267,17 @@ const styles = StyleSheet.create({
   checkDone: {
     backgroundColor: colors.accent,
   },
-  followUpText: {
+  followUpBody: {
     flex: 1,
+  },
+  followUpText: {
     color: colors.text,
+  },
+  addFollowUp: {
+    fontSize: 16,
+    color: colors.text,
+    paddingVertical: spacing.sm,
+    paddingLeft: 18 + spacing.md,
   },
   done: {
     color: colors.faint,

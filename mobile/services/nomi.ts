@@ -2,6 +2,7 @@
 import { Platform } from "react-native";
 
 import { request } from "@/lib/api";
+import { localToday } from "@/lib/dates";
 import type {
   CapturedPerson,
   ContactDetail,
@@ -33,7 +34,7 @@ export async function transcribe(audioUri: string): Promise<Transcription> {
 export function extract(transcript: string) {
   return request<ContactExtractionResult>("/extract", {
     method: "POST",
-    body: { transcript },
+    body: { transcript, today: localToday() },
     timeoutMs: 180_000,
   });
 }
@@ -98,5 +99,5 @@ export function updateFollowUp(
 }
 
 export function search(query: string) {
-  return request<SearchResponse>("/search", { method: "POST", body: { query }, timeoutMs: 60_000 });
+  return request<SearchResponse>("/search", { method: "POST", body: { query, today: localToday() }, timeoutMs: 60_000 });
 }

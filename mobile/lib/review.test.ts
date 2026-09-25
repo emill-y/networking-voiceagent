@@ -27,6 +27,7 @@ const jason = {
   topicsDiscussed: ["Magic Hour"],
   notes: ["Unsure: may be a sophomore"],
   followUp: "Reach out next week",
+  followUpDue: "2026-09-28",
 };
 
 const candidate = (strength: "strong" | "possible") => ({
@@ -54,7 +55,8 @@ test("round-trips an extracted person into a save payload", () => {
   assert.equal(payload.interaction.event, "Berkeley founders mixer");
   assert.deepEqual(payload.interaction.projects, ["robotics startup"]);
   assert.deepEqual(payload.interaction.notes, ["Unsure: may be a sophomore"]);
-  assert.deepEqual(payload.followUp, { action: "Reach out next week" });
+  assert.equal(payload.followUp?.action, "Reach out next week");
+  assert.equal(new Date(payload.followUp?.dueAt ?? "").getDate(), 28);
 });
 
 test("edited list text is split, trimmed and de-duplicated", () => {
@@ -118,4 +120,20 @@ test("memory lines read like sentences", () => {
   assert.equal(joinList(["a", "b", "c"]), "a, b and c");
   assert.equal(subtitle({ role: "Founder", company: null, major: "EECS" }), "Founder · EECS");
   assert.equal(subtitle({ role: "Designer", company: "Figma" }), "Designer at Figma");
+});
+
+import { dueGroup, isDateString } from "./dates.ts";
+
+test("due dates are validated and grouped", () => {
+  assert.equal(isDateString("2026-02-30"), false);
+  assert.equal(isDateString("2026-02-28"), true);
+  const draft = { ...draftFromExtracted(jason), followUpDue: "next tuesday" };
+  assert.match(draftProblem(draft) ?? "", /YYYY-MM-DD/);
+
+  const now = new Date(2026, 8, 24, 9);
+  assert.equal(dueGroup(null, now), "none");
+  assert.equal(dueGroup(new Date(2026, 8, 23, 12).toISOString(), now), "overdue");
+  assert.equal(dueGroup(new Date(2026, 8, 24, 12).toISOString(), now), "today");
+  assert.equal(dueGroup(new Date(2026, 8, 30, 12).toISOString(), now), "week");
+  assert.equal(dueGroup(new Date(2026, 9, 10, 12).toISOString(), now), "later");
 });

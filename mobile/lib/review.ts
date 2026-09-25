@@ -2,6 +2,8 @@
 // <-> save payload. No React here, so these are easy to unit test.
 import type { CapturedPerson, DuplicateCandidate, ExtractedPerson } from "../types/api";
 
+import { dateToDueAt, isDateString } from "./dates.ts";
+
 export type Decision = "undecided" | "new" | "existing";
 
 export type Draft = {
@@ -23,6 +25,7 @@ export type Draft = {
   interests: string;
   notes: string;
   followUp: string;
+  followUpDue: string; // "YYYY-MM-DD" or ""
 };
 
 export const LIST_FIELDS = ["projects", "needs", "topicsDiscussed", "interests", "notes"] as const;
@@ -50,6 +53,7 @@ export function emptyDraft(): Draft {
     interests: "",
     notes: "",
     followUp: "",
+    followUpDue: "",
   };
 }
 
@@ -69,6 +73,7 @@ export function draftFromExtracted(person: ExtractedPerson): Draft {
     interests: person.interests.join("\n"),
     notes: person.notes.join("\n"),
     followUp: person.followUp ?? "",
+    followUpDue: person.followUpDue ?? "",
   };
 }
 
@@ -109,6 +114,8 @@ export function draftProblem(draft: Draft): string | null {
   if (!draft.include) return null;
   if (!text(draft.name)) return "Add a name, or a few words to recognize them by.";
   if (draft.decision === "undecided") return "Is this someone you already know?";
+  const due = draft.followUpDue.trim();
+  if (text(draft.followUp) && due && !isDateString(due)) return "Write the due date as YYYY-MM-DD.";
   return null;
 }
 
@@ -133,6 +140,11 @@ export function toCapturedPerson(draft: Draft): CapturedPerson {
       interests: splitLines(draft.interests),
       notes: splitLines(draft.notes),
     },
-    followUp: followUp ? { action: followUp } : null,
+    followUp: followUp
+      ? {
+          action: followUp,
+          dueAt: isDateString(draft.followUpDue.trim()) ? dateToDueAt(draft.followUpDue.trim()) : null,
+        }
+      : null,
   };
 }
