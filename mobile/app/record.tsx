@@ -172,8 +172,17 @@ export default function Record() {
               {formatDuration(recorderState.durationMillis)}
             </Text>
             <Text style={type.meta}>{recording ? "Tap to stop" : "Tap to record"}</Text>
-            {recording && (
+            {recording ? (
               <Text style={[type.meta, styles.recordingNote]}>● Recording</Text>
+            ) : (
+              <Pressable
+                onPress={() => router.replace("/write")}
+                accessibilityRole="button"
+                hitSlop={8}
+                style={styles.typeInstead}
+              >
+                <Text style={type.meta}>or type instead</Text>
+              </Pressable>
             )}
           </>
         )}
@@ -230,6 +239,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     width: 20,
     textAlign: "center",
+  },
+  typeInstead: {
+    marginTop: spacing.xl,
   },
   error: {
     marginTop: spacing.lg,
