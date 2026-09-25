@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routes import captures, contacts, extract, follow_ups, health, transcribe
+from app.routes import captures, contacts, extract, follow_ups, health, search, transcribe
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -27,3 +27,4 @@ app.include_router(extract.router)
 app.include_router(captures.router)
 app.include_router(contacts.router)
 app.include_router(follow_ups.router)
+app.include_router(search.router)

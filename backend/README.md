@@ -64,6 +64,7 @@ JSON uses camelCase. Errors look like `{"detail": "message"}`.
 | DELETE | `/interactions/{id}` | Forget one moment |
 | GET / POST | `/follow-ups` | List (`?status=open`) or add |
 | PATCH | `/follow-ups/{id}` | Edit, complete (`status: done`), or dismiss |
+| POST | `/search` | `{query}` → people, each with the reasons it matched |
 
 ## How it's organized
 
@@ -97,6 +98,16 @@ Strong matches must be answered in the app; nothing merges automatically.
 **Captures** (`services/captures.py`). Saves every confirmed person in one
 transaction: create or update the contact, add a new interaction (history is
 never overwritten), and add a follow-up if there is one.
+
+**Search** (`services/search.py`, `repositories/search.py`). A question like
+"Who did I meet at Cal Hacks last month?" is turned by the LLM into a
+`SearchFilters` object (company, role, school, event, date range, open
+follow-ups, keywords), validated by Pydantic. The repository turns those
+filters into fixed, parameterized SQL; the model never writes SQL. Keywords use
+PostgreSQL full-text search (so "designer" finds "designers") plus substring
+matching for names. One- or two-word queries skip the LLM, and if the model is
+down or returns invalid filters, search falls back to plain keywords. Each
+result carries short reasons drawn from stored evidence ("Looking for designers").
 
 **Users and security.** Every repository query filters by `user_id`, so ids from
 other users return 404. Row Level Security in the migration protects the tables
