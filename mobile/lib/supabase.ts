@@ -22,6 +22,9 @@ export const supabase: SupabaseClient | null =
           storage: sessionStorage(),
           persistSession: true,
           autoRefreshToken: true,
+          // Google and magic links come back to /auth/callback with a one-time
+          // code; PKCE makes that code useless to anyone who intercepts it.
+          flowType: "pkce",
           detectSessionInUrl: false,
         },
       })

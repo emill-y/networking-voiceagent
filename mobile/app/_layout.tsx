@@ -72,6 +72,8 @@ function RootNavigator() {
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
         </Stack.Protected>
+        {/* Reachable either way: sign-in links arrive here. */}
+        <Stack.Screen name="auth/callback" />
       </Stack>
     </>
   );

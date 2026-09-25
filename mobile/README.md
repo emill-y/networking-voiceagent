@@ -39,9 +39,40 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 The publishable key is designed to ship inside apps: it can't read anything
 without a signed-in user's token. `.env.local` is still kept out of Git.
 
-People sign in with **email and password**. (Phone sign-in was left out: it
-needs a paid SMS provider.) Whether new accounts must confirm their email is set
-in the Supabase dashboard under Authentication → Sign In / Providers → Email.
+People sign in three ways, with no passwords (`lib/auth.ts`):
+
+- **Apple** (iPhone only): the native Apple sheet. Apple returns a signed
+  token that Supabase verifies (`signInWithIdToken`, with a nonce so a stolen
+  token can't be replayed).
+- **Google**: an in-app browser sheet goes to Google and returns to
+  `nomi://auth/callback` (on web, `/auth/callback`) with a one-time code.
+- **Magic link**: an email link that also returns to `/auth/callback`. The
+  email can include a 6-digit code too, for when the link opens elsewhere.
+
+Google and magic links use PKCE: the code in the link only works together
+with a secret kept on the device that asked, so a forwarded or intercepted
+link is useless. `app/auth/callback.tsx` exchanges the code for a session.
+
+### One-time Supabase setup (all free)
+
+1. **Redirect URLs** (Authentication → URL Configuration): add
+   `nomi://auth/callback`, `exp://**` (Expo Go during development) and
+   `http://localhost:8081/auth/callback` (web preview).
+2. **Google** (Authentication → Sign In / Providers → Google): in Google Cloud
+   Console create an OAuth client of type *Web application* with the
+   authorized redirect URI `https://qebslfifekeswyesddpr.supabase.co/auth/v1/callback`,
+   then paste its client ID and secret into Supabase.
+3. **Apple** (same page → Apple): add the app's bundle ID `com.nomi.app` to
+   *Client IDs*, plus `host.exp.Exponent` to test inside Expo Go. Native
+   sign-in needs only the IDs. Shipping your own iOS build requires the Apple
+   Developer Program (also needed for the App Store) and enabling "Sign in with
+   Apple" for the bundle ID.
+4. **Magic link email** (Authentication → Emails → Magic Link): optionally add
+   `{{ .Token }}` to the template so the email also shows the 6-digit code.
+   Supabase's built-in mailer is free but sends only a few emails per hour;
+   for real users, connect a free SMTP tier (e.g. Resend) under
+   Authentication → Emails → SMTP.
+5. Turn **Phone** and **Email password sign-ups** off if you don't want them.
 
 `lib/supabase.ts` creates the client and keeps the session in AsyncStorage
 (localStorage on web). `hooks/useSession.tsx` tracks it, and `app/_layout.tsx`
@@ -54,7 +85,8 @@ backend rejects it. Without the two settings above, the app skips sign-in
 
 | Route | File | What it does |
 | --- | --- | --- |
-| `/sign-in` | `app/sign-in.tsx` | Email and password |
+| `/sign-in` | `app/sign-in.tsx` | Apple, Google, or an email link |
+| `/auth/callback` | `app/auth/callback.tsx` | Finishes Google and magic-link sign-in |
 | `/` | `app/index.tsx` | Greeting, the mic, open follow-ups, recent people |
 | `/record` | `app/record.tsx` | Ask for mic permission, record (auto-stops at 3 min), listen back |
 | `/write` | `app/write.tsx` | Type a note instead of speaking |
