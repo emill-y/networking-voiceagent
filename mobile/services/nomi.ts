@@ -1,4 +1,5 @@
 // One function per backend endpoint. Screens call these instead of fetch.
+import { File } from "expo-file-system";
 import { Platform } from "react-native";
 
 import type { ImportedPerson } from "@/lib/addressBook";
@@ -25,8 +26,10 @@ export async function transcribe(audioUri: string): Promise<Transcription> {
     const blob = await (await fetch(audioUri)).blob();
     form.append("audio", blob, blob.type.includes("mp4") ? "note.m4a" : "note.webm");
   } else {
-    // React Native's FormData accepts a file descriptor object for local files.
-    form.append("audio", { uri: audioUri, name: "note.m4a", type: "audio/m4a" } as unknown as Blob);
+    // Expo's fetch (the global fetch since SDK 57) needs a real file object;
+    // React Native's old { uri, name, type } shortcut isn't supported and
+    // fails before anything is sent.
+    form.append("audio", new File(audioUri) as unknown as Blob, "note.m4a");
   }
   // Whisper can take a while on a laptop CPU, especially on the first call.
   return request<Transcription>("/transcribe", { method: "POST", body: form, timeoutMs: 180_000 });
