@@ -81,6 +81,7 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> UUI
     if settings.dev_auth:
         return UUID(settings.dev_user_id)
     if not settings.supabase_url:
+        logger.error("SUPABASE_URL is not set in backend/.env")
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "Sign-in is not configured (SUPABASE_URL)."
         )
@@ -92,7 +93,7 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> UUI
     try:
         claims = get_verifier().verify(token.strip())
     except jwt.PyJWKClientConnectionError as exc:
-        logger.warning("Could not fetch Supabase signing keys")
+        logger.error("Could not fetch Supabase signing keys from %s: %s", get_verifier().issuer, exc)
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "Can't verify sign-in right now."
         ) from exc
