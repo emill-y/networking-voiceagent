@@ -3,8 +3,8 @@
 from datetime import UTC, datetime
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Response, status
-from psycopg import Connection
+from fastapi import APIRouter, Depends, HTTPException, Response, status
+from psycopg import Connection, errors
 
 from app.core.auth import get_current_user_id
 from app.core.db import get_db
@@ -45,4 +45,23 @@ def delete_all_data(
 ) -> Response:
     # Interactions and follow-ups cascade from contacts.
     conn.execute("delete from contacts where user_id = %s", (user_id,))
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    conn: Connection = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+) -> Response:
+    """Delete the account itself (the Supabase user) and all of its data."""
+    conn.execute("delete from contacts where user_id = %s", (user_id,))
+    try:
+        # The backend's database role owns the schema and may remove auth users,
+        # the same way Supabase's own "delete user" SQL does.
+        conn.execute("delete from auth.users where id = %s", (user_id,))
+    except errors.InsufficientPrivilege as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "Your data was not deleted: the server can't remove accounts. Please try again later.",
+        ) from exc
     return Response(status_code=status.HTTP_204_NO_CONTENT)

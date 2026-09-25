@@ -1,6 +1,7 @@
 import io
 import math
 import struct
+import uuid
 import wave
 
 import pytest
@@ -9,8 +10,15 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
+TEST_USER = "00000000-0000-0000-0000-0000000000aa"
+
+
 @pytest.fixture
 def client():
+    # Most endpoint tests aren't about sign-in; test_auth.py covers that.
+    from app.core.auth import get_current_user_id
+
+    app.dependency_overrides[get_current_user_id] = lambda: uuid.UUID(TEST_USER)
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -38,7 +46,6 @@ def make_wav(seconds: float = 1.0, rate: int = 16_000) -> bytes:
 # variable, database tests are skipped.
 
 import os  # noqa: E402
-import uuid  # noqa: E402
 
 import psycopg  # noqa: E402
 from psycopg.rows import dict_row  # noqa: E402
@@ -61,8 +68,12 @@ def database_url():
         conn.execute(
             "drop table if exists follow_ups, interactions, contacts, nomi_migrations cascade;"
             "drop function if exists set_updated_at cascade;"
+            "drop table if exists auth.users cascade;"
         )
     apply_migrations(url, local_shim=True)
+    with psycopg.connect(url, autocommit=True) as conn:
+        for user in (USER_ID, OTHER_USER_ID):
+            conn.execute("insert into auth.users (id) values (%s) on conflict do nothing", (user,))
     return url
 
 

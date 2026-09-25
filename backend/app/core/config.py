@@ -49,7 +49,12 @@ class Settings:
     # Database (Supabase Postgres connection string)
     database_url: str | None = None
 
-    # Until Supabase Auth is wired in, every request acts as this user.
+    # Supabase Auth. Tokens are verified against this project.
+    supabase_url: str | None = None
+    supabase_jwt_secret: str | None = None  # only for legacy HS256 projects
+
+    # Local development without Supabase: every request acts as dev_user_id.
+    dev_auth: bool = False
     dev_user_id: str = "00000000-0000-0000-0000-000000000001"
 
     cors_origins: list[str] = field(default_factory=list)
@@ -72,6 +77,9 @@ def get_settings() -> Settings:
         ollama_model=env.get("OLLAMA_MODEL", "qwen3:4b"),
         ollama_timeout_seconds=float(env.get("OLLAMA_TIMEOUT_SECONDS", "120")),
         database_url=env.get("DATABASE_URL") or None,
+        supabase_url=(env.get("SUPABASE_URL") or "").rstrip("/") or None,
+        supabase_jwt_secret=env.get("SUPABASE_JWT_SECRET") or None,
+        dev_auth=env.get("NOMI_DEV_AUTH", "").strip().lower() in {"1", "true", "yes"},
         dev_user_id=env.get("DEV_USER_ID", "00000000-0000-0000-0000-000000000001"),
         cors_origins=_csv(
             env.get("CORS_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081")
