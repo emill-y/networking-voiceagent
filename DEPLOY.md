@@ -24,28 +24,28 @@ iPhone (Nomi app)
 | Google Cloud Run (API) | Free tier covers light use (a billing account is still required) |
 | Supabase | Free tier. **Free projects pause after a week without activity**; move to Pro ($25/mo) before real users depend on it |
 | Email for magic links | Supabase's built-in mailer is fine for testing; use Resend's free tier for real users |
-| GitHub Pages (privacy page) | Free for public repositories |
+| Privacy and support pages | Free, served by the API itself |
 
 ---
 
-## Part 1: Fast AI with Groq (10 min)
+## Part 1: Fast AI with Groq (5 min)
 
-1. Create a free account at https://console.groq.com and create an **API key** (starts with `gsk_`).
-2. Try it on your Mac first. Add to `backend/.env`:
-   ```
-   LLM_PROVIDER=openai_compatible
-   LLM_BASE_URL=https://api.groq.com/openai/v1
-   LLM_API_KEY=gsk_your_key
-   LLM_MODEL=llama-3.3-70b-versatile
-   ```
-3. Check and measure:
-   ```bash
-   cd ~/networking-voiceagent/backend && source .venv/bin/activate
-   python -m scripts.doctor
-   python -m scripts.eval_extraction
-   ```
-   **Check:** doctor shows `OK  Language model`, and each eval case takes a
-   second or two instead of tens of seconds.
+The Groq key is already in `backend/.env.example` and `prod.env.example.yaml`
+(committed on purpose; the repository is private). If your `backend/.env`
+predates that, copy the `LLM_*` lines from `.env.example` into it. Then:
+
+```bash
+cd ~/networking-voiceagent/backend && source .venv/bin/activate
+python -m scripts.doctor
+python -m scripts.eval_extraction
+```
+
+**Check:** doctor shows `OK  Language model`, and each eval case takes a
+second or two instead of tens of seconds.
+
+**If the repository ever becomes public or is shared**, revoke the key at
+https://console.groq.com/keys, create a new one, and remove the old one from
+the files (it stays in Git history, so revoking is the part that matters).
 
 ## Part 2: Put the API online with Google Cloud Run (20 min)
 
@@ -72,9 +72,9 @@ read -rs -p "DB password: " P; echo; python3 -c "import urllib.parse,sys;print(u
 open -e prod.env.yaml
 ```
 
-In `prod.env.yaml`, paste the encoded password into `DATABASE_URL`, your Groq key
-into `LLM_API_KEY`, and (optional, for the rare server-side transcription
-fallback) a Hugging Face token into `HF_TOKEN`. Then deploy:
+In `prod.env.yaml`, paste the encoded password into `DATABASE_URL` (the Groq
+key is already filled in) and, optionally, for the rare server-side
+transcription fallback, a Hugging Face token into `HF_TOKEN`. Then deploy:
 
 ```bash
 gcloud run deploy nomi-api \
@@ -100,23 +100,21 @@ To redeploy after code changes, run the same `gcloud run deploy` command.
 The first request after a quiet period takes a couple of seconds while an
 instance starts; `--min-instances 1` removes that at a small monthly cost.
 
-## Part 3: Privacy policy and support pages (10 min)
+## Part 3: Privacy policy and support pages (5 min)
 
-Apple requires both URLs. They live in `docs/`.
+Apple requires both URLs. The API serves them, so they're live as soon as
+Part 2 is done, and the repository can stay private:
 
-1. Replace `SUPPORT_EMAIL` in `docs/index.html` and `docs/privacy.html` with the
-   address people should write to (twice in each file). Read the privacy policy
-   and adjust anything that isn't true for you (for example, if you don't use
-   Cloud Run or Groq). This isn't legal advice.
-2. Commit and push, then merge to `main`.
-3. GitHub → the repository → **Settings → Pages** → Source: **Deploy from a
-   branch**, Branch: `main`, folder: `/docs` → Save. (GitHub Pages on the free
-   plan needs a public repository. If yours is private, host the two HTML files
-   anywhere public instead.)
+- Support URL: `https://nomi-api-xxxxx.a.run.app/`
+- Privacy policy URL: `https://nomi-api-xxxxx.a.run.app/privacy`
 
-**Check:** after a minute these open in a browser:
-- `https://emill-y.github.io/networking-voiceagent/` (support URL)
-- `https://emill-y.github.io/networking-voiceagent/privacy.html` (privacy URL)
+1. Replace `SUPPORT_EMAIL` in `backend/app/pages/index.html` and
+   `backend/app/pages/privacy.html` with the address people should write to
+   (twice in each file). Read the privacy policy and adjust anything that isn't
+   true for you. This isn't legal advice.
+2. Commit, push, and redeploy (the `gcloud run deploy` command from Part 2).
+
+**Check:** both URLs open in a browser.
 
 ## Part 4: Production sign-in settings (15 min)
 
@@ -199,7 +197,7 @@ your phone from the TestFlight app and do one last pass through Part 6's checks.
 Then in **App Store Connect → your app**:
 
 1. **App Information**: name *Nomi*, subtitle (e.g. *Remember everyone you meet*),
-   category *Productivity*, privacy policy URL from Part 3.
+   category *Productivity*, privacy policy URL from Part 3 (`…/privacy`).
 2. **Version page**: description, keywords, support URL from Part 3, and
    screenshots. Take them on your iPhone from the TestFlight build (a 6.9" or
    6.5" iPhone set is required).

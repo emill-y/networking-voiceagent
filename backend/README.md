@@ -67,6 +67,7 @@ JSON uses camelCase. Errors look like `{"detail": "message"}`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Liveness check |
+| GET | `/`, `/privacy` | Public support page and privacy policy (for the App Store) |
 | POST | `/transcribe` | Multipart `audio` file → `{text, language, audioSeconds, latencyMs}` |
 | POST | `/extract` | `{transcript}` → `{people: ExtractedPerson[]}` |
 | POST | `/duplicate-check` | `{people: [{name, company, school}]}` → possible existing matches per person |
