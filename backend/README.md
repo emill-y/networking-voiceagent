@@ -1,75 +1,129 @@
-# Backend
+# Nomi backend
 
-Minimal FastAPI backend for Milestone 2. Its only endpoint is `GET /health`.
+FastAPI service that turns voice notes into relationship memory.
 
-## Setup and run
+## Setup
 
-Use Python 3.12 or newer. From the repository root:
+Python 3.12+. From `backend/`:
 
 ```bash
-cd backend
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
+cp .env.example .env
+```
+
+`.env` holds machine-specific settings and secrets and is ignored by Git.
+Every setting is listed in `.env.example`.
+
+### Models
+
+- **Speech-to-text:** [faster-whisper](https://github.com/SYSTRAN/faster-whisper)
+  downloads `small.en` (~480 MB) from Hugging Face the first time `/transcribe`
+  runs, then reuses it. Set `WHISPER_MODEL=tiny.en` for quicker experiments.
+- **LLM:** install [Ollama](https://ollama.com), then `ollama pull qwen3:4b`.
+  Ollama serves it at `http://127.0.0.1:11434`.
+
+### Database
+
+Set `DATABASE_URL` to a PostgreSQL connection string, then create the tables:
+
+```bash
+python -m scripts.migrate               # Supabase (hosted or `supabase start`)
+python -m scripts.migrate --local-shim  # plain PostgreSQL
+```
+
+With a hosted Supabase project, copy the connection string from
+Project Settings → Database. You can also apply `supabase/migrations/*.sql`
+with the Supabase CLI (`supabase db push`). `--local-shim` creates tiny
+stand-ins for Supabase's `auth` schema so the Row Level Security policies
+also work on plain Postgres. Never use it against Supabase.
+
+## Run
+
+```bash
 python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-The virtual environment keeps this backend's Python packages separate from
-other projects. `.venv/` is ignored by Git. Stop the server with `Ctrl+C`.
+For a physical phone, use `--host 0.0.0.0` and point the app at your
+computer's LAN IP (see `mobile/README.md`).
 
-`app.main:app` tells Uvicorn to import the `app` object from `app/main.py`.
-`--reload` restarts the development server when Python files change.
-`127.0.0.1` is this computer's local address, and `8000` is the server's port.
+## API
 
-## Connect from a phone
+JSON uses camelCase. Errors look like `{"detail": "message"}`.
 
-Stop the local-only server first. From `backend/` with the virtual environment
-activated, run:
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/health` | Liveness check |
+| POST | `/transcribe` | Multipart `audio` file → `{text, language, audioSeconds, latencyMs}` |
+| POST | `/extract` | `{transcript}` → `{people: ExtractedPerson[]}` |
+| POST | `/duplicate-check` | `{people: [{name, company, school}]}` → possible existing matches per person |
+| POST | `/captures` | Save one reviewed note (people, moments, follow-ups) atomically |
+| GET | `/contacts` | People, most recently seen first |
+| GET / PATCH / DELETE | `/contacts/{id}` | Profile with timeline and follow-ups; edit; forget |
+| DELETE | `/interactions/{id}` | Forget one moment |
+| GET / POST | `/follow-ups` | List (`?status=open`) or add |
+| PATCH | `/follow-ups/{id}` | Edit, complete (`status: done`), or dismiss |
+
+## How it's organized
+
+```
+app/
+├── main.py            # creates the app, CORS, registers routers
+├── core/              # config (env vars), db connection, current user
+├── routes/            # HTTP layer: parse request, call services, map errors
+├── services/          # logic: transcription, llm, extraction, identity, captures
+├── repositories/      # SQL, always scoped by user_id
+└── schemas/           # Pydantic models = the API contract
+```
+
+**Transcription** (`services/transcription.py`). The upload is streamed to a
+temp file with a size cap, decoded to 16 kHz mono with PyAV (corrupt audio → 422),
+transcribed by a Whisper model loaded once per process, and deleted before the
+response is sent. Timings are logged; transcripts are not.
+
+**Extraction** (`services/extraction.py`, `services/llm.py`). The transcript goes
+to Qwen3 with a JSON Schema (Ollama *structured outputs* constrain generation to
+it), thinking disabled, temperature 0. The prompt forbids guessing and routes
+hedged facts ("I think she's at Google") into notes starting with `Unsure:`
+rather than structured fields. The reply is validated with Pydantic (one retry),
+cleaned (whitespace, placeholders, duplicates), and returned for review. The LLM
+sits behind an `LLMClient` interface so the model or provider can change.
+
+**Identity** (`services/identity.py`). Suggests "is this the Jason you met
+before?" from normalized names, with company or school as supporting evidence.
+Strong matches must be answered in the app; nothing merges automatically.
+
+**Captures** (`services/captures.py`). Saves every confirmed person in one
+transaction: create or update the contact, add a new interaction (history is
+never overwritten), and add a follow-up if there is one.
+
+**Users and security.** Every repository query filters by `user_id`, so ids from
+other users return 404. Row Level Security in the migration protects the tables
+if they're reached through Supabase's public API. Until Supabase Auth is wired
+in, `core/auth.py` returns a fixed development user, so do not expose this
+server publicly yet.
+
+## Tests
 
 ```bash
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+pytest                                   # fast tests; database tests are skipped
+TEST_DATABASE_URL=postgresql://postgres@127.0.0.1:5432/nomi_test pytest
 ```
 
-`0.0.0.0` makes the server listen on all IPv4 interfaces, including Wi-Fi.
-Set `EXPO_PUBLIC_API_URL` in `mobile/.env.local` to your Mac's LAN IP and port
-8000, for example `http://192.168.1.20:8000`, then reload Expo Go. Both devices
-should be on the same local network. If the phone cannot connect, check macOS
-firewall access for Python and whether the Wi-Fi network isolates devices.
+Database tests drop and recreate the schema in `TEST_DATABASE_URL`, so point it
+at a throwaway database. Model calls are replaced with fakes; audio decoding is
+real.
 
-For the Expo web preview, CORS allows GET requests from `http://localhost:8081`
-and `http://127.0.0.1:8081`. If you change the web preview's port, update the
-explicit origins in `app/main.py` too. Native apps do not need CORS.
+### Evaluating the model
 
-## Verify
-
-With the server running, use another terminal:
+`tests/extraction_cases.json` (at the repo root) covers single and multiple
+people, uncertainty, corrections, slang, rambling, missing names, follow-ups,
+events, repeat contacts and noisy transcripts. Against a running Ollama:
 
 ```bash
-curl -i http://127.0.0.1:8000/health
+python -m scripts.eval_extraction          # all cases
+python -m scripts.eval_extraction slang    # one case
 ```
 
-Expect HTTP `200 OK`, `content-type: application/json`, and this body:
-
-```json
-{"status":"ok"}
-```
-
-## How it works
-
-[FastAPI](https://fastapi.tiangolo.com/tutorial/first-steps/) is a Python framework
-for building HTTP APIs. Uvicorn accepts HTTP connections and runs the FastAPI app.
-
-- `GET` is the HTTP method used to retrieve information.
-- `/health` is the URL path identifying this endpoint.
-- `@app.get("/health")` connects that method and path to the `health()` function.
-- The function returns a Python dictionary; FastAPI sends it as JSON.
-
-This response confirms that the backend is reachable and handling requests.
-It does not check a database or an AI service.
-
-`app/main.py` contains the app and route. `app/__init__.py` marks `app` as a Python
-package. `requirements.txt` pins the tested versions of the two direct dependencies.
-
-Automatic API documentation routes are disabled with `openapi_url=None` so only
-the health endpoint is exposed. The Expo home screen uses it to display the
-connection status. No audio processing, Whisper, Qwen, or database is included.
+Run this whenever you change the prompt, schema, or model (e.g. `qwen3:8b`).

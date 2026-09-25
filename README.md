@@ -1,26 +1,68 @@
-# networking-voiceagent
+# Nomi
 
-Voice agent for networking conversations: mobile client plus backend services.
+A personal AI memory for the people you meet. Speak for 10–60 seconds after
+meeting someone; Nomi transcribes it, pulls out who they are and what matters,
+lets you confirm, and keeps a timeline of every conversation with them.
+
+See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for the product vision, principles,
+and roadmap.
 
 ## Layout
 
 ```
 networking-voiceagent/
-├── mobile/              # Mobile client
-├── backend/             # API, voice, and agent services
-├── PROJECT_CONTEXT.md   # Product and architecture context
-├── README.md
-└── .gitignore
+├── mobile/                 # Expo + React Native + TypeScript app
+├── backend/                # FastAPI: transcription, extraction, memory API
+├── supabase/migrations/    # PostgreSQL schema (Supabase)
+├── tests/                  # AI evaluation dataset (extraction_cases.json)
+└── PROJECT_CONTEXT.md
 ```
 
-## Getting started
+## How a memory is made
 
-### Mobile (Milestone 1)
+```
+tap mic ─► record (expo-audio) ─► POST /transcribe ─► faster-whisper ─► transcript
+                                                                          │
+review & edit ◄─ POST /duplicate-check ◄─ people ◄─ Qwen3 via Ollama ◄─ POST /extract
+      │
+      └─► POST /captures ─► contacts + interactions + follow_ups (PostgreSQL)
+```
+
+Every stage is its own request, so each can be tested and can fail on its own
+with a clear message. The LLM never writes to the database: its output is
+validated, shown to you, and saved only after you confirm.
+
+## Quick start
+
+You need Python 3.12+, Node 22.13+, [Ollama](https://ollama.com), and a
+PostgreSQL database (a [Supabase](https://supabase.com) project, the Supabase
+CLI's local stack, or any local Postgres).
 
 ```bash
+# 1. Models
+ollama pull qwen3:4b        # Whisper small.en downloads on first transcription
+
+# 2. Backend
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements-dev.txt
+cp .env.example .env         # then set DATABASE_URL
+python -m scripts.migrate    # add --local-shim for plain (non-Supabase) Postgres
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# 3. App (new terminal)
 cd mobile
-npm install
-npx expo start
+npm ci
+npm start
 ```
 
-See [PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) for goals, constraints, and how the pieces are expected to fit together.
+Details: [backend/README.md](backend/README.md) · [mobile/README.md](mobile/README.md)
+
+## Status
+
+Phase 1 (voice capture MVP) is complete: record → transcribe → extract → review →
+save → profile with timeline. Also in place: duplicate suggestions, editing and
+deleting people and moments, and follow-ups you can complete or dismiss.
+
+Not yet: Supabase Auth (every request currently acts as one development user —
+do not deploy publicly), search, personalization, integrations.
