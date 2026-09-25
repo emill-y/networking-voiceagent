@@ -56,3 +56,4 @@ ios/Pods/
 # Logs and coverage
 *.log
 coverage/
+prod.env.yaml

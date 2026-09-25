@@ -93,3 +93,12 @@ def db_client(database_url):
         test_client.act_as = lambda user: state.update(user=user)
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limits():
+    """Each test starts with an empty rate-limit window."""
+    from app.core.rate_limit import ai_limiter
+
+    ai_limiter._hits.clear()
+    yield

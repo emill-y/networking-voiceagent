@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.core.auth import get_current_user_id
+from app.core.rate_limit import limit_ai_requests
 from app.schemas.extraction import ContactExtractionResult, ExtractionRequest
 from app.services.extraction import ExtractionFailed, extract_people
 from app.services.llm import LLMClient, LLMUnavailable, get_llm_client
@@ -14,7 +14,7 @@ router = APIRouter()
 def extract(
     body: ExtractionRequest,
     llm: LLMClient = Depends(get_llm_client),
-    _user_id: UUID = Depends(get_current_user_id),
+    _user_id: UUID = Depends(limit_ai_requests),
 ) -> ContactExtractionResult:
     try:
         return extract_people(body.transcript, llm, body.today)

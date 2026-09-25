@@ -1,0 +1,3 @@
+# Adds local speech-to-text (faster-whisper) for development on your machine.
+-r requirements.txt
+faster-whisper==1.2.1

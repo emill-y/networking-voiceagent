@@ -65,7 +65,9 @@ def main() -> int:
     selector = sys.argv[1] if len(sys.argv) > 1 else ""
     cases = [c for c in json.loads(CASES_PATH.read_text())["cases"] if selector in c["id"]]
     llm = get_llm_client()
-    print(f"Model: {get_settings().ollama_model} · {len(cases)} cases\n")
+    settings = get_settings()
+    model = settings.llm_model if settings.llm_provider == "openai_compatible" else settings.ollama_model
+    print(f"Model: {settings.llm_provider}/{model} · {len(cases)} cases\n")
 
     passed = 0
     for case in cases:

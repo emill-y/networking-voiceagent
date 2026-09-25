@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
-from app.core.auth import get_current_user_id
+from app.core.rate_limit import limit_ai_requests
 from app.core.config import get_settings
 from app.schemas.transcription import TranscriptionResponse
 from app.services.transcription import (
@@ -40,7 +40,7 @@ def _looks_like_audio(upload: UploadFile) -> bool:
 def transcribe(
     audio: UploadFile,
     transcriber: Transcriber = Depends(get_transcriber),
-    _user_id: UUID = Depends(get_current_user_id),
+    _user_id: UUID = Depends(limit_ai_requests),
 ) -> TranscriptionResponse:
     if not _looks_like_audio(audio):
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Please upload an audio file.")

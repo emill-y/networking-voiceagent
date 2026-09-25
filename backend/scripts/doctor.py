@@ -80,6 +80,29 @@ def check_database(settings) -> None:
            "present" if not missing else f"missing {', '.join(sorted(missing))}: run python -m scripts.migrate")
 
 
+def check_llm(settings) -> None:
+    if settings.llm_provider == "openai_compatible":
+        if not settings.llm_api_key:
+            report("Language model", False, "LLM_PROVIDER=openai_compatible but LLM_API_KEY is not set")
+            return
+        try:
+            response = httpx.get(f"{settings.llm_base_url}/models", timeout=10,
+                                 headers={"Authorization": f"Bearer {settings.llm_api_key}"})
+        except Exception as exc:
+            report("Language model", False, f"can't reach {settings.llm_base_url}: {exc}")
+            return
+        if response.status_code == 401:
+            report("Language model", False, "LLM_API_KEY was rejected (401)")
+            return
+        ids = [m.get("id") for m in response.json().get("data", [])] if response.is_success else []
+        found = settings.llm_model in ids
+        report("Language model", response.is_success and found,
+               f"{settings.llm_model} at {settings.llm_base_url}" if found
+               else f"{settings.llm_model} not offered at {settings.llm_base_url} (status {response.status_code})")
+        return
+    check_ollama(settings)
+
+
 def check_ollama(settings) -> None:
     try:
         tags = httpx.get(f"{settings.ollama_url}/api/tags", timeout=5).json()
@@ -100,7 +123,9 @@ def check_transcription(settings) -> None:
     try:
         import faster_whisper  # noqa: F401
     except Exception as exc:
-        report("Speech-to-text", False, f"faster-whisper not importable: {exc}")
+        report("Speech-to-text", False,
+               f"local Whisper not installed ({exc}): pip install -r requirements-local.txt, "
+               "or rely on on-device transcription in the app")
         return
     report("Speech-to-text", True, f"local {settings.whisper_model} (downloads on first use)")
 
@@ -110,7 +135,7 @@ def main() -> int:
     check_settings(settings)
     check_jwks(settings)
     check_database(settings)
-    check_ollama(settings)
+    check_llm(settings)
     check_transcription(settings)
     print("\nAll good." if all(results) else "\nFix the FAIL lines above, then restart the backend.")
     return 0 if all(results) else 1

@@ -41,7 +41,15 @@ class Settings:
     whisper_compute_type: str = "int8"
     max_upload_bytes: int = 10 * 1024 * 1024
 
-    # LLM (Ollama)
+    # LLM. "ollama" = local Qwen via Ollama (development);
+    # "openai_compatible" = a hosted API such as Groq or OpenAI (production).
+    llm_provider: str = "ollama"
+    llm_base_url: str = "https://api.groq.com/openai/v1"
+    llm_api_key: str | None = None
+    llm_model: str = "llama-3.3-70b-versatile"
+    llm_timeout_seconds: float = 30.0
+
+    # Ollama
     ollama_url: str = "http://127.0.0.1:11434"
     ollama_model: str = "qwen3:4b"
     ollama_timeout_seconds: float = 120.0
@@ -73,6 +81,11 @@ def get_settings() -> Settings:
         whisper_device=env.get("WHISPER_DEVICE", "auto"),
         whisper_compute_type=env.get("WHISPER_COMPUTE_TYPE", "int8"),
         max_upload_bytes=int(env.get("MAX_UPLOAD_MB", "10")) * 1024 * 1024,
+        llm_provider=env.get("LLM_PROVIDER", "ollama").strip().lower(),
+        llm_base_url=env.get("LLM_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/"),
+        llm_api_key=env.get("LLM_API_KEY") or None,
+        llm_model=env.get("LLM_MODEL", "llama-3.3-70b-versatile"),
+        llm_timeout_seconds=float(env.get("LLM_TIMEOUT_SECONDS", "30")),
         ollama_url=env.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/"),
         ollama_model=env.get("OLLAMA_MODEL", "qwen3:4b"),
         ollama_timeout_seconds=float(env.get("OLLAMA_TIMEOUT_SECONDS", "120")),

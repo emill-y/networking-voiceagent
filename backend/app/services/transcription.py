@@ -46,13 +46,28 @@ class Transcriber(Protocol):
 
 
 def decode_audio(audio_path: str):
-    """Decode any container/codec PyAV understands into 16 kHz mono floats."""
-    from faster_whisper import decode_audio as fw_decode
+    """Decode any container/codec FFmpeg understands into 16 kHz mono floats.
 
+    Uses PyAV (FFmpeg bindings) directly so the server doesn't need the
+    full faster-whisper package when transcription happens elsewhere.
+    """
+    import av
+    import numpy as np
+
+    chunks = []
     try:
-        audio = fw_decode(audio_path, sampling_rate=SAMPLE_RATE)
-    except Exception as exc:  # PyAV raises several error types for bad input.
+        with av.open(audio_path) as container:
+            resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
+            for frame in container.decode(audio=0):
+                for resampled in resampler.resample(frame):
+                    chunks.append(resampled.to_ndarray())
+            for resampled in resampler.resample(None):  # flush
+                chunks.append(resampled.to_ndarray())
+    except Exception as exc:  # FFmpeg raises several error types for bad input.
         raise AudioDecodeError("Could not read that audio file.") from exc
+    if not chunks:
+        raise AudioDecodeError("The recording is empty.")
+    audio = np.concatenate(chunks, axis=1).reshape(-1).astype(np.float32) / 32768.0
     if audio.size == 0:
         raise AudioDecodeError("The recording is empty.")
     return audio
@@ -71,7 +86,12 @@ class WhisperTranscriber:
         if self._model is None:
             with self._lock:
                 if self._model is None:
-                    from faster_whisper import WhisperModel
+                    try:
+                        from faster_whisper import WhisperModel
+                    except ImportError as exc:
+                        raise TranscriptionUnavailable(
+                            "Local Whisper isn't installed (pip install -r requirements-local.txt)."
+                        ) from exc
 
                     started = time.perf_counter()
                     logger.info(

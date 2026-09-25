@@ -9,7 +9,7 @@ Python 3.12+. From `backend/`:
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements-dev.txt
+python -m pip install -r requirements-dev.txt   # server + local Whisper + pytest
 cp .env.example .env
 ```
 
@@ -28,7 +28,13 @@ Every setting is listed in `.env.example`.
   a third party, so it's off by default. The file is still decoded locally
   first, so corrupt uploads are rejected before anything is sent.
 - **LLM:** install [Ollama](https://ollama.com), then `ollama pull qwen3:4b`.
-  Ollama serves it at `http://127.0.0.1:11434`.
+  Ollama serves it at `http://127.0.0.1:11434`. For speed (and for the hosted
+  server), set `LLM_PROVIDER=openai_compatible` with a Groq/OpenAI key
+  instead; see `DEPLOY.md`.
+
+Requirements are split: `requirements.txt` is what the hosted server needs;
+`requirements-local.txt` adds faster-whisper for transcribing on your Mac;
+`requirements-dev.txt` adds pytest.
 
 ### Database
 
@@ -139,6 +145,15 @@ and rows reference `auth.users` with `ON DELETE CASCADE`, so deleting an account
 
 For local development without Supabase, set `NOMI_DEV_AUTH=true`: every request
 then acts as one development user. Never enable it on a server others can reach.
+
+## Checking your setup
+
+```bash
+python -m scripts.doctor
+```
+
+Reports OK or a specific fix for each setting, Supabase keys, the database,
+the language model and speech-to-text.
 
 ## Tests
 

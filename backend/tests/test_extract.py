@@ -136,3 +136,53 @@ def test_follow_up_due_uses_the_callers_date(client):
         "/extract", json={"transcript": "I met Jason Chen.", "today": "2026-09-24"}
     )
     assert response.json()["people"][0]["followUpDue"] == "2026-09-28"
+
+
+# ---------- Hosted (OpenAI-compatible) provider ----------
+
+from dataclasses import replace  # noqa: E402
+
+from app.core.config import get_settings  # noqa: E402
+from app.services.llm import OllamaClient, OpenAICompatibleClient, build_llm_client  # noqa: E402
+
+
+def test_openai_compatible_request(monkeypatch):
+    seen = {}
+
+    def fake_post(url, json, headers, timeout):
+        seen.update(url=url, payload=json, headers=headers)
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": '{"people": []}'}}]},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    client = OpenAICompatibleClient("https://api.groq.com/openai/v1", "gsk_test", "llama-3.3-70b-versatile", 5)
+    assert client.chat_json("Extract people.", "I met Jason.", {"type": "object"}) == '{"people": []}'
+    assert seen["url"] == "https://api.groq.com/openai/v1/chat/completions"
+    assert seen["headers"]["Authorization"] == "Bearer gsk_test"
+    assert seen["payload"]["response_format"] == {"type": "json_object"}
+    assert seen["payload"]["temperature"] == 0
+    system = seen["payload"]["messages"][0]["content"]
+    assert "Extract people." in system and '"type": "object"' in system
+
+
+def test_openai_compatible_errors(monkeypatch):
+    def rate_limited(url, json, headers, timeout):
+        return httpx.Response(429, json={"error": "slow down"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", rate_limited)
+    with pytest.raises(LLMUnavailable):
+        OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", {})
+    with pytest.raises(LLMUnavailable, match="LLM_API_KEY"):
+        OpenAICompatibleClient("https://x", None, "m", 5).chat_json("s", "u", {})
+
+
+def test_llm_provider_selection():
+    base = get_settings()
+    assert isinstance(build_llm_client(replace(base, llm_provider="ollama")), OllamaClient)
+    hosted = build_llm_client(replace(base, llm_provider="openai_compatible", llm_api_key="k"))
+    assert isinstance(hosted, OpenAICompatibleClient)
+    with pytest.raises(ValueError):
+        build_llm_client(replace(base, llm_provider="magic"))

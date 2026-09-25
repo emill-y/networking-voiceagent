@@ -1,0 +1,9 @@
+# Files Cloud Run's source deploy should not upload (mirrors .dockerignore).
+.venv/
+.env
+.env.*
+prod.env.yaml
+__pycache__/
+.pytest_cache/
+tests/
+scripts/
