@@ -12,6 +12,7 @@ import type {
   FollowUp,
   FollowUpStatus,
   SavedPerson,
+  SearchResponse,
   Transcription,
 } from "@/types/api";
 
@@ -94,4 +95,8 @@ export function updateFollowUp(
     method: "PATCH",
     body: changes,
   });
+}
+
+export function search(query: string) {
+  return request<SearchResponse>("/search", { method: "POST", body: { query }, timeoutMs: 60_000 });
 }

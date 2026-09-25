@@ -143,3 +143,13 @@ export type ContactUpdate = Partial<
     | "summary"
   >
 >;
+
+export type SearchResult = {
+  contact: ContactSummary;
+  reasons: string[];
+};
+
+export type SearchResponse = {
+  interpreted: boolean;
+  results: SearchResult[];
+};

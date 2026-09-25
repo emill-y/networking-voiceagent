@@ -39,6 +39,7 @@ restart Expo after changing `.env.local`.
 | `/people/[id]` | `app/people/[id]/index.tsx` | Memory page: last conversation, follow-ups, timeline |
 | `/people/[id]/edit` | `app/people/[id]/edit.tsx` | Edit details and contact info |
 | `/follow-ups` | `app/follow-ups.tsx` | Complete or dismiss commitments |
+| `/search` | `app/search.tsx` | Ask in plain language; results show why each person matched |
 
 ## Code layout
 

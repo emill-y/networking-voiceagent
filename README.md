@@ -64,5 +64,8 @@ Phase 1 (voice capture MVP) is complete: record → transcribe → extract → r
 save → profile with timeline. Also in place: duplicate suggestions, editing and
 deleting people and moments, and follow-ups you can complete or dismiss.
 
+Phase 3 (search) is in place: conversational questions become validated
+filters, with keyword fallback and "why it matched" reasons.
+
 Not yet: Supabase Auth (every request currently acts as one development user —
-do not deploy publicly), search, personalization, integrations.
+do not deploy publicly), personalization, integrations.

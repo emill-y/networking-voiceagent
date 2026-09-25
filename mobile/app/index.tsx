@@ -50,6 +50,11 @@ export default function Home() {
     <Screen>
       <View style={styles.topBar}>
         <Text style={styles.wordmark}>Nomi</Text>
+        {people && people.length > 0 && (
+          <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
+            <Text style={type.meta}>Search</Text>
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.hero}>
