@@ -1,0 +1,121 @@
+{
+  "about": "Evaluation cases for transcript -> people extraction. Run with backend/scripts/eval_extraction.py against a live model. Field checks are case-insensitive substring matches; 'absent' fields must be null; 'notesContain' checks the notes list.",
+  "cases": [
+    {
+      "id": "single-person",
+      "category": "single person",
+      "transcript": "Today I met Jason Chen at a Berkeley founders mixer. He's an EECS sophomore working on a robotics startup. He's looking for designers, and we talked about Magic Hour. I should probably reach out next week.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [
+          {
+            "name": "Jason Chen",
+            "fields": { "major": "EECS", "metAt": "mixer", "followUp": "next week" },
+            "listsContain": { "projects": ["robotics"], "needs": ["designer"], "topicsDiscussed": ["Magic Hour"] }
+          }
+        ]
+      }
+    },
+    {
+      "id": "multiple-people",
+      "category": "multiple people",
+      "transcript": "I met Jason and Emma. Jason works on robotics and Emma is a designer at Figma.",
+      "expect": {
+        "peopleCount": 2,
+        "people": [
+          { "name": "Jason", "listsContain": { "projects": ["robotics"] } },
+          { "name": "Emma", "fields": { "company": "Figma", "role": "designer" } }
+        ]
+      }
+    },
+    {
+      "id": "uncertain-fact",
+      "category": "uncertain facts",
+      "transcript": "Grabbed coffee with Emma Park. I think she works at Google, but I'm not totally sure. She's really into climbing.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [
+          { "name": "Emma Park", "absent": ["company"], "notesContain": ["google"], "listsContain": { "interests": ["climbing"] } }
+        ]
+      }
+    },
+    {
+      "id": "correction",
+      "category": "corrections",
+      "transcript": "Met Sarah Kim, she's a PM at Stripe, no wait, sorry, she's a PM at Square. We talked about payments infrastructure.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [ { "name": "Sarah Kim", "fields": { "company": "Square" } } ]
+      }
+    },
+    {
+      "id": "slang",
+      "category": "slang",
+      "transcript": "yo just linked w/ Alex Wang at the hackathon, dude's cracked at ML, lowkey wants a cofounder for his AI tutoring thing. gotta hit him up tmrw fr",
+      "expect": {
+        "peopleCount": 1,
+        "people": [
+          { "name": "Alex Wang", "fields": { "metAt": "hackathon" }, "listsContain": { "needs": ["cofounder"] }, "nonNull": ["followUp"] }
+        ]
+      }
+    },
+    {
+      "id": "rambling",
+      "category": "long rambling speech",
+      "transcript": "Okay so, um, this was kind of a long day, I went to like three different things, but the one that mattered was the Cal Hacks opening, and there I ran into, uh, this guy Marcus Lee, who, I mean, he's a senior at Stanford, I think, no, he's definitely at Stanford, he said that twice, and he's doing, like, computer vision for agriculture, drones looking at crops or something, and he mentioned he's looking for, um, somebody who knows hardware. Anyway it was loud and the pizza was bad.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [
+          { "name": "Marcus Lee", "fields": { "school": "Stanford", "metAt": "Cal Hacks" }, "listsContain": { "needs": ["hardware"] } }
+        ]
+      }
+    },
+    {
+      "id": "missing-name",
+      "category": "missing name/company",
+      "transcript": "Met a woman at the airport lounge who runs a small bakery in Oakland. Didn't catch her name. She wants to expand to catering.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [ { "name": null, "absent": ["name", "company"], "fields": { "location": "Oakland" } } ]
+      }
+    },
+    {
+      "id": "follow-up",
+      "category": "follow-up request",
+      "transcript": "Talked to Priya Shah after the design talk. I promised to send her my deck by Friday.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [ { "name": "Priya Shah", "fields": { "followUp": "deck" } } ]
+      }
+    },
+    {
+      "id": "event-location",
+      "category": "event/location",
+      "transcript": "At the Figma Config after-party in San Francisco I met Diego Ramirez, he's a product designer based in Mexico City.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [
+          { "name": "Diego Ramirez", "fields": { "metAt": "Config", "location": "Mexico City", "role": "product designer" } }
+        ]
+      }
+    },
+    {
+      "id": "repeated-contact",
+      "category": "repeated contact",
+      "transcript": "Ran into Jason Chen again at Cal Hacks. His robotics startup just raised a pre-seed and now he's hiring ML engineers.",
+      "expect": {
+        "peopleCount": 1,
+        "people": [ { "name": "Jason Chen", "fields": { "metAt": "Cal Hacks" }, "listsContain": { "needs": ["ML engineer"] } } ]
+      }
+    },
+    {
+      "id": "noisy-transcript",
+      "category": "noisy transcript",
+      "transcript": "met uh [inaudible] Nina Patel at the at the uh YC meetup she's doing, um, fintech for, for gig workers [noise] wants intros to to angels",
+      "expect": {
+        "peopleCount": 1,
+        "people": [ { "name": "Nina Patel", "fields": { "metAt": "YC" }, "listsContain": { "projects": ["fintech"], "needs": ["angel"] } } ]
+      }
+    }
+  ]
+}
