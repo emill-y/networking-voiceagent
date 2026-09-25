@@ -1,157 +1,86 @@
-import { useEffect, useState } from "react";
-import { Button, Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-const apiUrl = (
-  process.env.EXPO_PUBLIC_API_URL?.trim() ||
-  (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000")
-).replace(/\/+$/, "");
+import { Divider } from "@/components/Divider";
+import { MicButton } from "@/components/MicButton";
+import { Screen } from "@/components/Screen";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { colors, spacing, type } from "@/lib/theme";
 
-const connectionMessages = {
-  checking: "Connecting to backend…",
-  connected: "Backend connected",
-  error: "Could not connect to backend",
-};
+function greeting(date = new Date()): string {
+  const hour = date.getHours();
+  if (hour < 5) return "Good night";
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
 
-export default function Index() {
-  const [connection, setConnection] =
-    useState<keyof typeof connectionMessages>("checking");
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-    setConnection("checking");
-
-    async function checkHealth() {
-      try {
-        const response = await fetch(`${apiUrl}/health`, {
-          method: "GET",
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          throw new Error(`Health request failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (data?.status !== "ok") {
-          throw new Error("Unexpected health response");
-        }
-
-        if (active) setConnection("connected");
-      } catch {
-        if (active) setConnection("error");
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-
-    void checkHealth();
-
-    return () => {
-      active = false;
-      clearTimeout(timeout);
-      controller.abort();
-    };
-  }, [attempt]);
+export default function Home() {
+  const router = useRouter();
+  const health = useBackendHealth();
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        <View style={styles.connectionSection}>
-          <Text style={styles.connectionStatus} accessibilityLiveRegion="polite">
-            {connectionMessages[connection]}
-          </Text>
-          {connection === "error" && (
-            <Button
-              title="Retry connection"
-              onPress={() => setAttempt((previous) => previous + 1)}
-            />
-          )}
-        </View>
+    <Screen>
+      <Text style={styles.wordmark}>Nomi</Text>
 
-        <Text style={styles.prompt}>Who did you meet?</Text>
+      <View style={styles.hero}>
+        <Text style={type.meta}>{greeting()}</Text>
+        <Text style={[type.display, styles.prompt]}>Who did you meet?</Text>
 
-        <Pressable
-          style={styles.micButton}
-          disabled
-          accessibilityRole="button"
-          accessibilityLabel="Microphone (coming soon)"
-          accessibilityState={{ disabled: true }}
-        >
-          <Text style={styles.micIcon}>🎙</Text>
-        </Pressable>
-
-        <Text style={styles.hint}>Recording coming soon</Text>
-
-        <View style={styles.recentSection}>
-          <Text style={styles.sectionTitle}>Recent Contacts</Text>
-          <Text style={styles.placeholder}>No contacts yet</Text>
-        </View>
+        <MicButton
+          onPress={() => router.push("/record")}
+          accessibilityLabel="Record a new memory"
+        />
+        <Text style={[type.meta, styles.hint]}>Tap to record</Text>
       </View>
-    </SafeAreaView>
+
+      {health.state === "error" && (
+        <Pressable onPress={health.retry} accessibilityRole="button" style={styles.offline}>
+          <Text style={[type.meta, styles.offlineText]}>
+            Can’t reach Nomi’s backend. Tap to retry.
+          </Text>
+        </Pressable>
+      )}
+
+      <Divider />
+
+      <Text style={type.label}>Recent people</Text>
+      <Text style={[type.body, styles.empty]}>
+        No one yet. The people you meet will gather here.
+      </Text>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#ffffff",
+  wordmark: {
+    ...type.heading,
+    color: colors.muted,
+    letterSpacing: 1,
   },
-  container: {
-    flex: 1,
-    width: "100%",
-    maxWidth: 480,
-    alignSelf: "center",
+  hero: {
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingTop: 48,
+    paddingTop: spacing.xl,
   },
   prompt: {
-    fontSize: 28,
-    fontWeight: "600",
-    color: "#111111",
-    marginBottom: 40,
-  },
-  connectionSection: {
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 24,
-  },
-  connectionStatus: {
-    fontSize: 15,
-    color: "#333333",
     textAlign: "center",
-  },
-  micButton: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: "#666666",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  micIcon: {
-    fontSize: 36,
+    marginTop: spacing.sm,
+    marginBottom: spacing.lg,
   },
   hint: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#333333",
+    marginTop: spacing.xs,
   },
-  recentSection: {
-    marginTop: 56,
-    alignSelf: "stretch",
+  offline: {
+    marginTop: spacing.lg,
+    alignSelf: "center",
+    paddingVertical: spacing.sm,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111111",
-    marginBottom: 12,
+  offlineText: {
+    color: colors.danger,
+    textAlign: "center",
   },
-  placeholder: {
-    fontSize: 15,
-    color: "#888888",
+  empty: {
+    marginTop: spacing.sm,
+    color: colors.muted,
   },
 });
