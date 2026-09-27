@@ -1,5 +1,11 @@
 # Shipping Nomi to the App Store
 
+> **In a hurry?** After Parts 1–2 are set up once, every deploy is one command:
+> `backend/scripts/deploy.sh` — it builds the web app, ships the API + website to
+> Cloud Run, and prints the live URLs. Then Part 7 (`eas build` + `eas submit`).
+> Apple review itself usually takes 1–3 days and needs a paid Apple Developer
+> account ($99/yr) — nothing can make that part instant.
+
 This is the path from "works on my laptop" to "anyone can download it".
 Do the parts in order; each ends with a check.
 
@@ -117,11 +123,17 @@ Part 2 is done, and the repository can stay private:
 - Support URL: `https://nomi-api-xxxxx.a.run.app/`
 - Privacy policy URL: `https://nomi-api-xxxxx.a.run.app/privacy`
 
-1. Replace `SUPPORT_EMAIL` in `backend/app/pages/index.html` and
-   `backend/app/pages/privacy.html` with the address people should write to
-   (twice in each file). Read the privacy policy and adjust anything that isn't
-   true for you. This isn't legal advice.
-2. Commit, push, and redeploy (the `gcloud run deploy` command from Part 2).
+1. Set `SUPPORT_EMAIL` in `backend/prod.env.yaml` to the address people should
+   write to. It's filled into the website and the privacy policy. Read the
+   privacy policy and adjust anything that isn't true for you. This isn't
+   legal advice.
+2. Redeploy: `backend/scripts/deploy.sh`.
+
+The same URL is Nomi's public marketing site: `/` is the landing page and
+`/app` is the full web version. Use it as the App Store **Marketing URL** too,
+and share it anywhere. To put it on your own domain, run
+`gcloud beta run domain-mappings create --service nomi-api --domain nomi.yourdomain.com --region northamerica-northeast1`
+and add the DNS records it prints.
 
 **Check:** both URLs open in a browser.
 
