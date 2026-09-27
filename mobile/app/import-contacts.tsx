@@ -15,7 +15,13 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { matchEntries, toImportedPerson, type EntryMatch } from "@/lib/addressBook";
 import { ApiError } from "@/lib/api";
-import { contactsAccess, contactsSupported, loadAddressBook, type ContactsAccess } from "@/lib/deviceContacts";
+import {
+  chooseMoreContacts,
+  contactsAccess,
+  contactsSupported,
+  loadAddressBook,
+  type ContactsAccess,
+} from "@/lib/deviceContacts";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { importContacts, listContacts } from "@/services/nomi";
 
@@ -47,7 +53,12 @@ export default function ImportContacts() {
       setMatches(matchEntries(entries, people));
       setPhase("ready");
     } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : "Couldn’t read your contacts.");
+      console.warn("[contacts] load failed:", e);
+      setMessage(
+        e instanceof ApiError
+          ? e.message
+          : `Couldn’t read your contacts${e instanceof Error && e.message ? ` (${e.message})` : ""}.`,
+      );
       setPhase("error");
     }
   }
@@ -138,6 +149,7 @@ export default function ImportContacts() {
       ) : phase === "error" ? (
         <View style={styles.block}>
           <Text style={type.body}>{message}</Text>
+          {contactsSupported && <Button title="Try again" variant="quiet" onPress={() => void load(true)} />}
         </View>
       ) : (
         <>
@@ -152,7 +164,15 @@ export default function ImportContacts() {
               style={styles.search}
             />
             {access === "limited" && (
-              <Text style={type.meta}>Nomi can see only the contacts you allowed.</Text>
+              <Pressable
+                onPress={() => void chooseMoreContacts().then(() => load(false))}
+                accessibilityRole="button"
+                hitSlop={8}
+              >
+                <Text style={[type.meta, styles.more]}>
+                  Nomi can see only the contacts you allowed. Choose more →
+                </Text>
+              </Pressable>
             )}
             {alreadyKnown > 0 && (
               <Text style={type.meta}>
@@ -307,5 +327,8 @@ const styles = StyleSheet.create({
   },
   error: {
     color: colors.danger,
+  },
+  more: {
+    color: colors.accent,
   },
 });

@@ -54,3 +54,10 @@ test("prefers a mobile number when importing", () => {
     contactId: null, name: "Diego", company: null, role: null, email: "d@x.com", phone: "222 222 2222",
   });
 });
+
+test("imports trim values to the server's limits", () => {
+  const long = "x".repeat(500);
+  const imported = toImportedPerson({ entry: entry("a", long, { company: long }), match: null, reason: null, adds: [] });
+  assert.equal(imported.name.length, 200);
+  assert.equal(imported.company?.length, 400);
+});
