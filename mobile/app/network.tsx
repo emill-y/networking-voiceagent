@@ -47,11 +47,6 @@ export default function Network() {
 
   return (
     <Screen wide>
-      {!desktop && (
-        <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-          <Text style={type.meta}>Back</Text>
-        </Pressable>
-      )}
       <Text style={[type.display, styles.title]}>Your network</Text>
 
       {!data || !layout ? (

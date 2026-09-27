@@ -1,15 +1,19 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { Platform, Share, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { Chip, ChipRow } from "@/components/Chip";
+import { Monogram } from "@/components/Monogram";
+import { useProfile } from "@/hooks/useProfile";
 import { Divider } from "@/components/Divider";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { localToday } from "@/lib/dates";
 import { contactsSupported } from "@/lib/deviceContacts";
-import { colors, spacing, type } from "@/lib/theme";
+import { colors, fonts, spacing, type } from "@/lib/theme";
 import { useSession } from "@/hooks/useSession";
 import { supabase } from "@/lib/supabase";
 import { deleteAccount, deleteAllData, exportData } from "@/services/nomi";
@@ -17,6 +21,7 @@ import { deleteAccount, deleteAllData, exportData } from "@/services/nomi";
 export default function You() {
   const router = useRouter();
   const { session } = useSession();
+  const profile = useProfile();
   const [busy, setBusy] = useState<"export" | "delete" | "account" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -82,11 +87,33 @@ export default function You() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Back</Text>
-      </Pressable>
       <Text style={[type.display, styles.title]}>You</Text>
-      {who ? <Text style={[type.body, styles.who]}>Signed in as {who}</Text> : null}
+
+      {session && (
+        <Card style={styles.account}>
+          <View style={styles.accountRow}>
+            <Monogram name={(session.user.user_metadata?.full_name as string | undefined) ?? who ?? "You"} size={56} />
+            <View style={styles.accountText}>
+              <Text style={styles.accountName} numberOfLines={1}>
+                {(session.user.user_metadata?.full_name as string | undefined) ?? who}
+              </Text>
+              <Text style={type.meta}>
+                {profile?.persona === "student"
+                  ? [profile.major, profile.school, profile.year].filter(Boolean).join(" · ") || "Student"
+                  : profile?.persona === "working"
+                    ? "Working"
+                    : profile?.persona === "founder"
+                      ? "Building something"
+                      : "Meeting people"}
+              </Text>
+            </View>
+          </View>
+          <ChipRow>
+            <Chip icon="pen" label="Edit profile"
+              onPress={() => router.push({ pathname: "/edit-profile", params: { edit: "1" } })} />
+          </ChipRow>
+        </Card>
+      )}
 
       <Text style={type.label}>Your memories are yours</Text>
       <View style={styles.principles}>
@@ -124,13 +151,26 @@ export default function You() {
 
 const styles = StyleSheet.create({
   title: {
-    marginTop: spacing.xl,
+    marginTop: spacing.md,
     marginBottom: spacing.lg,
   },
-  who: {
-    marginTop: -spacing.md,
-    marginBottom: spacing.lg,
-    color: colors.muted,
+  account: {
+    marginBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  accountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  accountText: {
+    flex: 1,
+    gap: 2,
+  },
+  accountName: {
+    fontFamily: fonts.serifBold,
+    fontSize: 22,
+    color: colors.text,
   },
   principles: {
     marginTop: spacing.md,

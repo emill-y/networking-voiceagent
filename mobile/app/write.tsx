@@ -4,12 +4,15 @@ import { Pressable, StyleSheet, Text, TextInput } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
+import { examples } from "@/lib/profile";
 import { colors, radius, spacing, type } from "@/lib/theme";
 
 // For moments when speaking out loud isn't possible: type the same kind of note.
 export default function Write() {
   const router = useRouter();
   const [text, setText] = useState("");
+  const profile = useProfile();
 
   return (
     <Screen>
@@ -22,7 +25,7 @@ export default function Write() {
         onChangeText={setText}
         multiline
         autoFocus
-        placeholder="I met Jason Chen at a founders mixer. He's building a robotics startup…"
+        placeholder={examples(profile).note}
         placeholderTextColor={colors.faint}
         selectionColor={colors.accent}
         accessibilityLabel="Your note"

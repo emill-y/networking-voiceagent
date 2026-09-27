@@ -1,6 +1,16 @@
-import { useEffect, useRef } from "react";
-import { Animated, Easing, Pressable, StyleSheet, View } from "react-native";
+import { useEffect } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import Animated, {
+  Easing,
+  cancelAnimation,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
+import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
+import { Icon } from "@/components/Icon";
 import { colors } from "@/lib/theme";
 
 type Props = {
@@ -11,40 +21,54 @@ type Props = {
   accessibilityLabel: string;
 };
 
-// The central capture control. While recording, a soft ring breathes
-// around it — calm, not sci-fi.
+// The record orb. At rest it breathes slowly, inviting a tap; while
+// recording, rings ripple outward. Warm light, not sci-fi.
 export function MicButton({ onPress, recording = false, disabled, size = 112, accessibilityLabel }: Props) {
-  const pulse = useRef(new Animated.Value(0)).current;
+  const breath = useSharedValue(0);
+  const ripple = useSharedValue(0);
+
+  useEffect(() => {
+    breath.value = withRepeat(withTiming(1, { duration: 2600, easing: Easing.inOut(Easing.sin) }), -1, true);
+    return () => cancelAnimation(breath);
+  }, [breath]);
 
   useEffect(() => {
     if (!recording) {
-      pulse.setValue(0);
+      cancelAnimation(ripple);
+      ripple.value = 0;
       return;
     }
-    const loop = Animated.loop(
-      Animated.timing(pulse, {
-        toValue: 1,
-        duration: 1800,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [recording, pulse]);
+    ripple.value = withRepeat(withTiming(1, { duration: 1600, easing: Easing.out(Easing.quad) }), -1, false);
+  }, [recording, ripple]);
 
-  const ringScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] });
-  const ringOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0] });
+  const halo = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + breath.value * (recording ? 0.14 : 0.07) }],
+    opacity: 0.55 + breath.value * 0.35,
+  }));
+  const ring = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + ripple.value * 0.7 }],
+    opacity: recording ? 0.6 * (1 - ripple.value) : 0,
+  }));
 
+  const box = size * 1.75;
   return (
-    <View style={[styles.wrapper, { width: size * 1.6, height: size * 1.6 }]}>
+    <View style={[styles.wrapper, { width: box, height: box }]}>
+      {/* Glow */}
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, halo]}>
+        <Svg width={box} height={box}>
+          <Defs>
+            <RadialGradient id="orbGlow" cx="50%" cy="50%" r="50%">
+              <Stop offset="0.35" stopColor={recording ? "#E0925F" : colors.glowWarm} stopOpacity={0.55} />
+              <Stop offset="1" stopColor={colors.glowWarm} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={box / 2} cy={box / 2} r={box / 2} fill="url(#orbGlow)" />
+        </Svg>
+      </Animated.View>
+      {/* Ripple while recording */}
       <Animated.View
         pointerEvents="none"
-        style={[
-          styles.ring,
-          { width: size, height: size, borderRadius: size / 2 },
-          { opacity: recording ? ringOpacity : 0, transform: [{ scale: ringScale }] },
-        ]}
+        style={[styles.ring, { width: size, height: size, borderRadius: size / 2 }, ring]}
       />
       <Pressable
         onPress={onPress}
@@ -53,26 +77,31 @@ export function MicButton({ onPress, recording = false, disabled, size = 112, ac
         accessibilityLabel={accessibilityLabel}
         accessibilityState={{ disabled: !!disabled }}
         style={({ pressed }) => [
-          styles.button,
           { width: size, height: size, borderRadius: size / 2 },
-          recording && styles.recording,
+          styles.orb,
           pressed && styles.pressed,
           disabled && styles.disabled,
         ]}
       >
-        {recording ? <View style={styles.stopGlyph} /> : <MicGlyph />}
+        <Svg style={StyleSheet.absoluteFill} width={size} height={size}>
+          <Defs>
+            <RadialGradient id="orbFill" cx="35%" cy="28%" r="80%">
+              <Stop offset="0" stopColor={recording ? "#F3C9A4" : "#F6EFE4"} />
+              <Stop offset="0.55" stopColor={recording ? "#D9905E" : colors.accentBright} />
+              <Stop offset="1" stopColor={recording ? "#9C5634" : "#8E7556"} />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#orbFill)" />
+        </Svg>
+        {/* Above the gradient (positioned siblings paint on top on the web). */}
+        <View style={styles.glyph}>
+          {recording ? (
+            <View style={styles.stopGlyph} />
+          ) : (
+            <Icon name="mic" size={size * 0.34} color={colors.background} />
+          )}
+        </View>
       </Pressable>
-    </View>
-  );
-}
-
-// A minimal line-drawn microphone built from views, so no icon font is needed.
-function MicGlyph() {
-  return (
-    <View style={styles.glyph}>
-      <View style={styles.capsule} />
-      <View style={styles.cradle} />
-      <View style={styles.stem} />
     </View>
   );
 }
@@ -84,55 +113,32 @@ const styles = StyleSheet.create({
   },
   ring: {
     position: "absolute",
-    borderWidth: 1,
-    borderColor: colors.accent,
+    borderWidth: 1.5,
+    borderColor: "#E6A276",
   },
-  button: {
-    backgroundColor: colors.surface,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "rgba(242, 238, 232, 0.16)",
+  orb: {
     alignItems: "center",
     justifyContent: "center",
-  },
-  recording: {
-    backgroundColor: colors.raised,
-    borderColor: colors.accent,
+    overflow: "hidden",
+    shadowColor: "#C98B55",
+    shadowOpacity: 0.5,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 8 },
   },
   pressed: {
-    opacity: 0.85,
+    transform: [{ scale: 0.96 }],
   },
   disabled: {
     opacity: 0.4,
   },
   glyph: {
-    alignItems: "center",
-  },
-  capsule: {
-    width: 16,
-    height: 26,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: colors.text,
-  },
-  cradle: {
-    width: 26,
-    height: 14,
-    marginTop: -8,
-    borderBottomLeftRadius: 13,
-    borderBottomRightRadius: 13,
-    borderWidth: 1.5,
-    borderTopWidth: 0,
-    borderColor: colors.text,
-  },
-  stem: {
-    width: 1.5,
-    height: 7,
-    backgroundColor: colors.text,
+    position: "relative",
+    zIndex: 1,
   },
   stopGlyph: {
-    width: 22,
-    height: 22,
-    borderRadius: 4,
-    backgroundColor: colors.text,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    backgroundColor: colors.background,
   },
 });

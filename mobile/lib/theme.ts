@@ -12,8 +12,33 @@ export const colors = {
   faint: "#6F6A64",
   hairline: "rgba(242, 238, 232, 0.08)",
   accent: "#C9B79C", // restrained warm sand, used sparingly
+  accentBright: "#E6C9A0", // highlight end of the warm gradient
+  glowWarm: "#C98B55", // background light, top
+  glowCool: "#5B6BB0", // background light, bottom
+  card: "rgba(32, 37, 42, 0.72)", // cards float over the glow
+  cardBorder: "rgba(242, 238, 232, 0.07)",
   danger: "#C98A7D", // dusty terracotta for errors and destructive actions
 } as const;
+
+// A personal color for each person: muted, warm-leaning tints that read on
+// the dark background and never compete with text. Chosen by name, so a
+// person keeps their color everywhere.
+export const personTints = [
+  "#C9956B", // clay
+  "#8FA98A", // sage
+  "#7E9CC4", // sky
+  "#C48BA0", // rose
+  "#A392C9", // lavender
+  "#6FA8A0", // teal
+  "#C9B26B", // ochre
+  "#9AA3AE", // slate
+] as const;
+
+export function tintFor(name: string | null | undefined): string {
+  let hash = 0;
+  for (const ch of name ?? "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return personTints[hash % personTints.length];
+}
 
 // Serif = personality / memory. Sans (the platform system font) = function.
 export const fonts = {

@@ -3,21 +3,18 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
+import { examples } from "@/lib/profile";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { search } from "@/services/nomi";
 import type { SearchResult } from "@/types/api";
 
-const EXAMPLES = [
-  "Who did I meet in the last two weeks?",
-  "Who is working on robotics?",
-  "Who did I promise to follow up with?",
-];
-
 export default function Search() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const EXAMPLES = examples(useProfile()).searches;
   const [results, setResults] = useState<SearchResult[] | null>(null);
   const [asked, setAsked] = useState("");
   const [loading, setLoading] = useState(false);

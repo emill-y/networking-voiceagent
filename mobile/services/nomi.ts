@@ -36,10 +36,13 @@ export async function transcribe(audioUri: string): Promise<Transcription> {
   return request<Transcription>("/transcribe", { method: "POST", body: form, timeoutMs: 180_000 });
 }
 
-export function extract(transcript: string) {
+export function extract(
+  transcript: string,
+  context?: { persona: string; school: string | null; major: string | null },
+) {
   return request<ContactExtractionResult>("/extract", {
     method: "POST",
-    body: { transcript, today: localToday() },
+    body: { transcript, today: localToday(), context },
     timeoutMs: 180_000,
   });
 }

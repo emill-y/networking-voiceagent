@@ -6,7 +6,9 @@ import { Button } from "@/components/Button";
 import { Divider } from "@/components/Divider";
 import { Field } from "@/components/Field";
 import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
 import { ApiError } from "@/lib/api";
+import { examples, extractionContext } from "@/lib/profile";
 import { isDateString } from "@/lib/dates";
 import { formatRelative } from "@/lib/format";
 import {
@@ -52,6 +54,7 @@ function describe(error: unknown): string {
 
 export default function Review() {
   const router = useRouter();
+  const profile = useProfile();
   // `uri` comes from the record screen; `transcript` lets you type a note instead.
   const params = useLocalSearchParams<{ uri?: string; transcript?: string; source?: string }>();
   const [stage, setStage] = useState<Stage>(params.transcript ? "extracting" : "transcribing");
@@ -82,7 +85,7 @@ export default function Review() {
         }
 
         setStage("extracting");
-        const result = await extract(text);
+        const result = await extract(text, extractionContext(profile));
         let next = result.people.map(draftFromExtracted);
 
         // Suggestions are a convenience; if the check fails, carry on.
@@ -254,6 +257,7 @@ function PersonEditor({
   index: number;
   onChange: (change: (draft: Draft) => Draft) => void;
 }) {
+  const followUpExample = examples(useProfile()).followUp;
   // Only show what was heard; empty fields wait behind "More details".
   const [showAll, setShowAll] = useState(false);
   const set = (field: keyof Draft) => (value: string) =>
@@ -325,7 +329,7 @@ function PersonEditor({
             </Pressable>
           )}
           <Field label="Follow up" value={draft.followUp} onChangeText={set("followUp")}
-            placeholder="e.g. Send the deck next week" />
+            placeholder={followUpExample} />
           {draft.followUp.trim() ? (
             <Field label="Due" value={draft.followUpDue} onChangeText={set("followUpDue")}
               placeholder="YYYY-MM-DD" autoCapitalize="none" autoCorrect={false}

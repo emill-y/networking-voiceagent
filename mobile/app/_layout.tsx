@@ -4,7 +4,7 @@ import {
   CormorantGaramond_600SemiBold,
   useFonts,
 } from "@expo-google-fonts/cormorant-garamond";
-import { Stack } from "expo-router";
+import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
@@ -12,8 +12,10 @@ import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { Sidebar } from "@/components/Sidebar";
+import { showsTabBar, TabBar } from "@/components/TabBar";
 import { useDesktop } from "@/hooks/useDesktop";
 import { SessionProvider, useSession } from "@/hooks/useSession";
+import { profileFrom } from "@/lib/profile";
 import { authEnabled } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
 
@@ -41,6 +43,7 @@ function RootNavigator() {
   });
   const { session, loading } = useSession();
   const desktop = useDesktop();
+  const pathname = usePathname();
   const ready = (fontsLoaded || !!fontError) && !loading;
 
   useEffect(() => {
@@ -51,6 +54,8 @@ function RootNavigator() {
 
   // Without Supabase configured (local development), everything is open.
   const signedIn = !authEnabled || !!session;
+  // New accounts answer one welcome question before the app opens.
+  const onboarded = !authEnabled || !!profileFrom(session);
 
   const stack = (
       <Stack
@@ -62,7 +67,10 @@ function RootNavigator() {
       >
         {/* Protected screens are only reachable when their guard is true;
             Expo Router redirects to the first allowed screen otherwise. */}
-        <Stack.Protected guard={signedIn}>
+        <Stack.Protected guard={signedIn && !onboarded}>
+          <Stack.Screen name="welcome" />
+        </Stack.Protected>
+        <Stack.Protected guard={signedIn && onboarded}>
           <Stack.Screen name="index" />
           <Stack.Screen name="record" />
           <Stack.Screen name="write" />
@@ -75,6 +83,7 @@ function RootNavigator() {
           <Stack.Screen name="you" />
           <Stack.Screen name="import-contacts" />
           <Stack.Screen name="network" />
+          <Stack.Screen name="edit-profile" />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />
@@ -87,14 +96,17 @@ function RootNavigator() {
   return (
     <>
       <StatusBar style="light" />
-      {desktop && signedIn ? (
+      {desktop && signedIn && onboarded ? (
         // Wide browser windows: persistent sidebar next to the current screen.
         <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.background }}>
           <Sidebar />
           <View style={{ flex: 1 }}>{stack}</View>
         </View>
       ) : (
-        stack
+        <View style={{ flex: 1, backgroundColor: colors.background }}>
+          {stack}
+          {signedIn && onboarded && showsTabBar(pathname) && <TabBar />}
+        </View>
       )}
     </>
   );
