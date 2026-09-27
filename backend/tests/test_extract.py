@@ -282,3 +282,23 @@ def test_schema_is_sent_compactly(monkeypatch):
     monkeypatch.setattr(llm_module.httpx, "post", fake_post)
     OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", EXTRACTION_JSON_SCHEMA)
     assert '", "' not in seen["system"] and '": ' not in seen["system"]
+
+
+def test_student_context_reaches_the_model(client):
+    fake = FakeLLM(json.dumps({"people": [JASON]}))
+    use(fake)
+    response = client.post("/extract", json={
+        "transcript": "Met my classmate Jason.",
+        "context": {"persona": "student", "school": "UC Berkeley", "major": "CS"},
+    })
+    assert response.status_code == 200
+    user = fake.calls[0]["user"]
+    assert "student at UC Berkeley studying CS" in user
+    assert "classmate" in user and user.index("About the speaker") < user.index("Voice note")
+
+
+def test_no_context_means_no_speaker_note(client):
+    fake = FakeLLM(json.dumps({"people": []}))
+    use(fake)
+    client.post("/extract", json={"transcript": "Met Jason."})
+    assert "About the speaker" not in fake.calls[0]["user"]

@@ -17,7 +17,7 @@ def extract(
     _user_id: UUID = Depends(limit_ai_requests),
 ) -> ContactExtractionResult:
     try:
-        return extract_people(body.transcript, llm, body.today)
+        return extract_people(body.transcript, llm, body.today, body.context)
     except LLMUnavailable as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
     except ExtractionFailed as exc:

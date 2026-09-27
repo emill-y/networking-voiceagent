@@ -14,6 +14,7 @@ from app.schemas.extraction import (
     EXTRACTION_JSON_SCHEMA,
     ContactExtractionResult,
     ExtractedPerson,
+    SpeakerContext,
 )
 from app.services.dates import resolve_due_date
 from app.services.llm import LLMClient
@@ -89,9 +90,31 @@ def clean_person(person: ExtractedPerson) -> ExtractedPerson | None:
     return cleaned
 
 
-def extract_people(transcript: str, llm: LLMClient, today: date | None = None) -> ContactExtractionResult:
+def describe_speaker(context: SpeakerContext | None) -> str:
+    """A short note about the speaker for the model, or '' if we know nothing."""
+    if not context or not (context.persona or context.school):
+        return ""
+    if context.persona == "student" and context.school:
+        studying = f" studying {context.major}" if context.major else ""
+        return (
+            f"About the speaker: a student at {context.school}{studying}. If they say someone is a "
+            f"classmate, in their class, a TA, a professor, or from their school or campus, set that "
+            f"person's school to {context.school}."
+        )
+    return f"About the speaker: {context.persona}."
+
+
+def extract_people(
+    transcript: str,
+    llm: LLMClient,
+    today: date | None = None,
+    context: SpeakerContext | None = None,
+) -> ContactExtractionResult:
     today = today or date.today()
-    user_message = f"Voice note transcript:\n\"\"\"\n{transcript.strip()}\n\"\"\""
+    about = describe_speaker(context)
+    user_message = (f"{about}\n\n" if about else "") + (
+        f"Voice note transcript:\n\"\"\"\n{transcript.strip()}\n\"\"\""
+    )
     last_error: Exception | None = None
 
     for attempt in range(1, MAX_ATTEMPTS + 1):

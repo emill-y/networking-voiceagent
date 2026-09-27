@@ -27,10 +27,19 @@ class ContactExtractionResult(ApiModel):
     people: list[ExtractedPerson] = Field(default_factory=list)
 
 
+class SpeakerContext(ApiModel):
+    """Who's speaking, so "my school" or "a classmate" can be understood."""
+
+    persona: str | None = Field(default=None, max_length=40)
+    school: str | None = Field(default=None, max_length=200)
+    major: str | None = Field(default=None, max_length=200)
+
+
 class ExtractionRequest(ApiModel):
     transcript: str = Field(min_length=1, max_length=20_000)
     # The user's local date, so "next week" means their next week.
     today: date | None = None
+    context: SpeakerContext | None = None
 
 
 def _nullable_string(description: str) -> dict:
