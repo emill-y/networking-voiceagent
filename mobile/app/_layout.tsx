@@ -8,6 +8,7 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { SessionProvider, useSession } from "@/hooks/useSession";
 import { authEnabled } from "@/lib/supabase";
@@ -20,9 +21,12 @@ void SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   return (
-    <SessionProvider>
-      <RootNavigator />
-    </SessionProvider>
+    // Needed for pinch/pan gestures (the network map) on every platform.
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: colors.background }}>
+      <SessionProvider>
+        <RootNavigator />
+      </SessionProvider>
+    </GestureHandlerRootView>
   );
 }
 
@@ -68,6 +72,7 @@ function RootNavigator() {
           <Stack.Screen name="search" />
           <Stack.Screen name="you" />
           <Stack.Screen name="import-contacts" />
+          <Stack.Screen name="network" />
         </Stack.Protected>
         <Stack.Protected guard={!signedIn}>
           <Stack.Screen name="sign-in" />

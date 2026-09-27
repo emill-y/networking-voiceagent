@@ -156,3 +156,36 @@ export type SearchResponse = {
   interpreted: boolean;
   results: SearchResult[];
 };
+
+export type EdgeKind = "organization" | "event" | "interests";
+
+export type NetworkPerson = {
+  id: string;
+  kind: "person";
+  name: string;
+  subtitle: string | null;
+  moments: number;
+  lastInteractionAt: string | null;
+  openFollowUps: number;
+};
+
+export type NetworkGroup = {
+  id: string;
+  kind: "group";
+  label: string;
+  edgeKind: EdgeKind;
+  members: number;
+};
+
+export type NetworkEdge = {
+  source: string;
+  target: string;
+  kind: EdgeKind;
+  reasons: string[];
+};
+
+export type NetworkResponse = {
+  people: NetworkPerson[];
+  groups: NetworkGroup[];
+  edges: NetworkEdge[];
+};

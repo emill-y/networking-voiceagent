@@ -22,6 +22,13 @@ from app.schemas.network import NetworkEdge, NetworkGroup, NetworkPerson, Networ
 from app.services.identity import normalize
 
 HUB_THRESHOLD = 5
+# Everyday meetings aren't shared events: coffee with two different people
+# doesn't connect them.
+GENERIC_EVENTS = {
+    "coffee", "coffee chat", "lunch", "dinner", "breakfast", "drinks", "call", "phone call",
+    "video call", "zoom", "zoom call", "meeting", "chat", "catch up", "catchup", "walk",
+    "conversation", "office hours", "1 1", "11", "one on one",
+}
 MAX_PEOPLE = 300
 STOPWORDS = {
     "and", "the", "for", "with", "from", "into", "about", "their", "they", "them", "this",
@@ -74,7 +81,8 @@ def build_network(contacts: list[dict[str, Any]], moments: list[dict[str, Any]])
         person = moment["contact_id"]
         if person not in ids:
             continue
-        add("event", moment["event"], person)
+        if normalize(moment["event"]) not in GENERIC_EVENTS:
+            add("event", moment["event"], person)
         words = interest_terms(
             moment["projects"] + moment["interests"] + moment["topics_discussed"] + moment["needs"]
         )
@@ -97,8 +105,9 @@ def build_network(contacts: list[dict[str, Any]], moments: list[dict[str, Any]])
         if len(people) >= HUB_THRESHOLD and kind != "interests":
             group_id = f"{kind}:{key}"
             groups.append(NetworkGroup(id=group_id, label=label, edge_kind=kind, members=len(people)))
+            hub_reason = f"Met at {label}" if kind == "event" else f"At {label}"
             for person in people:
-                edges.append(NetworkEdge(source=str(person), target=group_id, kind=kind, reasons=[label]))
+                edges.append(NetworkEdge(source=str(person), target=group_id, kind=kind, reasons=[hub_reason]))
             continue
         for a, b in combinations(sorted(people, key=str), 2):
             reasons = pair_reasons[(str(a), str(b), kind)]

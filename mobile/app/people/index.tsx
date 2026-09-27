@@ -37,6 +37,11 @@ export default function People() {
         )}
       </View>
       <Text style={[type.display, styles.title]}>People</Text>
+      {people && people.length > 1 && (
+        <Pressable onPress={() => router.push("/network")} accessibilityRole="button" style={styles.mapLink}>
+          <Text style={[type.meta, styles.mapLinkText]}>See how they connect →</Text>
+        </Pressable>
+      )}
       {!people ? (
         <View style={styles.loading}>
           {error ? <Text style={type.body}>{error}</Text> : <ActivityIndicator color={colors.accent} />}
@@ -64,6 +69,13 @@ const styles = StyleSheet.create({
   title: {
     marginTop: spacing.xl,
     marginBottom: spacing.lg,
+  },
+  mapLink: {
+    marginTop: -spacing.md,
+    marginBottom: spacing.lg,
+  },
+  mapLinkText: {
+    color: colors.accent,
   },
   loading: {
     paddingVertical: spacing.xxl,

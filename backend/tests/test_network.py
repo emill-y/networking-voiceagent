@@ -63,3 +63,9 @@ def test_network_endpoint_is_scoped_to_the_user(db_client):
     assert body["edges"][0]["reasons"]
     db_client.act_as(OTHER_USER_ID)
     assert db_client.get("/network").json() == {"people": [], "groups": [], "edges": []}
+
+
+def test_everyday_meetings_are_not_shared_events():
+    a, b = contact("A"), contact("B")
+    result = build_network([a, b], [moment(a, event="Coffee"), moment(b, event="coffee")])
+    assert result.edges == []

@@ -54,9 +54,14 @@ export default function Home() {
         <Text style={styles.wordmark}>Nomi</Text>
         <View style={styles.nav}>
           {people && people.length > 0 && (
-            <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
-              <Text style={type.meta}>Search</Text>
-            </Pressable>
+            <>
+              <Pressable onPress={() => router.push("/network")} accessibilityRole="button" hitSlop={12}>
+                <Text style={type.meta}>Map</Text>
+              </Pressable>
+              <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
+                <Text style={type.meta}>Search</Text>
+              </Pressable>
+            </>
           )}
           <Pressable onPress={() => router.push("/you")} accessibilityRole="button" hitSlop={12}>
             <Text style={type.meta}>You</Text>

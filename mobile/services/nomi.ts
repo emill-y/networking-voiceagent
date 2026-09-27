@@ -14,6 +14,7 @@ import type {
   DuplicateCandidate,
   FollowUp,
   FollowUpStatus,
+  NetworkResponse,
   SavedPerson,
   SearchResponse,
   Transcription,
@@ -126,4 +127,8 @@ export function importContacts(people: ImportedPerson[]) {
     body: { people },
     timeoutMs: 60_000,
   });
+}
+
+export function getNetwork() {
+  return request<NetworkResponse>("/network");
 }
