@@ -15,7 +15,7 @@ service="${SERVICE:-nomi-api}"
 
 [ -f "$backend/prod.env.yaml" ] || { echo "Missing backend/prod.env.yaml — copy prod.env.example.yaml and fill it in."; exit 1; }
 grep -q "YOUR-PASSWORD\|URL-ENCODED-PASSWORD" "$backend/prod.env.yaml" && { echo "Put your database password in backend/prod.env.yaml (DATABASE_URL)."; exit 1; }
-[ -f "$backend/../mobile/.env.local" ] || { echo "Missing mobile/.env.local (EXPO_PUBLIC_SUPABASE_URL / _ANON_KEY)."; exit 1; }
+[ -f "$backend/../mobile/.env.local" ] || { echo "Missing mobile/.env.local (EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY)."; exit 1; }
 
 "$here/build_web.sh"
 

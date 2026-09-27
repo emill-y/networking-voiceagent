@@ -172,7 +172,7 @@ In **Google Cloud → APIs & Services → OAuth consent screen**:
    for ENV in development preview production; do
      eas env:create --environment $ENV --name EXPO_PUBLIC_API_URL --value https://nomi-api-xxxxx.a.run.app --visibility plaintext --non-interactive
      eas env:create --environment $ENV --name EXPO_PUBLIC_SUPABASE_URL --value https://qebslfifekeswyesddpr.supabase.co --visibility plaintext --non-interactive
-     eas env:create --environment $ENV --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --value sb_publishable_LzehYf2w22cuHPUyYGUs2A_4N75XUiA --visibility plaintext --non-interactive
+     eas env:create --environment $ENV --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --value YOUR_SB_PUBLISHABLE_KEY --visibility plaintext --non-interactive
    done
    ```
 4. **Bundle ID:** the app uses `com.nomi.app`. Bundle IDs are unique across the
