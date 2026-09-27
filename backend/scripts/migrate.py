@@ -13,7 +13,11 @@ from pathlib import Path
 
 import psycopg
 
-from app.core.config import get_settings
+
+# Allow `python scripts/x.py` as well as `python -m scripts.x`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.core.config import get_settings  # noqa: E402
 
 MIGRATIONS_DIR = Path(__file__).resolve().parents[2] / "supabase" / "migrations"
 # Stand-ins for Supabase's `auth` schema, for plain PostgreSQL only.

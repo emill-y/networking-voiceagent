@@ -14,7 +14,11 @@ import sys
 import time
 from pathlib import Path
 
-from app.core.config import get_settings
+
+# Allow `python scripts/x.py` as well as `python -m scripts.x`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.core.config import get_settings  # noqa: E402
 from app.services.extraction import extract_people
 from app.services.llm import get_llm_client
 

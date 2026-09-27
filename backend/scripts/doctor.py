@@ -15,7 +15,13 @@ import urllib.request
 import httpx
 import psycopg
 
-from app.core.config import get_settings
+import sys
+from pathlib import Path
+
+# Allow `python scripts/x.py` as well as `python -m scripts.x`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.core.config import get_settings  # noqa: E402
 
 results: list[bool] = []
 
