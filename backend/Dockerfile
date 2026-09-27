@@ -11,6 +11,8 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY app ./app
+# The web app, if built (scripts/build_web.sh); served at /app.
+COPY web ./web
 
 # Don't run as root inside the container.
 RUN useradd --create-home nomi

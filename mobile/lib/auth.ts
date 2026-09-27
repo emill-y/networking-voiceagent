@@ -13,7 +13,8 @@ import { supabase } from "@/lib/supabase";
 // /auth/callback screen (a deep link on phones, a page on web).
 export function authRedirectUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    return `${window.location.origin}/auth/callback`;
+    // The web app lives under a base path (/app, see app.json).
+    return `${window.location.origin}${process.env.EXPO_BASE_URL ?? ""}/auth/callback`;
   }
   return Linking.createURL("auth/callback");
 }

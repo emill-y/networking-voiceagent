@@ -3,9 +3,13 @@ import { Platform } from "react-native";
 import { getAccessToken, supabase } from "@/lib/supabase";
 
 // Backend base URL. See mobile/README.md for device-specific values.
+// "same-origin" (used by the deployed web app, which the API server itself
+// serves) means: call the server this page came from.
+const configuredApiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
 export const apiUrl = (
-  process.env.EXPO_PUBLIC_API_URL?.trim() ||
-  (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000")
+  configuredApiUrl === "same-origin"
+    ? ""
+    : configuredApiUrl || (Platform.OS === "android" ? "http://10.0.2.2:8000" : "http://127.0.0.1:8000")
 ).replace(/\/+$/, "");
 
 export class ApiError extends Error {

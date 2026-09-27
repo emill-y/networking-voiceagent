@@ -8,8 +8,11 @@ import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
+import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
+import { Sidebar } from "@/components/Sidebar";
+import { useDesktop } from "@/hooks/useDesktop";
 import { SessionProvider, useSession } from "@/hooks/useSession";
 import { authEnabled } from "@/lib/supabase";
 import { colors } from "@/lib/theme";
@@ -37,6 +40,7 @@ function RootNavigator() {
     CormorantGaramond_600SemiBold,
   });
   const { session, loading } = useSession();
+  const desktop = useDesktop();
   const ready = (fontsLoaded || !!fontError) && !loading;
 
   useEffect(() => {
@@ -48,9 +52,7 @@ function RootNavigator() {
   // Without Supabase configured (local development), everything is open.
   const signedIn = !authEnabled || !!session;
 
-  return (
-    <>
-      <StatusBar style="light" />
+  const stack = (
       <Stack
         screenOptions={{
           headerShown: false,
@@ -80,6 +82,20 @@ function RootNavigator() {
         {/* Reachable either way: sign-in links arrive here. */}
         <Stack.Screen name="auth/callback" />
       </Stack>
+  );
+
+  return (
+    <>
+      <StatusBar style="light" />
+      {desktop && signedIn ? (
+        // Wide browser windows: persistent sidebar next to the current screen.
+        <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.background }}>
+          <Sidebar />
+          <View style={{ flex: 1 }}>{stack}</View>
+        </View>
+      ) : (
+        stack
+      )}
     </>
   );
 }

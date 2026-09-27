@@ -6,6 +6,7 @@ import Svg, { Line } from "react-native-svg";
 import { Button } from "@/components/Button";
 import { EDGE_STYLES, EdgeLegend, NetworkMap } from "@/components/NetworkMap";
 import { Screen } from "@/components/Screen";
+import { useDesktop } from "@/hooks/useDesktop";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
 import { layoutNetwork, neighbors, type MapEdge } from "@/lib/networkLayout";
@@ -18,6 +19,7 @@ type View_ = "map" | "list";
 export default function Network() {
   const router = useRouter();
   const { height: windowHeight } = useWindowDimensions();
+  const desktop = useDesktop();
   const [data, setData] = useState<NetworkResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -44,10 +46,12 @@ export default function Network() {
   const links = data?.edges ?? [];
 
   return (
-    <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Back</Text>
-      </Pressable>
+    <Screen wide>
+      {!desktop && (
+        <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
+          <Text style={type.meta}>Back</Text>
+        </Pressable>
+      )}
       <Text style={[type.display, styles.title]}>Your network</Text>
 
       {!data || !layout ? (
@@ -80,7 +84,7 @@ export default function Network() {
                   layout={layout}
                   selectedId={selectedId}
                   onSelect={setSelectedId}
-                  height={Math.max(320, Math.min(640, windowHeight * 0.55))}
+                  height={desktop ? Math.max(480, windowHeight - 320) : Math.max(320, Math.min(640, windowHeight * 0.55))}
                 />
               </View>
               {links.length === 0 && (

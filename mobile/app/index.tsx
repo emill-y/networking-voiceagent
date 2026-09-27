@@ -7,6 +7,7 @@ import { MicButton } from "@/components/MicButton";
 import { PersonRow } from "@/components/PersonRow";
 import { Screen } from "@/components/Screen";
 import { useBackendHealth } from "@/hooks/useBackendHealth";
+import { useDesktop } from "@/hooks/useDesktop";
 import { apiUrl } from "@/lib/api";
 import { contactsSupported } from "@/lib/deviceContacts";
 import { subtitle } from "@/lib/memory";
@@ -27,6 +28,8 @@ function greeting(date = new Date()): string {
 export default function Home() {
   const router = useRouter();
   const health = useBackendHealth();
+  // On desktop web the sidebar already provides navigation.
+  const desktop = useDesktop();
   const [people, setPeople] = useState<ContactSummary[] | null>(null);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
 
@@ -50,24 +53,26 @@ export default function Home() {
 
   return (
     <Screen>
-      <View style={styles.topBar}>
-        <Text style={styles.wordmark}>Nomi</Text>
-        <View style={styles.nav}>
-          {people && people.length > 0 && (
-            <>
-              <Pressable onPress={() => router.push("/network")} accessibilityRole="button" hitSlop={12}>
-                <Text style={type.meta}>Map</Text>
-              </Pressable>
-              <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
-                <Text style={type.meta}>Search</Text>
-              </Pressable>
-            </>
-          )}
-          <Pressable onPress={() => router.push("/you")} accessibilityRole="button" hitSlop={12}>
-            <Text style={type.meta}>You</Text>
-          </Pressable>
+      {!desktop && (
+        <View style={styles.topBar}>
+          <Text style={styles.wordmark}>Nomi</Text>
+          <View style={styles.nav}>
+            {people && people.length > 0 && (
+              <>
+                <Pressable onPress={() => router.push("/network")} accessibilityRole="button" hitSlop={12}>
+                  <Text style={type.meta}>Map</Text>
+                </Pressable>
+                <Pressable onPress={() => router.push("/search")} accessibilityRole="button" hitSlop={12}>
+                  <Text style={type.meta}>Search</Text>
+                </Pressable>
+              </>
+            )}
+            <Pressable onPress={() => router.push("/you")} accessibilityRole="button" hitSlop={12}>
+              <Text style={type.meta}>You</Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
 
       <View style={styles.hero}>
         <Text style={type.meta}>{greeting()}</Text>

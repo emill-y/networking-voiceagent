@@ -37,8 +37,13 @@
       ]
     },
     "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "name": "Nomi",
+      "shortName": "Nomi",
+      "themeColor": "#171A1D",
+      "backgroundColor": "#171A1D",
+      "description": "A private memory for the people you meet."
     },
     "plugins": [
       "expo-router",
@@ -76,7 +81,8 @@
     ],
     "experiments": {
       "typedRoutes": true,
-      "reactCompiler": true
+      "reactCompiler": true,
+      "baseUrl": "/app"
     },
     "backgroundColor": "#171A1D",
     "splash": {
