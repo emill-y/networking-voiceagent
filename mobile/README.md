@@ -57,7 +57,8 @@ link is useless. `app/auth/callback.tsx` exchanges the code for a session.
 
 1. **Redirect URLs** (Authentication → URL Configuration): add
    `nomi://auth/callback`, `exp://**` (Expo Go during development) and
-   `http://localhost:8081/auth/callback` (web preview).
+   `http://localhost:8081/app/auth/callback` (web preview) and
+   `http://localhost:8000/app/auth/callback` (web app served by the backend).
 2. **Google** (Authentication → Sign In / Providers → Google): in Google Cloud
    Console create an OAuth client of type *Web application* with the
    authorized redirect URI `https://qebslfifekeswyesddpr.supabase.co/auth/v1/callback`,
@@ -87,6 +88,20 @@ attaches the access token to every backend request, and signs out if the
 backend rejects it. Without the two settings above, the app skips sign-in
 (local development; the backend then needs `NOMI_DEV_AUTH=true`).
 
+## Web version
+
+The same app runs in browsers under `/app`. Wide windows (900px+) get a
+desktop layout with a sidebar (`components/Sidebar.tsx`, `hooks/useDesktop.ts`);
+narrow ones keep the phone layout. In the browser, notes are recorded and
+transcribed by the backend; Apple sign-in and contacts import are phone-only.
+
+- **Develop:** `npx expo start --web`, then open http://localhost:8081/app.
+- **Run like production:** `../backend/scripts/build_web.sh` builds into
+  `backend/web/`; start the backend and open http://localhost:8000/app. The web
+  app calls its own server (`EXPO_PUBLIC_API_URL=same-origin`), so there's no
+  CORS setup.
+- **Deploy:** the web app ships inside the backend's Docker image (see `DEPLOY.md`).
+
 ## Screens
 
 | Route | File | What it does |
@@ -102,6 +117,7 @@ backend rejects it. Without the two settings above, the app skips sign-in
 | `/people/[id]/edit` | `app/people/[id]/edit.tsx` | Edit details and contact info |
 | `/follow-ups` | `app/follow-ups.tsx` | Complete or dismiss commitments |
 | `/search` | `app/search.tsx` | Ask in plain language; results show why each person matched |
+| `/network` | `app/network.tsx` | Interactive map of how your people connect, with a List view |
 | `/import-contacts` | `app/import-contacts.tsx` | Pick people from the phone's contacts to add, or to fill in phone/email for people you know |
 | `/you` | `app/you.tsx` | Account, sign out, export, delete memories or the account |
 
@@ -137,6 +153,16 @@ recording is disabled in `app.json`.
 **Briefing.** `lib/memory.ts` builds "Before you meet again" on each profile
 from stored facts only: when and where you last met, open follow-ups, and
 questions drawn from their projects, needs and uncertain notes.
+
+**Network map.** `GET /network` returns people and evidence-based links
+(shared company or school, same event, overlapping interests), each with its
+reasons; groups of 5+ become hub nodes. `lib/networkLayout.ts` places them
+with a seeded d3-force simulation (you at the center), and
+`components/NetworkMap.tsx` draws them with react-native-svg: pinch/drag or
+the zoom buttons to navigate, tap a person to highlight their links. Link
+colors are the first three slots of a validated color-blind-safe palette, and
+each also has its own dash pattern; the List view shows the same information
+as text.
 
 **Contacts.** `lib/deviceContacts.ts` reads the address book with
 `expo-contacts` (after the system permission prompt; iOS 18's "limited access"

@@ -74,9 +74,14 @@ open -e prod.env.yaml
 
 In `prod.env.yaml`, paste the encoded password into `DATABASE_URL` (the Groq
 key is already filled in) and, optionally, for the rare server-side
-transcription fallback, a Hugging Face token into `HF_TOKEN`. Then deploy:
+transcription fallback, a Hugging Face token into `HF_TOKEN`.
+
+Build the web version (it ships inside the same server and is served at
+`/app`), then deploy:
 
 ```bash
+cd ~/networking-voiceagent/backend
+scripts/build_web.sh
 gcloud run deploy nomi-api \
   --source . \
   --region northamerica-northeast1 \
@@ -96,7 +101,11 @@ curl -i https://nomi-api-xxxxx.a.run.app/contacts   # 401
 ```
 Save that URL; the app needs it in Part 5.
 
-To redeploy after code changes, run the same `gcloud run deploy` command.
+**The web version** is now live at `https://nomi-api-xxxxx.a.run.app/app`.
+Add its sign-in return address in Part 4.
+
+To redeploy after code changes, run `scripts/build_web.sh` and the same
+`gcloud run deploy` command.
 The first request after a quiet period takes a couple of seconds while an
 instance starts; `--min-instances 1` removes that at a small monthly cost.
 
@@ -122,7 +131,9 @@ In the **Supabase** dashboard:
 1. **Authentication → Sign In / Providers → Apple → Client IDs**: make sure it
    contains `com.nomi.app` (the app's bundle ID) as well as `host.exp.Exponent`.
 2. **Authentication → URL Configuration → Redirect URLs** must include
-   `nomi://auth/callback`. Set **Site URL** to `nomi://auth/callback`.
+   `nomi://auth/callback` (phone app) and
+   `https://nomi-api-xxxxx.a.run.app/app/auth/callback` (web app). Set **Site URL**
+   to `nomi://auth/callback`.
 3. **Authentication → Emails → SMTP Settings**: connect a real mail sender
    (e.g. a free Resend account) so magic links aren't limited to a few per hour.
 4. Before real users: consider upgrading to Pro so the project never pauses.

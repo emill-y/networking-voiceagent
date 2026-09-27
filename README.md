@@ -82,4 +82,7 @@ Sign-in uses Supabase Auth (Apple, Google, or an email magic link); the API veri
 request's token. People can be brought in from the phone's contacts: matching
 happens on the device and only the people you pick are added.
 
+There's an interactive **network map** of how your people connect, and a
+**web version** (desktop layout) served by the backend at `/app`.
+
 Not yet: personalization, calendar and email integrations.
