@@ -40,6 +40,7 @@ export function examples(profile: UserProfile | null) {
         "Who did I meet at the career fair?",
         "Who’s in my classes?",
         "Who works at companies I want to intern at?",
+        "Who should I build a startup with for chemistry?",
       ],
       followUp: "e.g. Send my resume by Friday",
     };
@@ -51,6 +52,7 @@ export function examples(profile: UserProfile | null) {
       "Who did I meet in the last two weeks?",
       "Who is working on robotics?",
       "Who did I promise to follow up with?",
+      "Who could help me raise money?",
     ],
     followUp: "e.g. Send the deck next week",
   };

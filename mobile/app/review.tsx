@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
+import { DatePicker } from "@/components/DatePicker";
 import { Divider } from "@/components/Divider";
 import { Field } from "@/components/Field";
 import { Screen } from "@/components/Screen";
 import { useProfile } from "@/hooks/useProfile";
 import { ApiError } from "@/lib/api";
 import { examples, extractionContext } from "@/lib/profile";
-import { isDateString } from "@/lib/dates";
 import { formatRelative } from "@/lib/format";
 import {
   chooseExisting,
@@ -238,16 +238,6 @@ export default function Review() {
   );
 }
 
-function formatDueHint(value: string): string {
-  if (!isDateString(value.trim())) return "Use YYYY-MM-DD";
-  const [y, m, d] = value.trim().split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
-
 function PersonEditor({
   draft,
   index,
@@ -331,9 +321,7 @@ function PersonEditor({
           <Field label="Follow up" value={draft.followUp} onChangeText={set("followUp")}
             placeholder={followUpExample} />
           {draft.followUp.trim() ? (
-            <Field label="Due" value={draft.followUpDue} onChangeText={set("followUpDue")}
-              placeholder="YYYY-MM-DD" autoCapitalize="none" autoCorrect={false}
-              hint={draft.followUpDue ? formatDueHint(draft.followUpDue) : "Optional"} />
+            <DatePicker label="Due" value={draft.followUpDue} onChange={set("followUpDue")} />
           ) : null}
         </>
       )}

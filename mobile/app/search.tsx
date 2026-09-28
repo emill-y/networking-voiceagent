@@ -50,7 +50,7 @@ export default function Search() {
         onSubmitEditing={() => void run(query)}
         returnKeyType="search"
         autoFocus
-        placeholder="Who did I meet at Cal Hacks?"
+        placeholder="Ask anything, like “who could help with my pitch?”"
         placeholderTextColor={colors.faint}
         selectionColor={colors.accent}
         accessibilityLabel="Search your people"

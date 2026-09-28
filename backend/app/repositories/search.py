@@ -82,3 +82,42 @@ def search_contacts(conn: Connection, user_id: UUID, filters: SearchFilters, lim
         """,
         params,
     ).fetchall()
+
+
+def people_profiles(conn: Connection, user_id: UUID, limit: int = 500) -> list[dict[str, Any]]:
+    """Everything known about each person, for the model to read when ranking."""
+    return conn.execute(
+        """
+        select c.id, c.name, c.company, c.role, c.school, c.major, c.location, c.summary,
+               c.last_interaction_at,
+               coalesce((select json_agg(json_build_object(
+                          'event', i.event, 'date', i.interaction_date::date,
+                          'projects', i.projects, 'needs', i.needs, 'topics', i.topics,
+                          'interests', i.interests, 'notes', i.notes)
+                        order by i.interaction_date desc)
+                 from interactions i where i.contact_id = c.id), '[]'::json) as moments,
+               coalesce((select array_agg(f.action order by f.created_at) from follow_ups f
+                 where f.contact_id = c.id and f.status = 'open'), '{}') as open_follow_ups
+        from contacts c
+        where c.user_id = %(user_id)s
+        order by c.last_interaction_at desc nulls last
+        limit %(limit)s
+        """,
+        {"user_id": user_id, "limit": limit},
+    ).fetchall()
+
+
+def contact_summaries(conn: Connection, user_id: UUID, ids: list[UUID]) -> dict[UUID, dict[str, Any]]:
+    rows = conn.execute(
+        """
+        select c.id, c.name, c.company, c.role, c.school, c.last_interaction_at,
+               (select i.event from interactions i where i.contact_id = c.id
+                 order by i.interaction_date desc limit 1) as last_event,
+               (select count(*) from follow_ups f
+                 where f.contact_id = c.id and f.status = 'open')::int as open_follow_ups
+        from contacts c
+        where c.user_id = %(user_id)s and c.id = any(%(ids)s)
+        """,
+        {"user_id": user_id, "ids": ids},
+    ).fetchall()
+    return {row["id"]: row for row in rows}

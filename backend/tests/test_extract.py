@@ -143,7 +143,7 @@ def test_follow_up_due_uses_the_callers_date(client):
 from dataclasses import replace  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
-from app.services.llm import OllamaClient, OpenAICompatibleClient, build_llm_client  # noqa: E402
+from app.services.llm import OpenAICompatibleClient, build_llm_client  # noqa: E402
 
 
 def test_openai_compatible_request(monkeypatch):

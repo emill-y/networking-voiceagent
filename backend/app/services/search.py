@@ -1,12 +1,15 @@
 """Conversational search.
 
-    "Who did I meet at Cal Hacks last month?"
-        -> LLM -> SearchFilters(event="Cal Hacks", met_after=...)   (validated)
-        -> fixed, parameterized SQL
-        -> people + the reasons each one matched
+Questions are answered by meaning first:
 
-If the model is unavailable or returns junk, we fall back to plain keyword
-search so search always works.
+    "Who should I start a company with for chemistry?"
+        -> the model reads a compact profile of each person (only the user's own notes)
+        -> picks who fits, with a one-line reason grounded in those notes
+        -> ids are checked against the user's own people before anything is returned
+
+If the model is unavailable or answers with junk, we fall back to structured
+filters (LLM -> SearchFilters -> fixed SQL), then to plain keywords, so search
+always works. One or two plain words ("Jason", "robotics") skip the model.
 """
 
 import logging
@@ -14,13 +17,13 @@ import re
 from datetime import date, timedelta
 from uuid import UUID
 
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 from psycopg import Connection
 
 from app.repositories import contacts as contacts_repo
 from app.repositories import search as search_repo
 from app.schemas.contacts import ContactSummary
-from app.schemas.search import SEARCH_FILTERS_JSON_SCHEMA, SearchFilters, SearchResult
+from app.schemas.search import SEARCH_FILTERS_JSON_SCHEMA, SearchFilters, SearchResponse, SearchResult
 from app.services.llm import LLMClient, LLMUnavailable
 from app.services.memory import sentence_for_list
 
@@ -138,3 +141,131 @@ def run_search(conn: Connection, user_id: UUID, filters: SearchFilters) -> list[
         )
         for row in rows
     ]
+
+
+# ---------------------------------------------------------------- by meaning
+
+# How many people the model reads per question. Keeps each request small
+# enough for free-tier token limits; the closest word matches go first.
+RANK_CANDIDATES = 60
+RANK_RESULTS = 8
+PROFILE_CHARS = 420
+
+RANK_PROMPT = """You help someone search their own network: people they've met, described
+only by their own notes. Today is {today}.
+
+Pick the people who best answer the question, best first (at most {limit}).
+- Match by meaning, not exact words: "startup" fits a founder or someone building a
+  company; "chemistry" fits chemistry, chemical engineering, materials or biotech;
+  "STEM" fits science, engineering, math or computing.
+- For "who should I ..." questions, pick people whose projects, skills, needs or
+  interests make them a good fit, and say why.
+- Respect dates and places in the question (e.g. "last month", "at Cal Hacks").
+- Only include genuine fits. If nobody fits, return an empty list.
+- "why": one short sentence, using only facts from their profile. Never invent facts.
+Return JSON only."""
+
+RANK_JSON_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "matches": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"person": {"type": "string"}, "why": {"type": "string"}},
+                "required": ["person", "why"],
+            },
+        }
+    },
+    "required": ["matches"],
+}
+
+
+class _Match(BaseModel):
+    person: str
+    why: str = Field(min_length=1)
+
+
+class _Ranking(BaseModel):
+    matches: list[_Match]  # required: an answer without it is junk, not "nobody"
+
+
+def _words(text: str) -> set[str]:
+    return {
+        w.rstrip("s") for w in re.findall(r"[a-z0-9][a-z0-9+#-]*", text.lower())
+        if w not in STOPWORDS and len(w) > 2
+    }
+
+
+def profile_text(person: dict) -> str:
+    """One compact line per person, e.g. `Jason Chen | Founder | UC Berkeley | building: ...`."""
+    parts = [person["name"]]
+    for field in ("role", "company", "school", "major", "location", "summary"):
+        if person.get(field):
+            parts.append(person[field])
+    labels = (("projects", "building"), ("needs", "looking for"), ("topics", "talked about"),
+              ("interests", "into"), ("notes", "notes"))
+    for label_field, label in labels:
+        items = [item for m in person["moments"] for item in (m.get(label_field) or [])]
+        if items:
+            parts.append(f"{label}: " + "; ".join(dict.fromkeys(items)))
+    met = [f"{m['event'] or 'talked'} {m['date']}" for m in person["moments"][:3]]
+    if met:
+        parts.append("met: " + ", ".join(met))
+    if person["open_follow_ups"]:
+        parts.append("you planned: " + "; ".join(person["open_follow_ups"]))
+    line = " | ".join(parts)
+    return line if len(line) <= PROFILE_CHARS else line[: PROFILE_CHARS - 1] + "…"
+
+
+def _candidates(people: list[dict], query: str) -> list[tuple[dict, str]]:
+    """The people most worth showing the model: word overlap first, then recency."""
+    wanted = _words(query)
+    scored = []
+    for order, person in enumerate(people):
+        text = profile_text(person)
+        overlap = len(wanted & _words(text))
+        scored.append((-overlap, order, person, text))
+    scored.sort(key=lambda row: (row[0], row[1]))
+    return [(person, text) for _, _, person, text in scored[:RANK_CANDIDATES]]
+
+
+def rank_by_meaning(
+    conn: Connection, user_id: UUID, query: str, llm: LLMClient, today: date
+) -> list[SearchResult] | None:
+    """People who fit the question by meaning, or None if the model couldn't answer."""
+    people = search_repo.people_profiles(conn, user_id)
+    if not people:
+        return []
+    candidates = _candidates(people, query)
+    refs = {f"p{n}": person for n, (person, _) in enumerate(candidates, start=1)}
+    listing = "\n".join(f"p{n}: {text}" for n, (_, text) in enumerate(candidates, start=1))
+    system = RANK_PROMPT.format(today=today.isoformat(), limit=RANK_RESULTS)
+    try:
+        raw = llm.chat_json(system, f"People:\n{listing}\n\nQuestion: {query}", RANK_JSON_SCHEMA)
+        ranking = _Ranking.model_validate_json(raw)
+    except (LLMUnavailable, ValidationError) as exc:
+        logger.warning("Search ranking failed (%s); using filters", type(exc).__name__)
+        return None
+
+    chosen: list[tuple[UUID, str]] = []
+    for match in ranking.matches:
+        person = refs.get(match.person.strip())
+        if person and person["id"] not in {cid for cid, _ in chosen}:
+            chosen.append((person["id"], " ".join(match.why.split())[:160]))
+    chosen = chosen[:RANK_RESULTS]
+    summaries = search_repo.contact_summaries(conn, user_id, [cid for cid, _ in chosen])
+    return [
+        SearchResult(contact=ContactSummary.model_validate(summaries[cid]), reasons=[why])
+        for cid, why in chosen
+        if cid in summaries
+    ]
+
+
+def answer(conn: Connection, user_id: UUID, query: str, llm: LLMClient, today: date) -> SearchResponse:
+    if not _is_simple(query):
+        results = rank_by_meaning(conn, user_id, query, llm, today)
+        if results is not None:
+            return SearchResponse(filters=SearchFilters(), interpreted=True, results=results)
+    filters, interpreted = interpret(query, llm, today)
+    return SearchResponse(filters=filters, interpreted=interpreted, results=run_search(conn, user_id, filters))
