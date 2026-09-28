@@ -8,7 +8,7 @@ import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
-import { View } from "react-native";
+import { Text, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { Sidebar } from "@/components/Sidebar";
@@ -16,8 +16,8 @@ import { showsTabBar, TabBar } from "@/components/TabBar";
 import { useDesktop } from "@/hooks/useDesktop";
 import { SessionProvider, useSession } from "@/hooks/useSession";
 import { profileFrom } from "@/lib/profile";
-import { authEnabled } from "@/lib/supabase";
-import { colors } from "@/lib/theme";
+import { openWithoutSignIn, signInMissing } from "@/lib/supabase";
+import { colors, type } from "@/lib/theme";
 
 // Keep the splash screen up until the serif and any saved session are ready,
 // so titles never flash in the fallback font and signed-in users never see
@@ -52,10 +52,22 @@ function RootNavigator() {
 
   if (!ready) return null;
 
-  // Without Supabase configured (local development), everything is open.
-  const signedIn = !authEnabled || !!session;
+  if (signInMissing) {
+    return (
+      <View style={{ flex: 1, backgroundColor: colors.background, justifyContent: "center", padding: 32, gap: 12 }}>
+        <StatusBar style="light" />
+        <Text style={type.title}>Nomi is being set up</Text>
+        <Text style={type.body}>
+          Sign-in isn’t configured for this build yet. Please check back soon.
+        </Text>
+      </View>
+    );
+  }
+
+  // Without Supabase configured (local development only), everything is open.
+  const signedIn = openWithoutSignIn || !!session;
   // New accounts answer one welcome question before the app opens.
-  const onboarded = !authEnabled || !!profileFrom(session);
+  const onboarded = openWithoutSignIn || !!profileFrom(session);
 
   const stack = (
       <Stack

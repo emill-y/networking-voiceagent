@@ -33,6 +33,10 @@ export const supabase: SupabaseClient | null =
 // Without Supabase settings the app runs in local development mode: no
 // sign-in, and the backend must run with NOMI_DEV_AUTH=true.
 export const authEnabled = supabase !== null;
+// That's only allowed in development. A production build missing the settings
+// must never open without sign-in; it shows a setup message instead.
+export const openWithoutSignIn = !authEnabled && __DEV__;
+export const signInMissing = !authEnabled && !__DEV__;
 
 // Refresh tokens only while the app is in the foreground (Supabase's
 // recommendation for React Native).

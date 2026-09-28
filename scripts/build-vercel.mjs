@@ -11,6 +11,21 @@ const root = new URL("..", import.meta.url).pathname;
 const pages = join(root, "backend/app/pages");
 const out = join(root, "public");
 
+// The web app needs its sign-in settings at build time. Without them it would
+// be built in development mode (no sign-in), so stop here instead.
+const localEnv = (() => {
+  try { return readFileSync(join(root, "mobile/.env.local"), "utf8"); } catch { return ""; }
+})();
+const missing = ["EXPO_PUBLIC_SUPABASE_URL", "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY"].filter(
+  (name) => !(process.env[name] || "").trim() && !new RegExp(`^${name}=\\S`, "m").test(localEnv),
+);
+if (missing.length) {
+  console.error(`\nMissing ${missing.join(" and ")}.`);
+  console.error("Add them in Vercel -> Project -> Settings -> Environment Variables (Production),");
+  console.error("or run scripts/vercel-env.sh, then redeploy.\n");
+  process.exit(1);
+}
+
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
