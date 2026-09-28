@@ -61,3 +61,8 @@ prod.env.yaml
 # Built web app (scripts/build_web.sh); deployed with the backend, not committed.
 backend/web/*
 !backend/web/.gitkeep
+
+# Vercel build output and local link
+public/
+.vercel/
+_uv/

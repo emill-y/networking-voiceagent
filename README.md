@@ -63,6 +63,8 @@ npm start
 
 Details: [backend/README.md](backend/README.md) · [mobile/README.md](mobile/README.md)
 
+**Launching the website + web app:** see [LAUNCH_WEB.md](LAUNCH_WEB.md) (Vercel: website, live demo, web app and API in one project).
+
 **Shipping to the App Store:** see [DEPLOY.md](DEPLOY.md). It covers hosting the API,
 fast hosted AI, the privacy policy, EAS builds and App Store submission.
 

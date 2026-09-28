@@ -1,9 +1,9 @@
 import {
-  CormorantGaramond_500Medium,
-  CormorantGaramond_500Medium_Italic,
-  CormorantGaramond_600SemiBold,
+  InterTight_500Medium_Italic,
+  InterTight_600SemiBold,
+  InterTight_700Bold,
   useFonts,
-} from "@expo-google-fonts/cormorant-garamond";
+} from "@expo-google-fonts/inter-tight";
 import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -37,9 +37,9 @@ export default function RootLayout() {
 
 function RootNavigator() {
   const [fontsLoaded, fontError] = useFonts({
-    CormorantGaramond_500Medium,
-    CormorantGaramond_500Medium_Italic,
-    CormorantGaramond_600SemiBold,
+    InterTight_500Medium_Italic,
+    InterTight_600SemiBold,
+    InterTight_700Bold,
   });
   const { session, loading } = useSession();
   const desktop = useDesktop();

@@ -30,7 +30,10 @@ def get_db() -> Iterator[psycopg.Connection]:
             status.HTTP_503_SERVICE_UNAVAILABLE, "Database is not configured (DATABASE_URL)."
         )
     try:
-        conn = psycopg.connect(url, row_factory=dict_row, connect_timeout=5)
+        # Supabase's transaction pooler (port 6543, good for serverless hosts like
+        # Vercel) can't keep prepared statements between requests.
+        prepare = None if ":6543/" in url else 5
+        conn = psycopg.connect(url, row_factory=dict_row, connect_timeout=5, prepare_threshold=prepare)
     except psycopg.OperationalError as exc:
         # psycopg's message names the host and the problem, not the password.
         logger.error("Database connection failed: %s", str(exc).strip().splitlines()[0])

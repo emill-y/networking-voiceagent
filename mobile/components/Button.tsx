@@ -31,12 +31,12 @@ export function Button({ title, onPress, variant = "primary", disabled, loading,
       ]}
     >
       {primary && (
-        // Warm ivory-to-sand gradient: the one place the accent gets to shine.
+        // Molten orange gradient: the one place the accent gets to shine.
         <Svg style={StyleSheet.absoluteFill} preserveAspectRatio="none" viewBox="0 0 100 100">
           <Defs>
             <LinearGradient id="primary" x1="0" y1="0" x2="1" y2="1">
-              <Stop offset="0" stopColor="#F6EFE4" />
-              <Stop offset="1" stopColor={colors.accentBright} />
+              <Stop offset="0" stopColor="#FFA066" />
+              <Stop offset="1" stopColor={colors.accent} />
             </LinearGradient>
           </Defs>
           <Rect x="0" y="0" width="100" height="100" fill="url(#primary)" />

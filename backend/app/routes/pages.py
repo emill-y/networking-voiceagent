@@ -1,8 +1,7 @@
-"""Public web pages: the landing page (/) and privacy policy (/privacy).
+"""The public website: /, /product, /students, /demo, /privacy and /site/* assets.
 
-App Store Connect needs a marketing/support URL and a privacy policy URL.
-Serving them from the API means they're live wherever the API is deployed,
-with no separate website to host.
+On Vercel these are static files (scripts/build-vercel.mjs); serving them
+from the API too means the site also works locally and on Cloud Run.
 """
 
 import os
@@ -10,7 +9,7 @@ import re
 from functools import lru_cache
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from fastapi.responses import FileResponse, HTMLResponse
 
 router = APIRouter()
@@ -31,16 +30,30 @@ def _page(name: str) -> HTMLResponse:
     return HTMLResponse(_render(name, os.environ.get("SUPPORT_EMAIL", "").strip()))
 
 
+SITE = PAGES / "site"
+NAMED_PAGES = ("product", "students", "demo", "privacy")
+
+
 @router.get("/", include_in_schema=False)
 def landing_page() -> HTMLResponse:
     return _page("index.html")
 
 
-@router.get("/privacy", include_in_schema=False)
-def privacy_page() -> HTMLResponse:
-    return _page("privacy.html")
+def _named(name: str):
+    def page() -> HTMLResponse:
+        return _page(f"{name}.html")
+
+    return page
 
 
-@router.get("/style.css", include_in_schema=False)
-def page_styles() -> FileResponse:
-    return FileResponse(PAGES / "style.css", media_type="text/css")
+for _name in NAMED_PAGES:
+    router.add_api_route(f"/{_name}", _named(_name), methods=["GET"], include_in_schema=False)
+
+
+@router.get("/site/{path:path}", include_in_schema=False)
+def site_asset(path: str) -> FileResponse:
+    candidate = (SITE / path).resolve()
+    # Never serve anything outside the site folder.
+    if not candidate.is_relative_to(SITE.resolve()) or not candidate.is_file():
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    return FileResponse(candidate, headers={"Cache-Control": "no-cache"})

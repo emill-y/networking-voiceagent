@@ -11,7 +11,7 @@ import Animated, {
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 import { Icon } from "@/components/Icon";
-import { colors } from "@/lib/theme";
+import { colors, orb } from "@/lib/theme";
 
 type Props = {
   onPress: () => void;
@@ -58,7 +58,7 @@ export function MicButton({ onPress, recording = false, disabled, size = 112, ac
         <Svg width={box} height={box}>
           <Defs>
             <RadialGradient id="orbGlow" cx="50%" cy="50%" r="50%">
-              <Stop offset="0.35" stopColor={recording ? "#E0925F" : colors.glowWarm} stopOpacity={0.55} />
+              <Stop offset="0.35" stopColor={orb.glow} stopOpacity={recording ? 0.75 : 0.55} />
               <Stop offset="1" stopColor={colors.glowWarm} stopOpacity={0} />
             </RadialGradient>
           </Defs>
@@ -86,9 +86,10 @@ export function MicButton({ onPress, recording = false, disabled, size = 112, ac
         <Svg style={StyleSheet.absoluteFill} width={size} height={size}>
           <Defs>
             <RadialGradient id="orbFill" cx="35%" cy="28%" r="80%">
-              <Stop offset="0" stopColor={recording ? "#F3C9A4" : "#F6EFE4"} />
-              <Stop offset="0.55" stopColor={recording ? "#D9905E" : colors.accentBright} />
-              <Stop offset="1" stopColor={recording ? "#9C5634" : "#8E7556"} />
+              <Stop offset="0" stopColor={orb.light} />
+              <Stop offset="0.4" stopColor={orb.mid} />
+              <Stop offset="0.78" stopColor={orb.deep} />
+              <Stop offset="1" stopColor={orb.shadow} />
             </RadialGradient>
           </Defs>
           <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#orbFill)" />
@@ -98,7 +99,7 @@ export function MicButton({ onPress, recording = false, disabled, size = 112, ac
           {recording ? (
             <View style={styles.stopGlyph} />
           ) : (
-            <Icon name="mic" size={size * 0.34} color={colors.background} />
+            <Icon name="mic" size={size * 0.34} color="#FFFFFF" />
           )}
         </View>
       </Pressable>
@@ -114,13 +115,13 @@ const styles = StyleSheet.create({
   ring: {
     position: "absolute",
     borderWidth: 1.5,
-    borderColor: "#E6A276",
+    borderColor: orb.mid,
   },
   orb: {
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    shadowColor: "#C98B55",
+    shadowColor: orb.glow,
     shadowOpacity: 0.5,
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 8 },

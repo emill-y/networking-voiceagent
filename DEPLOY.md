@@ -1,5 +1,8 @@
 # Shipping Nomi to the App Store
 
+> **Launching the website and web app?** See [LAUNCH_WEB.md](LAUNCH_WEB.md): one
+> Vercel project serves the site, the live demo, the web app and the API.
+
 > **In a hurry?** After Parts 1–2 are set up once, every deploy is one command:
 > `backend/scripts/deploy.sh` — it builds the web app, ships the API + website to
 > Cloud Run, and prints the live URLs. Then Part 7 (`eas build` + `eas submit`).

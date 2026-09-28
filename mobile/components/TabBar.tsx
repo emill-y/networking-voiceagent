@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 import { Icon, type IconName } from "@/components/Icon";
-import { colors } from "@/lib/theme";
+import { colors, orb } from "@/lib/theme";
 
 const TABS: { href: Href; label: string; icon: IconName; match: (p: string) => boolean }[] = [
   { href: "/", label: "Home", icon: "home", match: (p) => p === "/" },
@@ -69,15 +69,16 @@ export function TabBar() {
         <Svg style={StyleSheet.absoluteFill} width={62} height={62}>
           <Defs>
             <RadialGradient id="tabOrb" cx="35%" cy="28%" r="80%">
-              <Stop offset="0" stopColor="#F6EFE4" />
-              <Stop offset="0.55" stopColor={colors.accentBright} />
-              <Stop offset="1" stopColor="#8E7556" />
+              <Stop offset="0" stopColor={orb.light} />
+              <Stop offset="0.4" stopColor={orb.mid} />
+              <Stop offset="0.78" stopColor={orb.deep} />
+              <Stop offset="1" stopColor={orb.shadow} />
             </RadialGradient>
           </Defs>
           <Circle cx={31} cy={31} r={31} fill="url(#tabOrb)" />
         </Svg>
         <View style={styles.glyph}>
-          <Icon name="mic" size={26} color={colors.background} />
+          <Icon name="mic" size={26} color="#FFFFFF" />
         </View>
       </Pressable>
     </View>
@@ -135,7 +136,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    shadowColor: "#C98B55",
+    shadowColor: orb.glow,
     shadowOpacity: 0.6,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 6 },

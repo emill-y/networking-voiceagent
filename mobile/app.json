@@ -20,7 +20,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#171A1D",
+        "backgroundColor": "#080605",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -41,8 +41,8 @@
       "favicon": "./assets/images/favicon.png",
       "name": "Nomi",
       "shortName": "Nomi",
-      "themeColor": "#171A1D",
-      "backgroundColor": "#171A1D",
+      "themeColor": "#080605",
+      "backgroundColor": "#080605",
       "description": "A private memory for the people you meet."
     },
     "plugins": [
@@ -50,7 +50,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#171A1D",
+          "backgroundColor": "#080605",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
@@ -84,11 +84,11 @@
       "reactCompiler": true,
       "baseUrl": "/app"
     },
-    "backgroundColor": "#171A1D",
+    "backgroundColor": "#080605",
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#171A1D"
+      "backgroundColor": "#080605"
     }
   }
 }

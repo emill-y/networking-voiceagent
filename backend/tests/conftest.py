@@ -99,6 +99,8 @@ def db_client(database_url):
 def fresh_rate_limits():
     """Each test starts with an empty rate-limit window."""
     from app.core.rate_limit import ai_limiter
+    from app.routes import demo
 
-    ai_limiter._hits.clear()
+    for limiter in (ai_limiter, demo.per_minute, demo.per_day):
+        limiter._hits.clear()
     yield
