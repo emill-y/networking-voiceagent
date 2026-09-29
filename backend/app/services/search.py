@@ -149,12 +149,13 @@ def run_search(conn: Connection, user_id: UUID, filters: SearchFilters) -> list[
 # enough for free-tier token limits; the closest word matches go first.
 RANK_CANDIDATES = 60
 RANK_RESULTS = 8
-PROFILE_CHARS = 420
+PROFILE_CHARS = 700
 
 RANK_PROMPT = """You help someone search their own network: people they've met, described
 only by their own notes. Today is {today}.
 
 Pick the people who best answer the question, best first (at most {limit}).
+- Use everything in a profile, including "your note" (the user's own words).
 - Match by meaning, not exact words: "startup" fits a founder or someone building a
   company; "chemistry" fits chemistry, chemical engineering, materials or biotech;
   "STEM" fits science, engineering, math or computing.
@@ -214,6 +215,11 @@ def profile_text(person: dict) -> str:
         parts.append("met: " + ", ".join(met))
     if person["open_follow_ups"]:
         parts.append("you planned: " + "; ".join(person["open_follow_ups"]))
+    # The user's own words from their notes: search works on what was said,
+    # even when a detail didn't make it into a field.
+    said = [m["said"] for m in person["moments"][:2] if m.get("said")]
+    if said:
+        parts.append("your note: " + " / ".join(" ".join(s.split()) for s in said))
     line = " | ".join(parts)
     return line if len(line) <= PROFILE_CHARS else line[: PROFILE_CHARS - 1] + "…"
 

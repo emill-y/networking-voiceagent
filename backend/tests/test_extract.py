@@ -302,3 +302,30 @@ def test_no_context_means_no_speaker_note(client):
     use(fake)
     client.post("/extract", json={"transcript": "Met Jason."})
     assert "About the speaker" not in fake.calls[0]["user"]
+
+
+NAME_ONLY = {k: ([] if isinstance(v, list) else None) for k, v in JASON.items()} | {"name": "Jason Chen"}
+LONG_NOTE = "met jason chen at the founders mixer he is building a robotics startup and needs designers"
+
+
+def test_long_note_with_only_a_name_is_retried(client):
+    fake = FakeLLM(json.dumps({"people": [NAME_ONLY]}), json.dumps({"people": [JASON]}))
+    use(fake)
+    person = client.post("/extract", json={"transcript": LONG_NOTE}).json()["people"][0]
+    assert len(fake.calls) == 2
+    assert "only had names" in fake.calls[1]["user"]
+    assert person["role"] == "Founder" and person["needs"] == ["designers"]
+
+
+def test_name_is_kept_if_the_retry_is_thin_too(client):
+    fake = FakeLLM(json.dumps({"people": [NAME_ONLY]}), json.dumps({"people": [NAME_ONLY]}))
+    use(fake)
+    people = client.post("/extract", json={"transcript": LONG_NOTE}).json()["people"]
+    assert [p["name"] for p in people] == ["Jason Chen"]
+
+
+def test_short_notes_with_only_a_name_are_fine(client):
+    fake = FakeLLM(json.dumps({"people": [NAME_ONLY]}))
+    use(fake)
+    assert client.post("/extract", json={"transcript": "Met Jason Chen today."}).status_code == 200
+    assert len(fake.calls) == 1

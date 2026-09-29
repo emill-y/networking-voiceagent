@@ -44,7 +44,30 @@ Rules:
   keeps any timing, e.g. "Reach out next week". Use null if none was mentioned.
 - Keep list items short (a few words), without duplicates.
 - Use null for unknown text fields and [] for empty lists.
-- Do not record sensitive traits (health, religion, sexuality, politics, ethnicity)."""
+- Do not record sensitive traits (health, religion, sexuality, politics, ethnicity).
+- Capture every stated detail about each person. Voice notes are often unpunctuated
+  and lowercase; read them as speech.
+
+Example. Note: "met priya shah at the career fair she's a software engineer at figma
+working on their plugin platform she offered to refer me and we talked about design
+systems i should send her my resume by friday"
+Result: {"people":[{"name":"Priya Shah","company":"Figma","role":"Software engineer",
+"school":null,"major":null,"metAt":"Career fair","location":null,"interests":[],
+"projects":["Plugin platform"],"needs":[],"topicsDiscussed":["Design systems"],
+"notes":["Offered to refer me"],"followUp":"Send my resume by Friday"}]}"""
+
+# A note this long that yields nothing but names probably lost its details.
+THIN_NOTE_WORDS = 12
+RETRY_NUDGE = (
+    "\n\nYour previous answer only had names. Re-read the note and fill in every stated "
+    "detail (role, company, school, where you met, projects, needs, topics, notes, follow-up)."
+)
+
+
+def _only_names(people: list[ExtractedPerson]) -> bool:
+    return bool(people) and all(
+        not any(v for k, v in person if k not in {"name", "follow_up_due"}) for person in people
+    )
 
 
 class ExtractionFailed(Exception):
@@ -116,9 +139,12 @@ def extract_people(
         f"Voice note transcript:\n\"\"\"\n{transcript.strip()}\n\"\"\""
     )
     last_error: Exception | None = None
+    thin: list[ExtractedPerson] | None = None
+    long_note = len(transcript.split()) >= THIN_NOTE_WORDS
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        raw = llm.chat_json(SYSTEM_PROMPT, user_message, EXTRACTION_JSON_SCHEMA)
+        message = user_message + (RETRY_NUDGE if thin is not None else "")
+        raw = llm.chat_json(SYSTEM_PROMPT, message, EXTRACTION_JSON_SCHEMA)
         try:
             parsed = ContactExtractionResult.model_validate_json(raw)
         except ValidationError as exc:
@@ -127,8 +153,21 @@ def extract_people(
             last_error = exc
             continue
         people = [p for p in (clean_person(person) for person in parsed.people) if p]
-        for person in people:
-            person.follow_up_due = resolve_due_date(person.follow_up, today)
-        return ContactExtractionResult(people=people)
+        if long_note and _only_names(people) and thin is None and attempt < MAX_ATTEMPTS:
+            logger.warning("Extraction returned only names for a %d-word note; retrying", len(transcript.split()))
+            thin = people
+            continue
+        return _finish(people, today)
+
+    if thin is not None:
+        return _finish(thin, today)  # the retry failed; names are better than nothing
 
     raise ExtractionFailed("The model returned output that didn't match the schema.") from last_error
+
+
+def _finish(people: list[ExtractedPerson], today: date) -> ContactExtractionResult:
+    for person in people:
+        person.follow_up_due = resolve_due_date(person.follow_up, today)
+    filled = sum(1 for person in people for k, v in person if v and k != "name")
+    logger.info("Extracted %d people with %d filled fields", len(people), filled)
+    return ContactExtractionResult(people=people)

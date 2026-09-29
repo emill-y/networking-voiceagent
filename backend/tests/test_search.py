@@ -233,3 +233,14 @@ def test_empty_ranking_means_nobody_fits(db_client):
     response = db_client.post("/search", json={"query": "who plays professional hockey?"})
     assert names(response) == []
     assert response.json()["interpreted"] is True
+
+
+def test_search_reads_the_original_note(db_client):
+    # A person saved with only a name is still findable by what was said about them.
+    capture(db_client, {
+        "contact": {"name": "Riley Evans"},
+        "interaction": {"interactionDate": "2026-09-21T18:00:00Z"},
+    }, transcript="met riley evans she does battery chemistry research at tesla")
+    fake = use(RankingLLM([("Riley Evans", "Does battery chemistry research at Tesla.")]))
+    assert names(db_client.post("/search", json={"query": "who knows chemistry?"})) == ["Riley Evans"]
+    assert "your note: met riley evans she does battery chemistry" in fake.calls[0]["user"]

@@ -93,7 +93,8 @@ def people_profiles(conn: Connection, user_id: UUID, limit: int = 500) -> list[d
                coalesce((select json_agg(json_build_object(
                           'event', i.event, 'date', i.interaction_date::date,
                           'projects', i.projects, 'needs', i.needs, 'topics', i.topics,
-                          'interests', i.interests, 'notes', i.notes)
+                          'interests', i.interests, 'notes', i.notes,
+                          'said', left(i.raw_transcript, 400))
                         order by i.interaction_date desc)
                  from interactions i where i.contact_id = c.id), '[]'::json) as moments,
                coalesce((select array_agg(f.action order by f.created_at) from follow_ups f
