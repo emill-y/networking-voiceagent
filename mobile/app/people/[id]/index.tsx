@@ -2,7 +2,6 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { Divider } from "@/components/Divider";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -302,11 +301,39 @@ function ReachButton({ icon, label, onPress }: { icon: IconName; label: string; 
   );
 }
 
+// A normal page: a quiet link back to the list, like any other website.
 function BackLink() {
-  return <CloseButton />;
+  const router = useRouter();
+  return (
+    <Pressable
+      onPress={() => (router.canGoBack() ? router.back() : router.replace("/people"))}
+      accessibilityRole="link"
+      accessibilityLabel="Back to People"
+      hitSlop={10}
+      style={styles.backLink}
+    >
+      <View style={styles.backIcon}>
+        <Icon name="chevron" size={16} color={colors.muted} />
+      </View>
+      <Text style={styles.backText}>People</Text>
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
+  backLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+  },
+  backIcon: {
+    transform: [{ scaleX: -1 }],
+  },
+  backText: {
+    fontSize: 15,
+    color: colors.muted,
+  },
   center: {
     flex: 1,
     alignItems: "center",

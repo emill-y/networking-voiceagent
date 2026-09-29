@@ -4,7 +4,6 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
-import { CloseButton } from "@/components/CloseButton";
 import { Divider } from "@/components/Divider";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
@@ -49,7 +48,6 @@ export default function FollowUps() {
 
   return (
     <Screen>
-      <CloseButton />
       <Text style={[type.display, styles.title]}>Follow-ups</Text>
       <Text style={type.meta}>Promises from your notes, with the dates you mentioned.</Text>
 

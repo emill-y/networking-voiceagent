@@ -2,7 +2,6 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { CloseButton } from "@/components/CloseButton";
 import { Icon } from "@/components/Icon";
 import { Screen } from "@/components/Screen";
 import { useProfile } from "@/hooks/useProfile";
@@ -43,7 +42,6 @@ export default function Search() {
 
   return (
     <Screen>
-      <CloseButton />
       <Text style={[type.display, styles.title]}>Who are you looking for?</Text>
 
       <TextInput

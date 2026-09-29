@@ -18,6 +18,7 @@ export function showsTabBar(pathname: string): boolean {
   return (
     pathname === "/" ||
     pathname === "/people" ||
+    /^\/people\/[^/]+$/.test(pathname) ||
     pathname === "/network" ||
     pathname === "/you" ||
     pathname === "/follow-ups" ||
