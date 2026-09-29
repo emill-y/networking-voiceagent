@@ -2,13 +2,13 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { Platform, Share, StyleSheet, Text, View } from "react-native";
 
-import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
-import { Chip, ChipRow } from "@/components/Chip";
 import { Monogram } from "@/components/Monogram";
-import { useProfile } from "@/hooks/useProfile";
-import { Divider } from "@/components/Divider";
+import { PageHeader } from "@/components/PageHeader";
+import { PillButton } from "@/components/PillButton";
 import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
+import { displayName, profileLine } from "@/lib/account";
 import { ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { localToday } from "@/lib/dates";
@@ -83,66 +83,59 @@ export default function You() {
     }
   }
 
-  const who = session?.user.email ?? session?.user.phone;
+  const name = displayName(session);
 
   return (
     <Screen>
-      <Text style={[type.display, styles.title]}>You</Text>
+      <PageHeader eyebrow="Account" title="You" />
 
       {session && (
-        <Card style={styles.account}>
+        <Card style={styles.card}>
           <View style={styles.accountRow}>
-            <Monogram name={(session.user.user_metadata?.full_name as string | undefined) ?? who ?? "You"} size={56} />
+            <Monogram name={name} size={64} />
             <View style={styles.accountText}>
-              <Text style={styles.accountName} numberOfLines={1}>
-                {(session.user.user_metadata?.full_name as string | undefined) ?? who}
-              </Text>
-              <Text style={type.meta}>
-                {profile?.persona === "student"
-                  ? [profile.major, profile.school, profile.year].filter(Boolean).join(" · ") || "Student"
-                  : profile?.persona === "working"
-                    ? "Working"
-                    : profile?.persona === "founder"
-                      ? "Building something"
-                      : "Meeting people"}
-              </Text>
+              <Text style={styles.accountName} numberOfLines={1}>{name}</Text>
+              <Text style={styles.accountLine}>{profileLine(profile)}</Text>
             </View>
           </View>
-          <ChipRow>
-            <Chip icon="pen" label="Edit profile"
-              onPress={() => router.push({ pathname: "/edit-profile", params: { edit: "1" } })} />
-          </ChipRow>
+          <PillButton title="Edit profile"
+            onPress={() => router.push({ pathname: "/edit-profile", params: { edit: "1" } })} />
         </Card>
       )}
 
-      <Text style={type.label}>Your memories are yours</Text>
-      <View style={styles.principles}>
-        <Text style={type.body}>Nomi only listens while you’re recording, and says so on screen.</Text>
-        <Text style={type.body}>Recordings are deleted as soon as they’re transcribed.</Text>
-        <Text style={type.body}>Nothing is looked up about people behind your back, and nothing is sent to them.</Text>
-        <Text style={type.body}>Your address book stays on your phone; only people you pick are added.</Text>
-      </View>
+      <Card style={styles.card}>
+        <Text style={type.heading}>Your memories are yours</Text>
+        <Text style={styles.body}>
+          Export your saved people and notes whenever you like. Nomi only listens while you’re
+          recording, never looks people up behind your back, and never sells your data.
+        </Text>
+        <View style={styles.buttons}>
+          <PillButton title="Export my memories" icon="check" onPress={() => void exportMemories()}
+            loading={busy === "export"} />
+          {contactsSupported && (
+            <PillButton title="Import from contacts" icon="people" onPress={() => router.push("/import-contacts")} />
+          )}
+        </View>
+      </Card>
 
-      <Divider />
-      <View style={styles.actions}>
-        {contactsSupported && (
-          <Button title="Import from contacts" variant="quiet"
-            onPress={() => router.push("/import-contacts")} />
-        )}
-        <Button title="Export my memories" variant="quiet" onPress={() => void exportMemories()}
-          loading={busy === "export"} />
-        <Button title="Delete all memories" variant="danger" onPress={() => void deleteEverything()}
-          loading={busy === "delete"} />
-      </View>
       {session && (
-        <>
-          <Divider />
-          <View style={styles.actions}>
-            <Button title="Sign out" variant="quiet" onPress={() => void supabase?.auth.signOut()} />
-            <Button title="Delete my account" variant="danger" onPress={() => void removeAccount()}
+        <Card style={styles.card}>
+          <Text style={type.heading}>Account</Text>
+          <Text style={styles.body}>Signed in as {session.user.email ?? name}.</Text>
+          <PillButton title="Sign out" onPress={() => void supabase?.auth.signOut()} />
+          <View style={styles.divider} />
+          <Text style={styles.danger}>Danger zone</Text>
+          <Text style={styles.body}>
+            These permanently remove what you’ve saved. You’ll be asked to confirm, and told
+            exactly what will be deleted, first.
+          </Text>
+          <View style={styles.buttons}>
+            <PillButton title="Delete all memories" variant="danger" onPress={() => void deleteEverything()}
+              loading={busy === "delete"} />
+            <PillButton title="Delete my account" variant="danger" onPress={() => void removeAccount()}
               loading={busy === "account"} />
           </View>
-        </>
+        </Card>
       )}
       {message && <Text style={[type.meta, styles.message]}>{message}</Text>}
     </Screen>
@@ -150,12 +143,8 @@ export default function You() {
 }
 
 const styles = StyleSheet.create({
-  title: {
-    marginTop: spacing.md,
+  card: {
     marginBottom: spacing.lg,
-  },
-  account: {
-    marginBottom: spacing.xl,
     gap: spacing.md,
   },
   accountRow: {
@@ -165,19 +154,36 @@ const styles = StyleSheet.create({
   },
   accountText: {
     flex: 1,
-    gap: 2,
+    gap: 4,
   },
   accountName: {
     fontFamily: fonts.serifBold,
-    fontSize: 22,
+    fontSize: 24,
     color: colors.text,
   },
-  principles: {
-    marginTop: spacing.md,
-    gap: spacing.md,
+  accountLine: {
+    fontSize: 16,
+    color: colors.muted,
   },
-  actions: {
-    gap: spacing.md,
+  body: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.muted,
+  },
+  buttons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.hairline,
+    marginVertical: spacing.sm,
+  },
+  danger: {
+    fontFamily: fonts.serifBold,
+    fontSize: 20,
+    color: "#FFB4A8",
   },
   message: {
     marginTop: spacing.md,

@@ -1,11 +1,13 @@
 import { usePathname, useRouter, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Icon } from "@/components/Icon";
+import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
+
 import { Monogram } from "@/components/Monogram";
 import { useProfile } from "@/hooks/useProfile";
 import { useSession } from "@/hooks/useSession";
-import { colors, fonts, radius, spacing } from "@/lib/theme";
+import { displayName, profileLine } from "@/lib/account";
+import { colors, fonts, orb, radius, spacing } from "@/lib/theme";
 
 const LINKS: { href: Href; label: string; match: (path: string) => boolean }[] = [
   { href: "/", label: "Home", match: (p) => p === "/" },
@@ -23,8 +25,8 @@ export function Sidebar() {
   const pathname = usePathname();
   const { session } = useSession();
   const profile = useProfile();
-  const name = (session?.user.user_metadata?.full_name as string | undefined) ?? session?.user.email ?? "You";
-  const detail = [profile?.school, profile?.major].filter(Boolean).join(" · ") || "Your account";
+  const name = displayName(session);
+  const detail = profile?.school || profileLine(profile);
   // Sidebar destinations replace whatever is open, so screens never pile up
   // on top of each other (e.g. "New memory" then "or write one").
   const go = (href: Href) => {
@@ -33,7 +35,18 @@ export function Sidebar() {
   };
   return (
     <View style={styles.sidebar} role="navigation">
-      <Pressable onPress={() => go("/")} accessibilityRole="link">
+      <Pressable onPress={() => go("/")} accessibilityRole="link" style={styles.brand}>
+        <Svg width={26} height={26}>
+          <Defs>
+            <RadialGradient id="brand-orb" cx="35%" cy="30%" r="75%">
+              <Stop offset="0" stopColor={orb.light} />
+              <Stop offset="0.45" stopColor={orb.mid} />
+              <Stop offset="0.85" stopColor={orb.deep} />
+              <Stop offset="1" stopColor={orb.shadow} />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={13} cy={13} r={13} fill="url(#brand-orb)" />
+        </Svg>
         <Text style={styles.wordmark}>Nomi</Text>
       </Pressable>
       <View style={styles.links}>
@@ -71,7 +84,6 @@ export function Sidebar() {
           <Text style={styles.accountName} numberOfLines={1}>{name}</Text>
           <Text style={styles.accountDetail} numberOfLines={1}>{detail}</Text>
         </View>
-        <Icon name="chevron" size={16} color={colors.faint} />
       </Pressable>
     </View>
   );
@@ -87,30 +99,39 @@ const styles = StyleSheet.create({
     borderRightColor: colors.hairline,
     backgroundColor: colors.background,
   },
-  wordmark: {
-    fontFamily: fonts.serif,
-    fontSize: 30,
-    color: colors.text,
-    letterSpacing: 0.5,
+  brand: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
     marginBottom: spacing.xl,
-    marginLeft: spacing.sm,
+    marginLeft: spacing.xs,
+  },
+  wordmark: {
+    fontFamily: fonts.serifBold,
+    fontSize: 26,
+    color: colors.text,
+    letterSpacing: -0.5,
   },
   links: {
     gap: 2,
   },
   link: {
-    paddingVertical: 10,
-    paddingHorizontal: spacing.sm + 4,
+    paddingVertical: 11,
+    paddingHorizontal: spacing.md,
     borderRadius: radius.sm,
+    borderLeftWidth: 3,
+    borderLeftColor: "transparent",
   },
   linkHover: {
     backgroundColor: colors.surface,
   },
   linkActive: {
     backgroundColor: colors.raised,
+    borderLeftColor: colors.accent,
   },
   linkText: {
-    fontSize: 15,
+    fontSize: 16,
+    fontWeight: "500",
     color: colors.muted,
   },
   linkTextActive: {
@@ -123,19 +144,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    padding: spacing.sm,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.card,
+    paddingTop: spacing.md,
+    paddingHorizontal: spacing.xs,
+    paddingBottom: spacing.xs,
+    borderTopWidth: 1,
+    borderTopColor: colors.hairline,
+    borderRadius: radius.sm,
   },
   accountText: {
     flex: 1,
     minWidth: 0,
   },
   accountName: {
-    fontSize: 14,
-    fontWeight: "600",
+    fontSize: 15,
+    fontWeight: "500",
     color: colors.text,
   },
   accountDetail: {

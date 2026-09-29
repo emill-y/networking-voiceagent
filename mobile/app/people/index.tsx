@@ -7,6 +7,7 @@ import { Card } from "@/components/Card";
 import { Chip, ChipRow } from "@/components/Chip";
 import { GhostNetwork } from "@/components/GhostNetwork";
 import { Icon } from "@/components/Icon";
+import { PageHeader } from "@/components/PageHeader";
 import { PersonRow } from "@/components/PersonRow";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
@@ -103,12 +104,8 @@ export default function People() {
   return (
     <Screen>
       <Animated.View entering={FadeInDown.duration(450)}>
-        <Text style={[type.display, styles.title]}>People</Text>
-        {people && (
-          <Text style={type.meta}>
-            {people.length} {people.length === 1 ? "connection" : "connections"}
-          </Text>
-        )}
+        <PageHeader eyebrow="Everyone you’ve met" title="People"
+          subtitle={people ? `${people.length} ${people.length === 1 ? "connection" : "connections"}` : " "} />
 
         <View style={styles.search}>
           <Icon name="search" size={18} color={colors.faint} />

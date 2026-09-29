@@ -6,6 +6,8 @@ import Svg, { Line } from "react-native-svg";
 import { Button } from "@/components/Button";
 import { GhostNetwork } from "@/components/GhostNetwork";
 import { EDGE_STYLES, EdgeLegend, NetworkMap } from "@/components/NetworkMap";
+import { Monogram } from "@/components/Monogram";
+import { PageHeader } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
 import { useDesktop } from "@/hooks/useDesktop";
 import { ApiError } from "@/lib/api";
@@ -48,7 +50,8 @@ export default function Network() {
 
   return (
     <Screen wide>
-      <Text style={[type.display, styles.title]}>Your network</Text>
+      <PageHeader eyebrow="Map" title="Your network"
+        subtitle="Who you know and what connects them: companies, schools, events and interests." />
 
       {!data || !layout ? (
         <View style={styles.loading}>
@@ -114,7 +117,8 @@ export default function Network() {
               )}
             </>
           ) : (
-            <ListView edges={layout.edges} names={names} onOpen={(id) => isPerson(id) && openPerson(id)} />
+            <ListView edges={layout.edges} names={names} people={data.people}
+              onOpen={(id) => isPerson(id) && openPerson(id)} />
           )}
         </>
       )}
@@ -231,10 +235,12 @@ function mergeByPerson(connections: ReturnType<typeof neighbors>) {
 function ListView({
   edges,
   names,
+  people,
   onOpen,
 }: {
   edges: MapEdge[];
   names: Map<string, string>;
+  people: NetworkResponse["people"];
   onOpen: (id: string) => void;
 }) {
   const kinds = Object.keys(EDGE_STYLES) as EdgeKind[];
@@ -278,7 +284,37 @@ function ListView({
         );
       })}
       {edges.every((e) => e.kind === "you") && (
-        <Text style={[type.meta, styles.hint]}>No links between people yet.</Text>
+        <View style={styles.noLinks}>
+          <Text style={type.heading}>No links between your people yet</Text>
+          <Text style={[type.body, styles.noLinksBody]}>
+            Links appear when two people share a company, school, event or interest in your notes.
+            Mention where you met or what they do, and the list fills in.
+          </Text>
+          {people.map((p) => (
+            <Pressable key={p.id} onPress={() => onOpen(p.id)} accessibilityRole="button" style={styles.noLinkRow}>
+              <Monogram name={p.name} size={34} />
+              <View style={styles.connectionText}>
+                <Text style={styles.connectionName}>{p.name}</Text>
+                <Text style={type.meta}>
+                  {p.subtitle ? `${p.subtitle} · ` : ""}No shared company, event or interest yet
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+          <Text style={[type.label, styles.exampleLabel]}>What links look like</Text>
+          {[
+            ["event", "Jason Chen  ·  Sam Park", "Met at the same event: Cal Hacks"],
+            ["organization", "Maya Singh  ·  Noah Kim", "Both work at Stripe"],
+          ].map(([kind, pair, why]) => (
+            <View key={pair} style={[styles.listRow, styles.exampleRow]}>
+              <View style={styles.listHeader}>
+                <KindKey kind={kind as EdgeKind} />
+                <Text style={styles.connectionName}>{pair}</Text>
+              </View>
+              <Text style={type.meta}>Example · {why}</Text>
+            </View>
+          ))}
+        </View>
       )}
     </View>
   );
@@ -388,6 +424,30 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: spacing.sm,
     marginBottom: spacing.xs,
+  },
+  noLinks: {
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    gap: spacing.sm,
+  },
+  noLinksBody: {
+    color: colors.muted,
+    marginBottom: spacing.sm,
+  },
+  noLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: 6,
+  },
+  exampleLabel: {
+    marginTop: spacing.md,
+  },
+  exampleRow: {
+    opacity: 0.55,
   },
   listRow: {
     gap: 2,
