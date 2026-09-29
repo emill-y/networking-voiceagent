@@ -2,6 +2,7 @@ import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { Divider } from "@/components/Divider";
 import Animated, { FadeInDown } from "react-native-reanimated";
@@ -302,16 +303,7 @@ function ReachButton({ icon, label, onPress }: { icon: IconName; label: string; 
 }
 
 function BackLink() {
-  const router = useRouter();
-  return (
-    <Pressable
-      onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-      accessibilityRole="button"
-      hitSlop={12}
-    >
-      <Text style={type.meta}>Back</Text>
-    </Pressable>
-  );
+  return <CloseButton />;
 }
 
 const styles = StyleSheet.create({

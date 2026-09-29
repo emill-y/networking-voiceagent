@@ -12,6 +12,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { MicButton } from "@/components/MicButton";
 import { Screen } from "@/components/Screen";
@@ -130,9 +131,7 @@ export function AudioCapture() {
 
   return (
     <Screen scroll={false}>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Close</Text>
-      </Pressable>
+      <CloseButton />
 
       <View style={styles.center}>
         <Text style={[type.display, styles.title]}>

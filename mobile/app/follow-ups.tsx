@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Divider } from "@/components/Divider";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
@@ -46,9 +47,7 @@ export default function FollowUps() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Back</Text>
-      </Pressable>
+      <CloseButton />
       <Text style={[type.display, styles.title]}>Follow-ups</Text>
 
       {!items ? (

@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput } from "react-native";
+import { StyleSheet, Text, TextInput } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { Screen } from "@/components/Screen";
 import { useProfile } from "@/hooks/useProfile";
@@ -16,9 +17,7 @@ export default function Write() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Close</Text>
-      </Pressable>
+      <CloseButton />
       <Text style={[type.display, styles.title]}>Tell me about them.</Text>
       <TextInput
         value={text}

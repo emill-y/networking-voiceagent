@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Screen } from "@/components/Screen";
 import { useProfile } from "@/hooks/useProfile";
 import { examples } from "@/lib/profile";
@@ -41,9 +42,7 @@ export default function Search() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Back</Text>
-      </Pressable>
+      <CloseButton />
       <Text style={[type.display, styles.title]}>Who are you looking for?</Text>
 
       <TextInput

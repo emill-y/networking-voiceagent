@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, Vi
 import Svg, { Line } from "react-native-svg";
 
 import { Button } from "@/components/Button";
-import { EDGE_STYLES, EdgeLegend, NetworkMap } from "@/components/NetworkMap";
+import { EDGE_STYLES, EdgeLegend, EmptyNetwork, NetworkMap } from "@/components/NetworkMap";
 import { Screen } from "@/components/Screen";
 import { useDesktop } from "@/hooks/useDesktop";
 import { ApiError } from "@/lib/api";
@@ -55,16 +55,21 @@ export default function Network() {
         </View>
       ) : data.people.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={type.body}>
-            Your map fills in as you remember people. Record a note after your next conversation.
-          </Text>
-          <Button title="Record someone" onPress={() => router.push("/record")} />
+          <EmptyNetwork height={desktop ? Math.max(460, windowHeight - 260) : Math.max(380, Math.min(560, windowHeight * 0.6))}>
+            <Text style={[type.body, styles.emptyText]}>
+              Everyone you remember shows up here, linked by the companies, schools, events and
+              interests you share.
+            </Text>
+            <View style={styles.emptyAction}>
+              <Button title="Remember someone" icon="mic" onPress={() => router.push("/record")} />
+            </View>
+          </EmptyNetwork>
         </View>
       ) : (
         <>
           <Text style={type.meta}>
             {data.people.length} {data.people.length === 1 ? "person" : "people"} ·{" "}
-            {links.length} {links.length === 1 ? "connection" : "connections"}
+            {links.length} {links.length === 1 ? "link" : "links"} between them
           </Text>
 
           <View style={styles.toolbar}>
@@ -297,7 +302,15 @@ const styles = StyleSheet.create({
   },
   empty: {
     marginTop: spacing.lg,
-    gap: spacing.lg,
+  },
+  emptyText: {
+    textAlign: "center",
+    color: colors.muted,
+    maxWidth: 420,
+  },
+  emptyAction: {
+    marginTop: spacing.md,
+    minWidth: 240,
   },
   toolbar: {
     marginTop: spacing.lg,

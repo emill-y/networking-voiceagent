@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { matchEntries, toImportedPerson, type EntryMatch } from "@/lib/addressBook";
 import { ApiError } from "@/lib/api";
@@ -126,9 +127,7 @@ export default function ImportContacts() {
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right", "bottom"]}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-          <Text style={type.meta}>Back</Text>
-        </Pressable>
+        <CloseButton />
         <Text style={[type.title, styles.title]}>Bring in people you know.</Text>
         <Text style={type.meta}>
           Your address book stays on this phone. Only the people you choose are added to Nomi.

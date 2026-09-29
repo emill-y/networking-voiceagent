@@ -76,7 +76,7 @@ export default function People() {
         <Text style={[type.display, styles.title]}>People</Text>
         {people && (
           <Text style={type.meta}>
-            {people.length} {people.length === 1 ? "person" : "people"} you’ve remembered
+            {people.length} {people.length === 1 ? "connection" : "connections"}
           </Text>
         )}
 

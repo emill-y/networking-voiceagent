@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { MicButton } from "@/components/MicButton";
 import { Screen } from "@/components/Screen";
@@ -127,16 +128,13 @@ export function LiveCapture() {
 
   return (
     <Screen scroll={false}>
-      <Pressable
+      <CloseButton
         onPress={() => {
           stopRef.current?.();
-          router.back();
+          if (router.canGoBack()) router.back();
+          else router.replace("/");
         }}
-        accessibilityRole="button"
-        hitSlop={12}
-      >
-        <Text style={type.meta}>Close</Text>
-      </Pressable>
+      />
 
       <View style={styles.top}>
         <Text style={[type.display, styles.title]}>

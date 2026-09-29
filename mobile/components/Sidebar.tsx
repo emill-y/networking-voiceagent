@@ -17,9 +17,15 @@ const LINKS: { href: Href; label: string; match: (path: string) => boolean }[] =
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  // Sidebar destinations replace whatever is open, so screens never pile up
+  // on top of each other (e.g. "New memory" then "or write one").
+  const go = (href: Href) => {
+    if (router.canDismiss()) router.dismissAll();
+    router.replace(href);
+  };
   return (
     <View style={styles.sidebar} role="navigation">
-      <Pressable onPress={() => router.push("/")} accessibilityRole="link">
+      <Pressable onPress={() => go("/")} accessibilityRole="link">
         <Text style={styles.wordmark}>Nomi</Text>
       </Pressable>
       <View style={styles.links}>
@@ -28,7 +34,7 @@ export function Sidebar() {
           return (
             <Pressable
               key={link.label}
-              onPress={() => router.push(link.href)}
+              onPress={() => go(link.href)}
               accessibilityRole="link"
               accessibilityState={{ selected: active }}
               style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
@@ -43,8 +49,9 @@ export function Sidebar() {
         })}
       </View>
       <View style={styles.spacer} />
-      <Button title="New memory" onPress={() => router.push("/record")} />
-      <Pressable onPress={() => router.push("/write")} accessibilityRole="button" style={styles.write}>
+      {/* Recording starts from the orb on Home, so this takes you there. */}
+      <Button title="New memory" icon="mic" onPress={() => go("/")} />
+      <Pressable onPress={() => go("/write")} accessibilityRole="button" style={styles.write}>
         <Text style={styles.writeText}>or write one</Text>
       </Pressable>
     </View>

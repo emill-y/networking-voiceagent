@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
-import Svg, { Circle, G, Line, Text as SvgText } from "react-native-svg";
+import Svg, { Circle, Defs, G, Line, RadialGradient, Stop, Text as SvgText } from "react-native-svg";
 
-import { initials } from "@/components/Monogram";
 import { hitTest, neighbors, YOU_ID, type MapLayout, type MapNode } from "@/lib/networkLayout";
-import { colors, fonts, radius, spacing } from "@/lib/theme";
+import { colors, fonts, orb, radius, spacing, tintFor } from "@/lib/theme";
 import type { EdgeKind } from "@/types/api";
 
 // Connection types. Colors are the first three slots of the validated
@@ -40,7 +39,7 @@ export function NetworkMap({ layout, selectedId, onSelect, height }: Props) {
   // Fit the whole network into view.
   function fit(animated: boolean) {
     if (!viewport.width) return;
-    const s = Math.min(viewport.width / layout.width, viewport.height / layout.height) * 0.95;
+    const s = Math.min(1.4, Math.min(viewport.width / layout.width, viewport.height / layout.height) * 0.95);
     const nextTx = (viewport.width - layout.width * s) / 2;
     const nextTy = (viewport.height - layout.height * s) / 2;
     scale.value = animated ? withTiming(s) : s;
@@ -114,6 +113,10 @@ export function NetworkMap({ layout, selectedId, onSelect, height }: Props) {
   }, [layout, selectedId]);
 
   const byId = useMemo(() => new Map(layout.nodes.map((n) => [n.id, n])), [layout]);
+  const tints = useMemo(
+    () => [...new Set(layout.nodes.filter((n) => n.kind === "person").map((n) => tintFor(n.label)))],
+    [layout],
+  );
   const showAllLabels = layout.nodes.length <= 40;
 
   return (
@@ -123,12 +126,14 @@ export function NetworkMap({ layout, selectedId, onSelect, height }: Props) {
         setViewport({ width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height })
       }
     >
+      <CanvasGlow />
       <GestureDetector gesture={gesture}>
         <View style={StyleSheet.absoluteFill} accessible={false}>
           <Animated.View
             style={[{ width: layout.width, height: layout.height, transformOrigin: "0 0" }, canvasStyle]}
           >
             <Svg width={layout.width} height={layout.height}>
+              <NodeGradients tints={tints} />
               <G>
                 {layout.edges.map((edge, i) => {
                   const a = byId.get(edge.source);
@@ -138,7 +143,7 @@ export function NetworkMap({ layout, selectedId, onSelect, height }: Props) {
                   if (edge.kind === "you") {
                     return (
                       <Line key={`s${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y}
-                        stroke={colors.text} strokeOpacity={selectedId ? 0.04 : 0.07} strokeWidth={1} />
+                        stroke={orb.mid} strokeOpacity={selectedId ? 0.05 : 0.14} strokeWidth={1} />
                     );
                   }
                   const style = EDGE_STYLES[edge.kind];
@@ -183,6 +188,54 @@ export function NetworkMap({ layout, selectedId, onSelect, height }: Props) {
   );
 }
 
+const gradientId = (tint: string) => `node-${tint.slice(1)}`;
+
+// One glossy gradient per person color, plus the orange "You" orb.
+function NodeGradients({ tints }: { tints: string[] }) {
+  return (
+    <Defs>
+      <RadialGradient id="node-you" cx="35%" cy="30%" r="75%">
+        <Stop offset="0" stopColor={orb.light} />
+        <Stop offset="0.45" stopColor={orb.mid} />
+        <Stop offset="0.85" stopColor={orb.deep} />
+        <Stop offset="1" stopColor={orb.shadow} />
+      </RadialGradient>
+      <RadialGradient id="node-glow" cx="50%" cy="50%" r="50%">
+        <Stop offset="0" stopColor={orb.glow} stopOpacity={0.55} />
+        <Stop offset="1" stopColor={orb.glow} stopOpacity={0} />
+      </RadialGradient>
+      {tints.map((tint) => (
+        <RadialGradient key={tint} id={gradientId(tint)} cx="35%" cy="30%" r="75%">
+          <Stop offset="0" stopColor="#FFF3E6" />
+          <Stop offset="0.4" stopColor={tint} />
+          <Stop offset="1" stopColor={tint} stopOpacity={0.55} />
+        </RadialGradient>
+      ))}
+      {tints.map((tint) => (
+        <RadialGradient key={`g${tint}`} id={`glow-${tint.slice(1)}`} cx="50%" cy="50%" r="50%">
+          <Stop offset="0" stopColor={tint} stopOpacity={0.45} />
+          <Stop offset="1" stopColor={tint} stopOpacity={0} />
+        </RadialGradient>
+      ))}
+    </Defs>
+  );
+}
+
+// A soft molten glow behind the whole map, like the website's network.
+function CanvasGlow() {
+  return (
+    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
+      <Defs>
+        <RadialGradient id="canvas-glow" cx="50%" cy="48%" r="60%">
+          <Stop offset="0" stopColor={orb.glow} stopOpacity={0.14} />
+          <Stop offset="1" stopColor={orb.glow} stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      <Circle cx="50%" cy="48%" r="70%" fill="url(#canvas-glow)" />
+    </Svg>
+  );
+}
+
 function NodeMark({
   node,
   selected,
@@ -197,9 +250,10 @@ function NodeMark({
   if (node.kind === "you") {
     return (
       <G>
-        <Circle cx={node.x} cy={node.y} r={node.radius} fill={colors.text} />
-        <SvgText x={node.x} y={node.y + 5} fontSize={14} fontFamily={fonts.serifBold}
-          fill={colors.background} textAnchor="middle">
+        <Circle cx={node.x} cy={node.y} r={node.radius * 2.4} fill="url(#node-glow)" />
+        <Circle cx={node.x} cy={node.y} r={node.radius} fill="url(#node-you)" />
+        <SvgText x={node.x} y={node.y + node.radius + 16} fontSize={12}
+          fontFamily={fonts.serifBold} fill={colors.text} textAnchor="middle">
           You
         </SvgText>
       </G>
@@ -208,35 +262,29 @@ function NodeMark({
   if (node.kind === "group") {
     const color = EDGE_STYLES[node.edgeKind ?? "organization"].color;
     return (
-      <G opacity={dimmed ? 0.3 : 1}>
-        <Circle cx={node.x} cy={node.y} r={node.radius} fill={colors.background}
-          stroke={color} strokeWidth={2} />
-        <SvgText x={node.x} y={node.y - node.radius - 6} fontSize={11} fill={colors.muted}
-          textAnchor="middle">
+      <G opacity={dimmed ? 0.25 : 1}>
+        <Circle cx={node.x} cy={node.y} r={node.radius} fill={color} fillOpacity={0.25}
+          stroke={color} strokeWidth={1.5} />
+        <SvgText x={node.x} y={node.y - node.radius - 6} fontSize={11} fontFamily={fonts.serif}
+          fill={colors.muted} textAnchor="middle">
           {node.label}
         </SvgText>
       </G>
     );
   }
+  const tint = tintFor(node.label);
+  const r = node.radius * 0.8;
   return (
-    <G opacity={dimmed ? 0.3 : 1}>
-      {/* A 2px ring in the page color keeps overlapping lines from touching the mark. */}
-      <Circle cx={node.x} cy={node.y} r={node.radius + 2} fill={colors.background} />
-      <Circle
-        cx={node.x}
-        cy={node.y}
-        r={node.radius}
-        fill={colors.raised}
-        stroke={selected ? colors.accent : "rgba(242, 238, 232, 0.18)"}
-        strokeWidth={selected ? 2.5 : 1}
-      />
-      <SvgText x={node.x} y={node.y + node.radius * 0.36} fontSize={node.radius * 0.9}
-        fontFamily={fonts.serif} fill={colors.textSoft} textAnchor="middle">
-        {initials(node.label)}
-      </SvgText>
+    <G opacity={dimmed ? 0.25 : 1}>
+      {/* Glow in the person's own color. */}
+      <Circle cx={node.x} cy={node.y} r={r * (selected ? 3 : 2.4)} fill={`url(#glow-${tint.slice(1)})`} />
+      <Circle cx={node.x} cy={node.y} r={r} fill={`url(#${gradientId(tint)})`} />
+      {selected && (
+        <Circle cx={node.x} cy={node.y} r={r + 4} fill="none" stroke={colors.text} strokeWidth={1.5} />
+      )}
       {showLabel && (
-        <SvgText x={node.x} y={node.y + node.radius + 14} fontSize={11}
-          fill={selected ? colors.text : colors.muted} textAnchor="middle">
+        <SvgText x={node.x} y={node.y + r + 16} fontSize={12} fontFamily={fonts.serif}
+          fill={selected ? colors.text : colors.textSoft} textAnchor="middle">
           {node.label}
         </SvgText>
       )}
@@ -274,9 +322,9 @@ const styles = StyleSheet.create({
   frame: {
     overflow: "hidden",
     borderRadius: radius.lg,
-    backgroundColor: colors.background,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.hairline,
+    backgroundColor: "#070504",
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   zoom: {
     position: "absolute",
@@ -314,4 +362,59 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
   },
+  emptyFrame: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyCenter: {
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.lg,
+  },
+  emptyYou: {
+    fontFamily: fonts.serifBold,
+    fontSize: 13,
+    color: colors.text,
+    marginTop: spacing.xs,
+  },
+  emptyTitle: {
+    fontFamily: fonts.serif,
+    fontSize: 22,
+    color: colors.text,
+    textAlign: "center",
+    marginTop: spacing.lg,
+  },
 });
+
+// Before anyone is remembered: the same canvas with just you in the middle.
+export function EmptyNetwork({ height, children }: { height: number; children?: React.ReactNode }) {
+  const pulse = useSharedValue(0);
+  useEffect(() => {
+    pulse.value = withRepeat(withTiming(1, { duration: 2200 }), -1, true);
+  }, [pulse]);
+  const glow = useAnimatedStyle(() => ({ opacity: 0.55 + pulse.value * 0.45, transform: [{ scale: 1 + pulse.value * 0.08 }] }));
+  const size = 220;
+  return (
+    <View style={[styles.frame, styles.emptyFrame, { height }]}>
+      <CanvasGlow />
+      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
+        {[70, 120, 175].map((r) => (
+          <Circle key={r} cx="50%" cy="42%" r={r} fill="none" stroke={orb.mid} strokeOpacity={0.12}
+            strokeDasharray="2 7" />
+        ))}
+      </Svg>
+      <View style={styles.emptyCenter}>
+        <Animated.View style={[{ width: size, height: size, marginVertical: -size / 2 + 26 }, glow]}>
+          <Svg width={size} height={size}>
+            <NodeGradients tints={[]} />
+            <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#node-glow)" />
+            <Circle cx={size / 2} cy={size / 2} r={26} fill="url(#node-you)" />
+          </Svg>
+        </Animated.View>
+        <Text style={styles.emptyYou}>You</Text>
+        <Text style={styles.emptyTitle}>Waiting for your first connection…</Text>
+        {children}
+      </View>
+    </View>
+  );
+}

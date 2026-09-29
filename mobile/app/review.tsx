@@ -2,6 +2,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { DatePicker } from "@/components/DatePicker";
 import { Divider } from "@/components/Divider";
@@ -176,9 +177,7 @@ export default function Review() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Discard</Text>
-      </Pressable>
+      <CloseButton label="Discard" />
 
       <Text style={[type.display, styles.title]}>
         {drafts.length === 0
