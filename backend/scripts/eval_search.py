@@ -16,7 +16,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.services.llm import get_llm_client  # noqa: E402
-from app.services.search import rank_profiles  # noqa: E402
+from app.services.search import expand_query, search_by_meaning  # noqa: E402
 
 
 def person(pid, name, role=None, company=None, school=None, notes=(), projects=(), interests=(), said=None, event=None):
@@ -51,14 +51,18 @@ def main() -> None:
     questions = [(q, None) for q in sys.argv[1:]] or QUESTIONS
     passed = 0
     for question, expected in questions:
-        chosen = rank_profiles(PEOPLE, question, llm, date.today())
+        chosen = search_by_meaning(PEOPLE, question, llm, date.today())
         if chosen is None:
             print(f"✗ {question!r}: the model didn't answer (check LLM settings / rate limits)")
             continue
         names = [p["name"] for p, _ in chosen]
-        ok = expected is None or (names and names[0] == expected)
-        passed += ok
-        print(f"{'✓' if ok else '✗'} {question!r} → {names or 'nobody'}")
+        if expected is None:
+            print(f"• {question!r} → {names or 'nobody'}")
+            print(f"     phrases searched: {expand_query(question, llm)}")
+        else:
+            ok = bool(names) and names[0] == expected
+            passed += ok
+            print(f"{'✓' if ok else '✗'} {question!r} → {names or 'nobody'} (expected {expected})")
         for p, why in chosen:
             print(f"     {p['name']}: {why}")
     if questions is QUESTIONS:

@@ -4,7 +4,7 @@ from datetime import date
 from app.main import app
 from app.schemas.search import SearchFilters
 from app.services.llm import LLMUnavailable, get_llm_client
-from app.services.search import RANK_JSON_SCHEMA, interpret, keyword_filters
+from app.services.search import EXPAND_JSON_SCHEMA, RANK_JSON_SCHEMA, interpret, keyword_filters
 from tests.conftest import OTHER_USER_ID
 from tests.test_contacts import capture
 
@@ -174,11 +174,14 @@ def ref_for(fake_call_user: str, name: str) -> str:
 class RankingLLM(FakeLLM):
     """Picks people by name, the way a real model would pick by meaning."""
 
-    def __init__(self, picks):
+    def __init__(self, picks, terms=()):
         super().__init__()
         self.picks = picks
+        self.terms = list(terms)
 
     def chat_json(self, system, user, schema):
+        if schema is EXPAND_JSON_SCHEMA:
+            return json.dumps({"terms": self.terms})
         self.calls.append({"system": system, "user": user})
         if schema is not RANK_JSON_SCHEMA:
             return json.dumps({})
@@ -208,6 +211,8 @@ def test_ranking_ignores_unknown_or_repeated_people(db_client):
 
     class Sloppy(FakeLLM):
         def chat_json(self, system, user, schema):
+            if schema is EXPAND_JSON_SCHEMA:
+                return json.dumps({"terms": []})
             emma = ref_for(user, "Emma Park")
             return json.dumps({"matches": [
                 {"person": "p99", "why": "made up"},
@@ -244,3 +249,26 @@ def test_search_reads_the_original_note(db_client):
     fake = use(RankingLLM([("Riley Evans", "Does battery chemistry research at Tesla.")]))
     assert names(db_client.post("/search", json={"query": "who knows chemistry?"})) == ["Riley Evans"]
     assert "your note: met riley evans she does battery chemistry" in fake.calls[0]["user"]
+
+
+def test_paraphrases_find_notes_the_ranking_missed(db_client):
+    # The model's ranking returns nobody for "bad guy", but its expansion includes
+    # "not a good guy", which is in the notes.
+    capture(db_client, {
+        "contact": {"name": "Marcus Lee", "company": "Acme"},
+        "interaction": {"notes": ["Not a good guy", "Talked over everyone"], "interactionDate": "2026-09-22T18:00:00Z"},
+    }, transcript="met marcus at the mixer")
+    seed(db_client)
+    use(RankingLLM([], terms=["bad guy", "not a good guy", "rude"]))
+    response = db_client.post("/search", json={"query": "bad guy"})
+    assert names(response) == ["Marcus Lee"]
+    assert response.json()["results"][0]["reasons"] == ["Your notes mention “not a good guy”"]
+
+
+def test_terms_match_whole_words_only():
+    from app.services.search import match_terms
+    people = [
+        {"id": 1, "name": "A", "moments": [{"notes": ["Very meaningful chat"], "event": None, "date": "2026-09-01"}], "open_follow_ups": []},
+        {"id": 2, "name": "B", "moments": [{"notes": ["Kind of mean"], "event": None, "date": "2026-09-01"}], "open_follow_ups": []},
+    ]
+    assert [p["name"] for p, _ in match_terms(people, ["mean"])] == ["B"]

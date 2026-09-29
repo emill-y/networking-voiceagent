@@ -14,6 +14,7 @@ always works. Exact matches (names, companies) are always listed first.
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from uuid import UUID
 
@@ -151,10 +152,11 @@ RANK_CANDIDATES = 60
 RANK_RESULTS = 8
 PROFILE_CHARS = 700
 
-RANK_PROMPT = """You help someone search their own private notes about people they've met.
+RANK_PROMPT = """You are the search engine for someone's own private notes about people they've met.
 Every profile is written by the user; "your note" is their own words. Today is {today}.
+You match the search against what the notes say. You are not judging anyone yourself.
 
-Pick the people who best answer the question, best first (at most {limit}).
+Return the people whose notes are relevant to the search, most relevant first (at most {limit}).
 - Match by meaning, never by exact words. Paraphrases, synonyms, opposites that are
   negated, and implications all count:
   - "bad guy" matches "not a good guy", "rude", "shady", "didn't trust him"
@@ -203,7 +205,7 @@ def _words(text: str) -> set[str]:
     }
 
 
-def profile_text(person: dict) -> str:
+def profile_text(person: dict, limit: int | None = PROFILE_CHARS) -> str:
     """One compact line per person, e.g. `Jason Chen | Founder | UC Berkeley | building: ...`."""
     parts = [person["name"]]
     for field in ("role", "company", "school", "major", "location", "summary"):
@@ -226,7 +228,7 @@ def profile_text(person: dict) -> str:
     if said:
         parts.append("your note: " + " / ".join(" ".join(s.split()) for s in said))
     line = " | ".join(parts)
-    return line if len(line) <= PROFILE_CHARS else line[: PROFILE_CHARS - 1] + "…"
+    return line if limit is None or len(line) <= limit else line[: limit - 1] + "…"
 
 
 def _candidates(people: list[dict], query: str) -> list[tuple[dict, str]]:
@@ -263,6 +265,70 @@ def rank_profiles(people: list[dict], query: str, llm: LLMClient, today: date) -
     return chosen[:RANK_RESULTS]
 
 
+EXPAND_PROMPT = """You expand a search over someone's private notes about people they've met.
+Return JSON {"terms": [...]}: up to 15 short, lowercase words or phrases that a person's
+notes would likely contain if they match the search. Include the search's own key words,
+synonyms, paraphrases, negated opposites, and related roles, fields or places.
+Examples:
+- "bad guy" -> ["bad guy", "not a good guy", "not nice", "rude", "mean", "jerk", "shady",
+  "dishonest", "didn't trust", "arrogant", "toxic", "sketchy"]
+- "chemistry" -> ["chemistry", "chemical", "chemist", "materials", "biotech", "battery", "lab"]
+- "could fund my startup" -> ["investor", "vc", "venture", "angel", "fund", "seed", "raise"]
+Return JSON only."""
+
+EXPAND_JSON_SCHEMA: dict = {
+    "type": "object",
+    "properties": {"terms": {"type": "array", "items": {"type": "string"}}},
+    "required": ["terms"],
+}
+
+
+class _Terms(BaseModel):
+    terms: list[str]
+
+
+def expand_query(query: str, llm: LLMClient) -> list[str] | None:
+    try:
+        raw = llm.chat_json(EXPAND_PROMPT, f"Search: {query}", EXPAND_JSON_SCHEMA)
+        terms = _Terms.model_validate_json(raw).terms
+    except (LLMUnavailable, ValidationError) as exc:
+        logger.warning("Search expansion failed (%s)", type(exc).__name__)
+        return None
+    cleaned = [" ".join(t.lower().split()) for t in terms]
+    return [t for t in dict.fromkeys(cleaned) if len(t) >= 3][:20]
+
+
+def match_terms(people: list[dict], terms: list[str]) -> list[tuple[dict, str]]:
+    """People whose notes contain any of the terms (whole words), most hits first."""
+    patterns = [(t, re.compile(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])")) for t in terms]
+    scored = []
+    for order, person in enumerate(people):
+        text = profile_text(person, limit=None).lower()
+        hits = [t for t, pattern in patterns if pattern.search(text)]
+        if hits:
+            scored.append((-len(hits), order, person, hits))
+    scored.sort(key=lambda row: (row[0], row[1]))
+    return [(person, f"Your notes mention “{hits[0]}”") for _, _, person, hits in scored]
+
+
+def search_by_meaning(people: list[dict], query: str, llm: LLMClient, today: date) -> list[tuple[dict, str]] | None:
+    """The model's ranking plus notes that contain the search's paraphrases.
+
+    Both ask the model, in parallel. None only if neither could answer.
+    """
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        ranked_future = pool.submit(rank_profiles, people, query, llm, today)
+        terms_future = pool.submit(expand_query, query, llm)
+        ranked, terms = ranked_future.result(), terms_future.result()
+    if ranked is None and terms is None:
+        return None
+    combined: list[tuple[dict, str]] = []
+    for person, why in (ranked or []) + (match_terms(people, terms) if terms else []):
+        if all(person["id"] != p["id"] for p, _ in combined):
+            combined.append((person, why))
+    return combined[:RANK_RESULTS + 4]
+
+
 def rank_by_meaning(
     conn: Connection, user_id: UUID, query: str, llm: LLMClient, today: date
 ) -> list[SearchResult] | None:
@@ -270,7 +336,7 @@ def rank_by_meaning(
     people = search_repo.people_profiles(conn, user_id)
     if not people:
         return []
-    chosen = rank_profiles(people, query, llm, today)
+    chosen = search_by_meaning(people, query, llm, today)
     if chosen is None:
         return None
     summaries = search_repo.contact_summaries(conn, user_id, [p["id"] for p, _ in chosen])
