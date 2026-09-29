@@ -52,12 +52,26 @@ def names(response):
     return [r["contact"]["name"] for r in response.json()["results"]]
 
 
-def test_simple_queries_skip_the_llm(db_client):
+def test_exact_matches_still_work_when_the_model_is_unhelpful(db_client):
     seed(db_client)
-    fake = use(FakeLLM())
+    use(FakeLLM())  # answers ranking questions with junk
     assert names(db_client.post("/search", json={"query": "robotics"})) == ["Jason Chen"]
     assert names(db_client.post("/search", json={"query": "emma"})) == ["Emma Park"]
-    assert fake.calls == []
+
+
+def test_one_word_searches_use_meaning_too(db_client):
+    seed(db_client)
+    fake = use(RankingLLM([("Jason Chen", "Founder building a robotics startup.")]))
+    response = db_client.post("/search", json={"query": "entrepreneur"})
+    assert names(response) == ["Jason Chen"]
+    assert response.json()["results"][0]["reasons"] == ["Founder building a robotics startup."]
+    assert len(fake.calls) == 1
+
+
+def test_exact_matches_come_first_then_meaning(db_client):
+    seed(db_client)
+    use(RankingLLM([("Jason Chen", "Founder."), ("Emma Park", "Works on search at Google.")]))
+    assert names(db_client.post("/search", json={"query": "emma"})) == ["Emma Park", "Jason Chen"]
 
 
 def test_full_text_matches_word_forms(db_client):

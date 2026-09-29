@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
@@ -12,8 +12,8 @@ import { ApiError } from "@/lib/api";
 import { contactsSupported } from "@/lib/deviceContacts";
 import { subtitle } from "@/lib/memory";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { listContacts } from "@/services/nomi";
-import type { ContactSummary } from "@/types/api";
+import { listContacts, search } from "@/services/nomi";
+import type { ContactSummary, SearchResult } from "@/types/api";
 
 export default function People() {
   const router = useRouter();
@@ -37,6 +37,31 @@ export default function People() {
       [p.name, p.company, p.role, p.school, p.lastEvent].some((v) => v?.toLowerCase().includes(q)),
     );
   }, [people, query]);
+
+  // Beyond exact matches: after a short pause, ask Nomi who fits by meaning
+  // ("chemistry" finds the chemical engineer, "investor" finds the VC).
+  const [related, setRelated] = useState<SearchResult[]>([]);
+  const [thinking, setThinking] = useState(false);
+  useEffect(() => {
+    const q = query.trim();
+    setRelated([]);
+    if (q.length < 3 || !people?.length) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setThinking(true);
+      search(q)
+        .then((response) => !cancelled && setRelated(response.results))
+        .catch(() => undefined)
+        .finally(() => !cancelled && setThinking(false));
+    }, 600);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      setThinking(false);
+    };
+  }, [query, people?.length]);
+  const shownIds = new Set((visible ?? []).map((p) => p.id));
+  const alsoFits = related.filter((r) => !shownIds.has(r.contact.id));
 
   return (
     <Screen>
@@ -76,10 +101,14 @@ export default function People() {
         <View style={styles.loading}>
           {error ? <Text style={type.body}>{error}</Text> : <ActivityIndicator color={colors.accent} />}
         </View>
-      ) : visible.length === 0 ? (
+      ) : visible.length === 0 && alsoFits.length === 0 ? (
         <Card style={styles.empty}>
           <Text style={type.body}>
-            {query ? `No one matches “${query}”.` : "No one yet. Record your first note from the orb below."}
+            {thinking
+              ? `Looking for people who fit “${query.trim()}”…`
+              : query
+                ? `No one matches “${query}”.`
+                : "No one yet. Record your first note from the orb below."}
           </Text>
         </Card>
       ) : (
@@ -94,6 +123,21 @@ export default function People() {
               />
             </Animated.View>
           ))}
+          {alsoFits.length > 0 && (
+            <View style={styles.also}>
+              <Text style={type.label}>Nomi also found</Text>
+              {alsoFits.map(({ contact, reasons }) => (
+                <PersonRow
+                  key={contact.id}
+                  name={contact.name}
+                  detail={reasons[0] ?? subtitle(contact)}
+                  when={contact.lastInteractionAt}
+                  onPress={() => router.push({ pathname: "/people/[id]", params: { id: contact.id } })}
+                />
+              ))}
+            </View>
+          )}
+          {thinking && visible.length > 0 && <ActivityIndicator color={colors.accent} style={styles.thinking} />}
         </View>
       )}
     </Screen>
@@ -132,5 +176,12 @@ const styles = StyleSheet.create({
   },
   list: {
     marginTop: spacing.lg,
+  },
+  also: {
+    marginTop: spacing.lg,
+    gap: spacing.xs,
+  },
+  thinking: {
+    marginTop: spacing.md,
   },
 });

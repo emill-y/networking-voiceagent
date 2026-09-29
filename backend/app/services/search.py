@@ -9,7 +9,7 @@ Questions are answered by meaning first:
 
 If the model is unavailable or answers with junk, we fall back to structured
 filters (LLM -> SearchFilters -> fixed SQL), then to plain keywords, so search
-always works. One or two plain words ("Jason", "robotics") skip the model.
+always works. Exact matches (names, companies) are always listed first.
 """
 
 import logging
@@ -263,9 +263,17 @@ def rank_by_meaning(
 
 
 def answer(conn: Connection, user_id: UUID, query: str, llm: LLMClient, today: date) -> SearchResponse:
-    if not _is_simple(query):
-        results = rank_by_meaning(conn, user_id, query, llm, today)
-        if results is not None:
-            return SearchResponse(filters=SearchFilters(), interpreted=True, results=results)
+    """Exact matches (a name, a company) first, then everyone who fits by meaning."""
+    exact = run_search(conn, user_id, keyword_filters(query))
+    ranked = rank_by_meaning(conn, user_id, query, llm, today)
+    if ranked is not None:
+        merged: list[SearchResult] = []
+        seen: set[UUID] = set()
+        for result in exact + ranked:
+            if result.contact.id not in seen:
+                seen.add(result.contact.id)
+                merged.append(result)
+        return SearchResponse(filters=SearchFilters(), interpreted=True, results=merged[:12])
+    # The model is unavailable: structured filters if it can, else plain keywords.
     filters, interpreted = interpret(query, llm, today)
     return SearchResponse(filters=filters, interpreted=interpreted, results=run_search(conn, user_id, filters))

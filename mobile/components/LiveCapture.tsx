@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { MicButton } from "@/components/MicButton";
@@ -27,6 +27,7 @@ export function LiveCapture() {
   const stopRef = useRef<(() => void) | null>(null);
   const textRef = useRef("");
   const finishing = useRef(false);
+  const starting = useRef(false);
 
   // People you already know, so the recognizer spells their names right.
   useEffect(() => {
@@ -61,6 +62,17 @@ export function LiveCapture() {
   }
 
   async function start() {
+    // Ignore extra taps while the microphone is still starting.
+    if (starting.current) return;
+    starting.current = true;
+    try {
+      await begin();
+    } finally {
+      starting.current = false;
+    }
+  }
+
+  async function begin() {
     setMessage(null);
     const permission = await requestSpeechPermission();
     if (permission === "blocked") return setPhase("blocked");
@@ -81,7 +93,10 @@ export function LiveCapture() {
           },
           onError: (code) => {
             if (code === "no-speech" || code === "aborted") return; // handled on end
-            if (code === "not-allowed") setPhase("blocked");
+            if (code === "not-allowed") {
+              finishing.current = false;
+              setPhase("blocked");
+            }
             else {
               setMessage("Listening stopped unexpectedly. You can try again or type instead.");
               setPhase("error");
@@ -140,9 +155,15 @@ export function LiveCapture() {
       {phase === "blocked" ? (
         <View style={styles.block}>
           <Text style={[type.body, styles.center]}>
-            Microphone or speech recognition is turned off for Nomi.
+            {Platform.OS === "web"
+              ? "Your browser blocked the microphone. Click the lock or mic icon in the address bar, allow it, then try again."
+              : "Microphone or speech recognition is turned off for Nomi."}
           </Text>
-          <Button title="Open Settings" variant="quiet" onPress={() => void Linking.openSettings()} />
+          {Platform.OS === "web" ? (
+            <Button title="Try again" variant="quiet" onPress={() => { setPhase("idle"); void start(); }} />
+          ) : (
+            <Button title="Open Settings" variant="quiet" onPress={() => void Linking.openSettings()} />
+          )}
         </View>
       ) : (
         <View style={styles.controls}>

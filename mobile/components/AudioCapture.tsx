@@ -34,6 +34,7 @@ export function AudioCapture() {
   const [durationMs, setDurationMs] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const stopping = useRef(false);
+  const starting = useRef(false);
 
   const player = useAudioPlayer(uri);
   const playback = useAudioPlayerStatus(player);
@@ -49,6 +50,9 @@ export function AudioCapture() {
   }, []);
 
   async function startRecording() {
+    // Ignore extra taps while the microphone is still starting.
+    if (starting.current) return;
+    starting.current = true;
     setMessage(null);
     try {
       const permission = await requestRecordingPermissionsAsync();
@@ -64,6 +68,8 @@ export function AudioCapture() {
     } catch {
       setMessage("The microphone couldn’t start. Please try again.");
       setPhase("error");
+    } finally {
+      starting.current = false;
     }
   }
 

@@ -16,6 +16,7 @@ export default function Search() {
   const [query, setQuery] = useState("");
   const EXAMPLES = examples(useProfile()).searches;
   const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [smart, setSmart] = useState(true);
   const [asked, setAsked] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -29,6 +30,7 @@ export default function Search() {
     try {
       const response = await search(q);
       setResults(response.results);
+      setSmart(response.interpreted);
       setAsked(q);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Search didn’t work.");
@@ -72,6 +74,11 @@ export default function Search() {
 
       {results && !loading && (
         <View style={styles.results}>
+          {!smart && (
+            <Text style={[type.meta, styles.notice]}>
+              Smart search didn’t respond, so these are exact matches only. Try again in a moment.
+            </Text>
+          )}
           {results.length === 0 ? (
             <Text style={[type.body, styles.muted]}>No one matches “{asked}” yet.</Text>
           ) : (
@@ -131,6 +138,10 @@ const styles = StyleSheet.create({
   },
   results: {
     marginTop: spacing.lg,
+  },
+  notice: {
+    color: colors.accent,
+    marginBottom: spacing.md,
   },
   muted: {
     color: colors.muted,
