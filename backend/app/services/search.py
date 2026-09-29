@@ -171,7 +171,8 @@ Return the people whose notes are relevant to the search, most relevant first (a
 - Respect dates and places in the question (e.g. "last month", "at Cal Hacks").
 - Only include people the notes support. If nobody fits, return an empty list.
 - "why": one short sentence using only facts from their profile. Never invent facts.
-Return JSON only."""
+- "person" is the label before the colon, e.g. "p3".
+Return JSON only, like {{"matches": [{{"person": "p3", "why": "Building a robotics startup."}}]}}."""
 
 RANK_JSON_SCHEMA: dict = {
     "type": "object",
@@ -180,7 +181,10 @@ RANK_JSON_SCHEMA: dict = {
             "type": "array",
             "items": {
                 "type": "object",
-                "properties": {"person": {"type": "string"}, "why": {"type": "string"}},
+                "properties": {
+                    "person": {"type": "string", "description": "The person's label exactly as given, e.g. \"p3\"."},
+                    "why": {"type": "string"},
+                },
                 "required": ["person", "why"],
             },
         }
@@ -243,6 +247,18 @@ def _candidates(people: list[dict], query: str) -> list[tuple[dict, str]]:
     return [(person, text) for _, _, person, text in scored[:RANK_CANDIDATES]]
 
 
+def resolve_person(label: str, refs: dict[str, dict]) -> dict | None:
+    """The person a pick refers to. Models answer "p3", "P3", "p3: Jason Chen",
+    "3" or just "Jason Chen"; accept all of them."""
+    text = label.strip()
+    found = re.match(r"^\s*p?\s*(\d+)\b", text, re.IGNORECASE)
+    if found and f"p{found.group(1)}" in refs:
+        return refs[f"p{found.group(1)}"]
+    name = re.sub(r"^\s*p\d+\s*[:.)-]\s*", "", text, flags=re.IGNORECASE).split("|")[0].strip().lower()
+    by_name = [p for p in refs.values() if p["name"].strip().lower() == name]
+    return by_name[0] if len(by_name) == 1 else None
+
+
 def rank_profiles(people: list[dict], query: str, llm: LLMClient, today: date) -> list[tuple[dict, str]] | None:
     """Ask the model who fits. Returns (person, why) pairs, or None if it couldn't answer."""
     candidates = _candidates(people, query)
@@ -257,10 +273,15 @@ def rank_profiles(people: list[dict], query: str, llm: LLMClient, today: date) -
         return None
 
     chosen: list[tuple[dict, str]] = []
+    unknown = 0
     for match in ranking.matches:
-        person = refs.get(match.person.strip())
-        if person and all(person["id"] != p["id"] for p, _ in chosen):
+        person = resolve_person(match.person, refs)
+        if person is None:
+            unknown += 1
+        elif all(person["id"] != p["id"] for p, _ in chosen):
             chosen.append((person, " ".join(match.why.split())[:160]))
+    if unknown:
+        logger.warning("Search: %d of %d picks didn't name a known person", unknown, len(ranking.matches))
     logger.info("Search ranked %d of %d people", len(chosen), len(candidates))
     return chosen[:RANK_RESULTS]
 
@@ -300,7 +321,8 @@ def expand_query(query: str, llm: LLMClient) -> list[str] | None:
 
 def match_terms(people: list[dict], terms: list[str]) -> list[tuple[dict, str]]:
     """People whose notes contain any of the terms (whole words), most hits first."""
-    patterns = [(t, re.compile(r"(?<![a-z0-9])" + re.escape(t) + r"(?![a-z0-9])")) for t in terms]
+    # Whole words, plurals included ("startup" finds "startups").
+    patterns = [(t, re.compile(r"(?<![a-z0-9])" + re.escape(t) + r"(?:s|es)?(?![a-z0-9])")) for t in terms]
     scored = []
     for order, person in enumerate(people):
         text = profile_text(person, limit=None).lower()

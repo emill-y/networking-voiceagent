@@ -272,3 +272,21 @@ def test_terms_match_whole_words_only():
         {"id": 2, "name": "B", "moments": [{"notes": ["Kind of mean"], "event": None, "date": "2026-09-01"}], "open_follow_ups": []},
     ]
     assert [p["name"] for p, _ in match_terms(people, ["mean"])] == ["B"]
+    people[0]["moments"][0]["notes"] = ["Building two startups"]
+    assert [p["name"] for p, _ in match_terms(people, ["startup"])] == ["A"]
+
+
+def test_picks_by_name_or_loose_label_are_understood(db_client):
+    seed(db_client)
+
+    class ByName(FakeLLM):
+        def chat_json(self, system, user, schema):
+            if schema is EXPAND_JSON_SCHEMA:
+                return json.dumps({"terms": []})
+            return json.dumps({"matches": [
+                {"person": "Jason Chen", "why": "Building a robotics startup."},
+                {"person": "P" + ref_for(user, "Emma Park")[1:] + ": Emma Park", "why": "Product manager."},
+            ]})
+
+    use(ByName())
+    assert names(db_client.post("/search", json={"query": "who can help me build a company?"})) == ["Jason Chen", "Emma Park"]

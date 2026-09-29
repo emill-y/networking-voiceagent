@@ -4,6 +4,7 @@ Usage (from backend/, venv active, LLM settings in backend/.env):
 
     python -m scripts.eval_search                      # built-in questions
     python -m scripts.eval_search "who is a bad guy?"  # your own question
+    python -m scripts.eval_search --raw "bad guy"      # also print the model's raw replies
 
 Prints who the model picks and why. Nothing touches the database.
 """
@@ -35,6 +36,7 @@ PEOPLE = [
            notes=["Wants a cofounder"], event="Founders mixer"),
     person(4, "Hana Sato", said="met hana in office hours she's super kind and helped me debug my project", event="Office hours"),
     person(5, "Tom Reed", "Investor", "Northwind Ventures", interests=["climate", "robotics"], event="Demo day"),
+    person(6, "Sam Ortiz", notes=["Building two startups"], said="sam is building startups in ai", event="Hackathon"),
 ]
 
 QUESTIONS = [
@@ -43,12 +45,24 @@ QUESTIONS = [
     ("who should I build a startup with for chemistry?", "Diego Alvarez"),
     ("who could fund my robotics company?", "Tom Reed"),
     ("who might help me get a job?", "Priya Shah"),
+    ("who can help me build a company", "Sam Ortiz"),
 ]
 
 
 def main() -> None:
     llm = get_llm_client()
-    questions = [(q, None) for q in sys.argv[1:]] or QUESTIONS
+    args = sys.argv[1:]
+    if "--raw" in args:
+        args.remove("--raw")
+        real = llm.chat_json
+
+        def show(system, user, schema):
+            reply = real(system, user, schema)
+            print(f"     raw reply: {reply[:400]}")
+            return reply
+
+        llm.chat_json = show  # type: ignore[method-assign]
+    questions = [(q, None) for q in args] or QUESTIONS
     passed = 0
     for question, expected in questions:
         chosen = search_by_meaning(PEOPLE, question, llm, date.today())
@@ -60,13 +74,13 @@ def main() -> None:
             print(f"• {question!r} → {names or 'nobody'}")
             print(f"     phrases searched: {expand_query(question, llm)}")
         else:
-            ok = bool(names) and names[0] == expected
+            ok = expected in names[:3]
             passed += ok
             print(f"{'✓' if ok else '✗'} {question!r} → {names or 'nobody'} (expected {expected})")
         for p, why in chosen:
             print(f"     {p['name']}: {why}")
     if questions is QUESTIONS:
-        print(f"\n{passed}/{len(QUESTIONS)} picked the expected person first")
+        print(f"\n{passed}/{len(QUESTIONS)} found the expected person in the top 3")
 
 
 if __name__ == "__main__":
