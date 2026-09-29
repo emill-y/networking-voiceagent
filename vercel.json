@@ -4,7 +4,6 @@
   "installCommand": "cd mobile && npm ci",
   "buildCommand": "node scripts/build-vercel.mjs",
   "outputDirectory": "public",
-  "cleanUrls": true,
   "trailingSlash": false,
   "functions": {
     "api/index.py": {
@@ -14,6 +13,22 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/product",
+      "destination": "/product.html"
+    },
+    {
+      "source": "/students",
+      "destination": "/students.html"
+    },
+    {
+      "source": "/demo",
+      "destination": "/demo.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
     {
       "source": "/health",
       "destination": "/api/index"
