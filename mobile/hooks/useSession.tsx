@@ -1,7 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
-import { supabase } from "@/lib/supabase";
+import { supabase, withTimeout } from "@/lib/supabase";
 
 type SessionState = {
   session: Session | null;
@@ -18,8 +18,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!supabase) return;
     let active = true;
-    supabase.auth
-      .getSession()
+    // Don't hold the whole app on a blank screen if Supabase is slow.
+    withTimeout(supabase.auth.getSession(), 8000)
       .then(({ data }) => active && setState({ session: data.session, loading: false }))
       .catch(() => active && setState({ session: null, loading: false }));
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {

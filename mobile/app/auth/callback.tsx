@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { Button } from "@/components/Button";
 import { Screen } from "@/components/Screen";
 import { profileFrom } from "@/lib/profile";
-import { supabase } from "@/lib/supabase";
+import { supabase, withTimeout } from "@/lib/supabase";
 import { colors, spacing, type } from "@/lib/theme";
 
 // Google and magic links land here with ?code=… (or ?error_description=…).
@@ -23,16 +23,16 @@ export default function AuthCallback() {
       // same code; if we're already signed in, there's nothing to do.
       // New accounts go to the welcome step first; everyone else goes home.
       const destination = async () => {
-        const { data } = await supabase!.auth.getSession();
+        const { data } = await withTimeout(supabase!.auth.getSession());
         return profileFrom(data.session) ? "/" : "/welcome";
       };
-      const { data } = await supabase.auth.getSession();
+      const { data } = await withTimeout(supabase.auth.getSession());
       if (data.session) return router.replace(await destination());
 
       const problem = params.error_description ?? params.error;
       if (problem) throw new Error(problem);
       if (!params.code) throw new Error("That sign-in link is incomplete.");
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(params.code);
+      const { error: exchangeError } = await withTimeout(supabase.auth.exchangeCodeForSession(params.code));
       if (exchangeError) throw exchangeError;
       router.replace(await destination());
     }
@@ -52,7 +52,7 @@ export default function AuthCallback() {
             <Text style={[type.title, styles.text]}>That link didn’t work.</Text>
             <Text style={[type.body, styles.text]}>{error}</Text>
             <Text style={[type.meta, styles.text]}>
-              Links work once, on the device that asked for them, for about an hour.
+              Links work once, in the same browser that asked for them, for about an hour.
             </Text>
             <View style={styles.action}>
               <Button title="Back to sign in" onPress={() => router.replace("/sign-in")} />

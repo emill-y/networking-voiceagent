@@ -52,3 +52,18 @@ export async function getAccessToken(): Promise<string | null> {
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
 }
+
+// Supabase calls can hang when the project is paused or unreachable. Give up
+// after a while with a message that says what's wrong, instead of spinning.
+export function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("Couldn’t reach the sign-in service. Check your connection and try again in a minute.")),
+      ms,
+    );
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
