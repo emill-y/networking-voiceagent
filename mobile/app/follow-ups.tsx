@@ -2,13 +2,15 @@ import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
 import { CloseButton } from "@/components/CloseButton";
 import { Divider } from "@/components/Divider";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
 import { dueGroup, type DueGroup } from "@/lib/dates";
 import { formatRelative, formatShortDate } from "@/lib/format";
-import { colors, spacing, type } from "@/lib/theme";
+import { colors, radius, spacing, type } from "@/lib/theme";
 import { listFollowUps, updateFollowUp } from "@/services/nomi";
 import type { FollowUp, FollowUpStatus } from "@/types/api";
 
@@ -49,6 +51,7 @@ export default function FollowUps() {
     <Screen>
       <CloseButton />
       <Text style={[type.display, styles.title]}>Follow-ups</Text>
+      <Text style={type.meta}>Promises from your notes, with the dates you mentioned.</Text>
 
       {!items ? (
         <View style={styles.loading}>
@@ -56,8 +59,38 @@ export default function FollowUps() {
         </View>
       ) : (
         <>
+          <View style={styles.tiles}>
+            <Tile value={open.filter((f) => dueGroup(f.dueAt) === "overdue").length} label="overdue" hot />
+            <Tile value={open.filter((f) => ["today", "week"].includes(dueGroup(f.dueAt))).length} label="this week" />
+            <Tile value={open.filter((f) => ["later", "none"].includes(dueGroup(f.dueAt))).length} label="later" />
+            <Tile value={done.length} label="done" />
+          </View>
           {open.length === 0 && (
-            <Text style={[type.body, styles.muted]}>Nothing waiting on you. Nicely done.</Text>
+            <Card style={styles.emptyCard}>
+              <Text style={type.heading}>
+                {done.length ? "Nothing waiting on you. Nicely done." : "No follow-ups yet"}
+              </Text>
+              <Text style={[type.body, styles.muted]}>
+                When a note says what you’ll do next, like “send her my resume Friday”, it shows up
+                here with a date so you actually do it.
+              </Text>
+              <View style={styles.examples}>
+                {[
+                  ["Send Priya my resume", "Priya Shah · due Fri"],
+                  ["Intro Jason to Sam", "Jason Chen · this week"],
+                  ["Ask Maya about the Stripe role", "Maya Singh · anytime"],
+                ].map(([action, meta]) => (
+                  <View key={action} style={styles.exampleRow}>
+                    <View style={[styles.check, styles.exampleCheck]} />
+                    <View style={styles.rowText}>
+                      <Text style={[type.body, styles.exampleAction]}>{action}</Text>
+                      <Text style={type.meta}>Example · {meta}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
+              <Button title="Record a note" icon="mic" onPress={() => router.push("/record")} />
+            </Card>
           )}
           {GROUPS.map(({ key, label }) => {
             const inGroup = open.filter((item) => dueGroup(item.dueAt) === key);
@@ -86,6 +119,15 @@ export default function FollowUps() {
         </>
       )}
     </Screen>
+  );
+}
+
+function Tile({ value, label, hot }: { value: number; label: string; hot?: boolean }) {
+  return (
+    <View style={styles.tile}>
+      <Text style={[styles.tileValue, hot && value > 0 && styles.overdue]}>{value}</Text>
+      <Text style={type.meta}>{label}</Text>
+    </View>
   );
 }
 
@@ -130,6 +172,45 @@ function Row({
 }
 
 const styles = StyleSheet.create({
+  tiles: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
+  tile: {
+    flex: 1,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  tileValue: {
+    fontSize: 26,
+    fontWeight: "600",
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+  },
+  emptyCard: {
+    marginTop: spacing.lg,
+    gap: spacing.sm,
+  },
+  examples: {
+    marginVertical: spacing.sm,
+    gap: spacing.sm,
+    opacity: 0.6,
+  },
+  exampleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  exampleCheck: {
+    borderStyle: "dashed",
+  },
+  exampleAction: {
+    color: colors.textSoft,
+  },
   title: {
     marginTop: spacing.xl,
     marginBottom: spacing.lg,

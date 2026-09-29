@@ -4,7 +4,8 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, Vi
 import Svg, { Line } from "react-native-svg";
 
 import { Button } from "@/components/Button";
-import { EDGE_STYLES, EdgeLegend, EmptyNetwork, NetworkMap } from "@/components/NetworkMap";
+import { GhostNetwork } from "@/components/GhostNetwork";
+import { EDGE_STYLES, EdgeLegend, NetworkMap } from "@/components/NetworkMap";
 import { Screen } from "@/components/Screen";
 import { useDesktop } from "@/hooks/useDesktop";
 import { ApiError } from "@/lib/api";
@@ -55,15 +56,16 @@ export default function Network() {
         </View>
       ) : data.people.length === 0 ? (
         <View style={styles.empty}>
-          <EmptyNetwork height={desktop ? Math.max(460, windowHeight - 260) : Math.max(380, Math.min(560, windowHeight * 0.6))}>
+          <GhostNetwork height={desktop ? Math.max(500, windowHeight - 240) : Math.max(420, Math.min(600, windowHeight * 0.66))}>
+            <Text style={styles.waiting}>Waiting for your first connection…</Text>
             <Text style={[type.body, styles.emptyText]}>
-              Everyone you remember shows up here, linked by the companies, schools, events and
+              Everyone you remember lands here, linked by the companies, schools, events and
               interests you share.
             </Text>
             <View style={styles.emptyAction}>
               <Button title="Remember someone" icon="mic" onPress={() => router.push("/record")} />
             </View>
-          </EmptyNetwork>
+          </GhostNetwork>
         </View>
       ) : (
         <>
@@ -302,6 +304,11 @@ const styles = StyleSheet.create({
   },
   empty: {
     marginTop: spacing.lg,
+  },
+  waiting: {
+    ...type.title,
+    fontSize: 24,
+    textAlign: "center",
   },
   emptyText: {
     textAlign: "center",

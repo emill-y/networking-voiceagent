@@ -1,7 +1,10 @@
 import { usePathname, useRouter, type Href } from "expo-router";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Button } from "@/components/Button";
+import { Icon } from "@/components/Icon";
+import { Monogram } from "@/components/Monogram";
+import { useProfile } from "@/hooks/useProfile";
+import { useSession } from "@/hooks/useSession";
 import { colors, fonts, radius, spacing } from "@/lib/theme";
 
 const LINKS: { href: Href; label: string; match: (path: string) => boolean }[] = [
@@ -13,10 +16,15 @@ const LINKS: { href: Href; label: string; match: (path: string) => boolean }[] =
   { href: "/you", label: "You", match: (p) => p.startsWith("/you") },
 ];
 
-// Desktop web navigation. Quiet: a wordmark, a few words, one action.
+// Desktop web navigation: wordmark, destinations, and who's signed in.
+// (Recording starts from the orb on Home, so there's no second record button.)
 export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
+  const { session } = useSession();
+  const profile = useProfile();
+  const name = (session?.user.user_metadata?.full_name as string | undefined) ?? session?.user.email ?? "You";
+  const detail = [profile?.school, profile?.major].filter(Boolean).join(" · ") || "Your account";
   // Sidebar destinations replace whatever is open, so screens never pile up
   // on top of each other (e.g. "New memory" then "or write one").
   const go = (href: Href) => {
@@ -49,10 +57,21 @@ export function Sidebar() {
         })}
       </View>
       <View style={styles.spacer} />
-      {/* Recording starts from the orb on Home, so this takes you there. */}
-      <Button title="New memory" icon="mic" onPress={() => go("/")} />
-      <Pressable onPress={() => go("/write")} accessibilityRole="button" style={styles.write}>
-        <Text style={styles.writeText}>or write one</Text>
+      <Pressable
+        onPress={() => go("/you")}
+        accessibilityRole="link"
+        accessibilityLabel="Your account"
+        style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [
+          styles.account,
+          (hovered || pressed) && styles.linkHover,
+        ]}
+      >
+        <Monogram name={name} size={36} />
+        <View style={styles.accountText}>
+          <Text style={styles.accountName} numberOfLines={1}>{name}</Text>
+          <Text style={styles.accountDetail} numberOfLines={1}>{detail}</Text>
+        </View>
+        <Icon name="chevron" size={16} color={colors.faint} />
       </Pressable>
     </View>
   );
@@ -100,13 +119,27 @@ const styles = StyleSheet.create({
   spacer: {
     flex: 1,
   },
-  write: {
-    alignSelf: "center",
-    paddingVertical: spacing.sm,
-    marginTop: spacing.xs,
+  account: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.card,
   },
-  writeText: {
-    fontSize: 13,
+  accountText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  accountName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  accountDetail: {
+    fontSize: 12,
     color: colors.muted,
   },
 });

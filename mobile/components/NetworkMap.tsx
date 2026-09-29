@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import Svg, { Circle, Defs, G, Line, RadialGradient, Stop, Text as SvgText } from "react-native-svg";
 
@@ -163,6 +163,7 @@ export function NetworkMap({ layout, selectedId, onSelect, height }: Props) {
                   );
                 })}
               </G>
+              <GhostSeats layout={layout} />
               <G>
                 {layout.nodes.map((node) => (
                   <NodeMark
@@ -218,6 +219,39 @@ function NodeGradients({ tints }: { tints: string[] }) {
         </RadialGradient>
       ))}
     </Defs>
+  );
+}
+
+// Small networks get placeholder seats around them (people you haven't met
+// yet), so the map never looks bare. They fade out as the real network grows.
+function GhostSeats({ layout }: { layout: MapLayout }) {
+  const people = layout.nodes.filter((n) => n.kind === "person");
+  const count = Math.max(0, 12 - people.length);
+  if (!count) return null;
+  const you = layout.nodes.find((n) => n.kind === "you");
+  const cx = you?.x ?? layout.width / 2;
+  const cy = you?.y ?? layout.height / 2;
+  const reach = Math.max(90, ...people.map((n) => Math.hypot(n.x - cx, n.y - cy)));
+  const seats: { x: number; y: number; r: number }[] = [];
+  for (let i = 0; seats.length < count && i < count * 3; i++) {
+    const ring = i % 2 === 0 ? reach * 1.25 : reach * 0.8 + 30;
+    const angle = i * 2.39996 + 0.6;
+    // Stay inside the drawing area.
+    const x = Math.min(layout.width - 24, Math.max(24, cx + ring * Math.cos(angle) * 1.35));
+    const y = Math.min(layout.height - 24, Math.max(24, cy + ring * Math.sin(angle)));
+    if (people.some((n) => Math.hypot(n.x - x, n.y - y) < 60)) continue;
+    seats.push({ x, y, r: i % 2 === 0 ? 6 : 8 });
+  }
+  return (
+    <G opacity={0.9}>
+      {seats.map((seat, i) => (
+        <G key={i}>
+          <Line x1={cx} y1={cy} x2={seat.x} y2={seat.y} stroke={orb.mid} strokeOpacity={0.08} strokeDasharray="2 6" />
+          <Circle cx={seat.x} cy={seat.y} r={seat.r} fill="rgba(255, 220, 200, 0.03)"
+            stroke="rgba(255, 220, 200, 0.26)" strokeDasharray="2 3" />
+        </G>
+      ))}
+    </G>
   );
 }
 
@@ -362,59 +396,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: colors.muted,
   },
-  emptyFrame: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  emptyCenter: {
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.lg,
-  },
-  emptyYou: {
-    fontFamily: fonts.serifBold,
-    fontSize: 13,
-    color: colors.text,
-    marginTop: spacing.xs,
-  },
-  emptyTitle: {
-    fontFamily: fonts.serif,
-    fontSize: 22,
-    color: colors.text,
-    textAlign: "center",
-    marginTop: spacing.lg,
-  },
 });
-
-// Before anyone is remembered: the same canvas with just you in the middle.
-export function EmptyNetwork({ height, children }: { height: number; children?: React.ReactNode }) {
-  const pulse = useSharedValue(0);
-  useEffect(() => {
-    pulse.value = withRepeat(withTiming(1, { duration: 2200 }), -1, true);
-  }, [pulse]);
-  const glow = useAnimatedStyle(() => ({ opacity: 0.55 + pulse.value * 0.45, transform: [{ scale: 1 + pulse.value * 0.08 }] }));
-  const size = 220;
-  return (
-    <View style={[styles.frame, styles.emptyFrame, { height }]}>
-      <CanvasGlow />
-      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" pointerEvents="none">
-        {[70, 120, 175].map((r) => (
-          <Circle key={r} cx="50%" cy="42%" r={r} fill="none" stroke={orb.mid} strokeOpacity={0.12}
-            strokeDasharray="2 7" />
-        ))}
-      </Svg>
-      <View style={styles.emptyCenter}>
-        <Animated.View style={[{ width: size, height: size, marginVertical: -size / 2 + 26 }, glow]}>
-          <Svg width={size} height={size}>
-            <NodeGradients tints={[]} />
-            <Circle cx={size / 2} cy={size / 2} r={size / 2} fill="url(#node-glow)" />
-            <Circle cx={size / 2} cy={size / 2} r={26} fill="url(#node-you)" />
-          </Svg>
-        </Animated.View>
-        <Text style={styles.emptyYou}>You</Text>
-        <Text style={styles.emptyTitle}>Waiting for your first connection…</Text>
-        {children}
-      </View>
-    </View>
-  );
-}

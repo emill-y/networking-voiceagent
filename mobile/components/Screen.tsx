@@ -18,7 +18,7 @@ type Props = {
 export function Screen({ children, scroll = true, wide = false }: Props) {
   const desktop = useDesktop();
   const width = desktop
-    ? { maxWidth: wide ? 1120 : 720, paddingTop: spacing.xl, paddingHorizontal: spacing.xl }
+    ? { maxWidth: wide ? 1120 : 860, paddingTop: spacing.xl, paddingHorizontal: spacing.xl }
     : { paddingBottom: TAB_BAR_SPACE + spacing.lg }; // room for the floating tab bar
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "left", "right"]}>

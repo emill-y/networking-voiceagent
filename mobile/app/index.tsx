@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Card } from "@/components/Card";
 import { Chip, ChipRow } from "@/components/Chip";
+import { GhostNetwork } from "@/components/GhostNetwork";
 import { Icon } from "@/components/Icon";
 import { MicButton } from "@/components/MicButton";
 import { Monogram } from "@/components/Monogram";
@@ -123,13 +124,31 @@ export default function Home() {
         </Pressable>
       )}
 
-      {people && people.length > 0 && (
+      {people && (
         <Animated.View entering={FadeInDown.delay(180).duration(600)} style={styles.stats}>
           <Stat value={people.length} label={people.length === 1 ? "person" : "people"}
             onPress={() => router.push("/people")} />
           <Stat value={metThisWeek(people)} label="met this week" onPress={() => router.push("/network")} />
           <Stat value={dueSoon || followUps.length} label={dueSoon ? "due soon" : "to follow up"}
             onPress={() => router.push("/follow-ups")} highlight={dueSoon > 0} />
+        </Animated.View>
+      )}
+
+      {people && !next && (
+        <Animated.View entering={FadeInDown.delay(260).duration(600)}>
+          <Text style={[type.label, styles.sectionLabel]}>Up next</Text>
+          <Card>
+            <View style={styles.nextRow}>
+              <View style={[styles.check, styles.ghostCheck]} />
+              <View style={styles.nextText}>
+                <Text style={[styles.nextAction, styles.ghostText]}>Send Priya my resume</Text>
+                <Text style={type.meta}>Example · due Friday</Text>
+              </View>
+            </View>
+            <Text style={[type.meta, styles.more]}>
+              Nothing to follow up yet. Say “I should…” in a note and it lands here with a date.
+            </Text>
+          </Card>
         </Animated.View>
       )}
 
@@ -166,28 +185,49 @@ export default function Home() {
           )}
         </View>
 
-        {people && people.length === 0 ? (
-          <Card>
-            <Text style={styles.emptyTitle}>Your people will gather here.</Text>
-            <Text style={[type.body, styles.emptyBody]}>
-              After your next conversation, tap the orb and say who you met, where, and what
-              you talked about.
-            </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carousel}>
+          {recent.map((person) => (
+            <PersonCard key={person.id} person={person}
+              onPress={() => router.push({ pathname: "/people/[id]", params: { id: person.id } })} />
+          ))}
+          {people && Array.from({ length: Math.max(0, 4 - recent.length) }, (_, i) => (
+            <GhostCard key={`ghost-${i}`} first={i === 0 && recent.length === 0}
+              onPress={() => router.push("/record")} />
+          ))}
+        </ScrollView>
+
+        <View style={styles.sectionHeader}>
+          <Text style={[type.label, styles.sectionLabel]}>Your network</Text>
+          <Pressable onPress={() => router.push("/network")} accessibilityRole="button" hitSlop={8}>
+            <Text style={[type.meta, styles.link]}>Open map</Text>
+          </Pressable>
+        </View>
+        <Pressable onPress={() => router.push("/network")} accessibilityRole="button"
+          accessibilityLabel="Open your network map">
+          <GhostNetwork height={desktop ? 280 : 230} compact={!desktop}
+            people={(people ?? []).map((p) => ({ id: p.id, name: p.name }))} />
+        </Pressable>
+
+        {people && people.length < 3 && (
+          <>
+            <Text style={[type.label, styles.sectionLabel]}>Try saying</Text>
+            <Card onPress={() => router.push("/record")} accessibilityLabel="Record a note like this">
+              <View style={styles.exampleRow}>
+                <Icon name="mic" size={18} color={colors.accent} />
+                <Text style={styles.exampleText}>“{examples(profile).note}”</Text>
+              </View>
+              <Text style={[type.meta, styles.exampleHint]}>
+                Nomi pulls out the name, where you met, what they do and what you promised.
+              </Text>
+            </Card>
             {contactsSupported && (
               <ChipRow>
                 <Chip label="Bring in contacts" icon="people" tone="accent"
                   onPress={() => router.push("/import-contacts")} />
               </ChipRow>
             )}
-          </Card>
-        ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.carousel}>
-            {recent.map((person) => (
-              <PersonCard key={person.id} person={person}
-                onPress={() => router.push({ pathname: "/people/[id]", params: { id: person.id } })} />
-            ))}
-          </ScrollView>
+          </>
         )}
       </Animated.View>
     </Screen>
@@ -200,6 +240,23 @@ function Stat({ value, label, onPress, highlight }: { value: number; label: stri
       style={({ pressed }) => [styles.stat, pressed && styles.pressed]}>
       <Text style={[styles.statValue, highlight && styles.statHighlight]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// A seat for someone you haven't met yet, so the row is never empty.
+function GhostCard({ first, onPress }: { first: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel="Remember someone new"
+      style={({ pressed }) => [styles.personCard, styles.ghostCard, pressed && styles.pressed]}>
+      <View style={styles.ghostAvatar}>
+        <Icon name="plus" size={20} color={colors.faint} />
+      </View>
+      <Text style={[styles.personName, styles.ghostText]} numberOfLines={1}>
+        {first ? "Your first" : "Your next"}
+      </Text>
+      <Text style={styles.personSub} numberOfLines={1}>connection</Text>
+      <Text style={styles.personContext} numberOfLines={2}>Tap the orb after you meet someone</Text>
     </Pressable>
   );
 }
@@ -402,14 +459,40 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
   },
-  emptyTitle: {
-    fontFamily: fonts.serifBold,
-    fontSize: 22,
-    color: colors.text,
+  ghostCard: {
+    borderStyle: "dashed",
+    borderColor: "rgba(255, 220, 200, 0.18)",
+    backgroundColor: "rgba(255, 255, 255, 0.02)",
   },
-  emptyBody: {
-    marginTop: spacing.xs,
-    marginBottom: spacing.md,
+  ghostAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "rgba(255, 220, 200, 0.25)",
+  },
+  ghostText: {
     color: colors.muted,
+  },
+  ghostCheck: {
+    borderStyle: "dashed",
+    borderColor: colors.faint,
+  },
+  exampleRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  exampleText: {
+    flex: 1,
+    fontFamily: fonts.serifItalic,
+    fontSize: 17,
+    lineHeight: 24,
+    color: colors.textSoft,
+  },
+  exampleHint: {
+    marginTop: spacing.sm,
   },
 });

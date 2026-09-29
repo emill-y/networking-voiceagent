@@ -3,6 +3,7 @@ import { useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { CloseButton } from "@/components/CloseButton";
+import { Icon } from "@/components/Icon";
 import { Screen } from "@/components/Screen";
 import { useProfile } from "@/hooks/useProfile";
 import { examples } from "@/lib/profile";
@@ -59,13 +60,32 @@ export default function Search() {
       />
 
       {!results && !loading && (
-        <View style={styles.examples}>
-          {EXAMPLES.map((example) => (
-            <Pressable key={example} onPress={() => void run(example)} accessibilityRole="button">
-              <Text style={[type.body, styles.example]}>{example}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <>
+          <Text style={[type.label, styles.sectionLabel]}>Try asking</Text>
+          <View style={styles.exampleGrid}>
+            {EXAMPLES.map((example) => (
+              <Pressable key={example} onPress={() => void run(example)} accessibilityRole="button"
+                style={({ pressed }) => [styles.exampleCard, pressed && styles.pressed]}>
+                <Icon name="search" size={16} color={colors.accent} />
+                <Text style={styles.exampleText}>{example}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={[type.label, styles.sectionLabel]}>How it works</Text>
+          <View style={styles.howGrid}>
+            {[
+              ["spark", "By meaning", "“Bad guy” finds “not a good guy”. “Startup” finds founders."],
+              ["user", "Your own notes", "Nomi reads only what you’ve saved about people."],
+              ["check", "With reasons", "Every result says why that person fits."],
+            ].map(([icon, title, body]) => (
+              <View key={title} style={styles.howCard}>
+                <Icon name={icon as "spark" | "check" | "user"} size={18} color={colors.accentBright} />
+                <Text style={styles.howTitle}>{title}</Text>
+                <Text style={type.meta}>{body}</Text>
+              </View>
+            ))}
+          </View>
+        </>
       )}
 
       {loading && <ActivityIndicator color={colors.accent} style={styles.loading} />}
@@ -120,13 +140,50 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: colors.text,
   },
-  examples: {
-    marginTop: spacing.lg,
-    gap: spacing.md,
+  sectionLabel: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
-  example: {
-    color: colors.muted,
-    fontStyle: "italic",
+  exampleGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  exampleCard: {
+    flexGrow: 1,
+    flexBasis: 240,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  exampleText: {
+    flex: 1,
+    fontSize: 15,
+    color: colors.textSoft,
+  },
+  howGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  howCard: {
+    flexGrow: 1,
+    flexBasis: 180,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    gap: 4,
+  },
+  howTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 4,
   },
   loading: {
     marginTop: spacing.xl,
