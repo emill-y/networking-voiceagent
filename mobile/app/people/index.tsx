@@ -42,16 +42,23 @@ export default function People() {
   // ("chemistry" finds the chemical engineer, "investor" finds the VC).
   const [related, setRelated] = useState<SearchResult[]>([]);
   const [thinking, setThinking] = useState(false);
+  // What the smart search said: nothing yet, answered, or couldn't answer.
+  const [aiState, setAiState] = useState<"idle" | "answered" | "offline">("idle");
   useEffect(() => {
     const q = query.trim();
     setRelated([]);
+    setAiState("idle");
     if (q.length < 3 || !people?.length) return;
     let cancelled = false;
     const timer = setTimeout(() => {
       setThinking(true);
       search(q)
-        .then((response) => !cancelled && setRelated(response.results))
-        .catch(() => undefined)
+        .then((response) => {
+          if (cancelled) return;
+          setRelated(response.results);
+          setAiState(response.interpreted ? "answered" : "offline");
+        })
+        .catch(() => !cancelled && setAiState("offline"))
         .finally(() => !cancelled && setThinking(false));
     }, 600);
     return () => {
@@ -106,9 +113,11 @@ export default function People() {
           <Text style={type.body}>
             {thinking
               ? `Looking for people who fit “${query.trim()}”…`
-              : query
-                ? `No one matches “${query}”.`
-                : "No one yet. Record your first note from the orb below."}
+              : aiState === "offline"
+                ? `No exact matches for “${query.trim()}”, and smart search isn’t responding right now. Try again in a moment.`
+                : query
+                  ? `No one fits “${query.trim()}”.`
+                  : "No one yet. Record your first note from the orb below."}
           </Text>
         </Card>
       ) : (

@@ -151,19 +151,24 @@ RANK_CANDIDATES = 60
 RANK_RESULTS = 8
 PROFILE_CHARS = 700
 
-RANK_PROMPT = """You help someone search their own network: people they've met, described
-only by their own notes. Today is {today}.
+RANK_PROMPT = """You help someone search their own private notes about people they've met.
+Every profile is written by the user; "your note" is their own words. Today is {today}.
 
 Pick the people who best answer the question, best first (at most {limit}).
-- Use everything in a profile, including "your note" (the user's own words).
-- Match by meaning, not exact words: "startup" fits a founder or someone building a
-  company; "chemistry" fits chemistry, chemical engineering, materials or biotech;
-  "STEM" fits science, engineering, math or computing.
+- Match by meaning, never by exact words. Paraphrases, synonyms, opposites that are
+  negated, and implications all count:
+  - "bad guy" matches "not a good guy", "rude", "shady", "didn't trust him"
+  - "startup" matches a founder or someone building a company
+  - "chemistry" matches chemical engineering, materials or biotech
+  - "STEM" matches science, engineering, math or computing
+- The user's own impressions and opinions of people (good or bad) are part of their
+  notes. Matching on them is expected; don't skip someone because the question is
+  about character or a judgment.
 - For "who should I ..." questions, pick people whose projects, skills, needs or
-  interests make them a good fit, and say why.
+  interests make them a good fit.
 - Respect dates and places in the question (e.g. "last month", "at Cal Hacks").
-- Only include genuine fits. If nobody fits, return an empty list.
-- "why": one short sentence, using only facts from their profile. Never invent facts.
+- Only include people the notes support. If nobody fits, return an empty list.
+- "why": one short sentence using only facts from their profile. Never invent facts.
 Return JSON only."""
 
 RANK_JSON_SCHEMA: dict = {
@@ -236,13 +241,8 @@ def _candidates(people: list[dict], query: str) -> list[tuple[dict, str]]:
     return [(person, text) for _, _, person, text in scored[:RANK_CANDIDATES]]
 
 
-def rank_by_meaning(
-    conn: Connection, user_id: UUID, query: str, llm: LLMClient, today: date
-) -> list[SearchResult] | None:
-    """People who fit the question by meaning, or None if the model couldn't answer."""
-    people = search_repo.people_profiles(conn, user_id)
-    if not people:
-        return []
+def rank_profiles(people: list[dict], query: str, llm: LLMClient, today: date) -> list[tuple[dict, str]] | None:
+    """Ask the model who fits. Returns (person, why) pairs, or None if it couldn't answer."""
     candidates = _candidates(people, query)
     refs = {f"p{n}": person for n, (person, _) in enumerate(candidates, start=1)}
     listing = "\n".join(f"p{n}: {text}" for n, (_, text) in enumerate(candidates, start=1))
@@ -254,17 +254,30 @@ def rank_by_meaning(
         logger.warning("Search ranking failed (%s); using filters", type(exc).__name__)
         return None
 
-    chosen: list[tuple[UUID, str]] = []
+    chosen: list[tuple[dict, str]] = []
     for match in ranking.matches:
         person = refs.get(match.person.strip())
-        if person and person["id"] not in {cid for cid, _ in chosen}:
-            chosen.append((person["id"], " ".join(match.why.split())[:160]))
-    chosen = chosen[:RANK_RESULTS]
-    summaries = search_repo.contact_summaries(conn, user_id, [cid for cid, _ in chosen])
+        if person and all(person["id"] != p["id"] for p, _ in chosen):
+            chosen.append((person, " ".join(match.why.split())[:160]))
+    logger.info("Search ranked %d of %d people", len(chosen), len(candidates))
+    return chosen[:RANK_RESULTS]
+
+
+def rank_by_meaning(
+    conn: Connection, user_id: UUID, query: str, llm: LLMClient, today: date
+) -> list[SearchResult] | None:
+    """People who fit the question by meaning, or None if the model couldn't answer."""
+    people = search_repo.people_profiles(conn, user_id)
+    if not people:
+        return []
+    chosen = rank_profiles(people, query, llm, today)
+    if chosen is None:
+        return None
+    summaries = search_repo.contact_summaries(conn, user_id, [p["id"] for p, _ in chosen])
     return [
-        SearchResult(contact=ContactSummary.model_validate(summaries[cid]), reasons=[why])
-        for cid, why in chosen
-        if cid in summaries
+        SearchResult(contact=ContactSummary.model_validate(summaries[p["id"]]), reasons=[why])
+        for p, why in chosen
+        if p["id"] in summaries
     ]
 
 
