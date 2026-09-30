@@ -8,6 +8,7 @@ from psycopg import Connection, errors
 
 from app.core.auth import get_current_user_id
 from app.core.db import get_db
+from app.services.calendar_sync import RemoveEvents, get_remove_events
 from app.repositories import contacts as repo
 from app.schemas.base import ApiModel
 from app.schemas.contacts import ContactDetail
@@ -42,7 +43,9 @@ def export_data(
 def delete_all_data(
     conn: Connection = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
+    remove_events: RemoveEvents = Depends(get_remove_events),
 ) -> Response:
+    remove_events(conn, user_id, None)
     # Interactions and follow-ups cascade from contacts.
     conn.execute("delete from contacts where user_id = %s", (user_id,))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -52,8 +55,10 @@ def delete_all_data(
 def delete_account(
     conn: Connection = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
+    remove_events: RemoveEvents = Depends(get_remove_events),
 ) -> Response:
     """Delete the account itself (the Supabase user) and all of its data."""
+    remove_events(conn, user_id, None)
     conn.execute("delete from contacts where user_id = %s", (user_id,))
     try:
         # The backend's database role owns the schema and may remove auth users,

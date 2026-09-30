@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routes import account, demo, network, pages, web_app, captures, contacts, extract, follow_ups, health, search, transcribe
+from app.routes import account, calendar, demo, network, pages, web_app, captures, contacts, extract, follow_ups, health, search, transcribe
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -31,5 +31,6 @@ app.include_router(search.router)
 app.include_router(network.router)
 app.include_router(account.router)
 app.include_router(demo.router)
+app.include_router(calendar.router)
 app.include_router(pages.router)
 app.include_router(web_app.router)

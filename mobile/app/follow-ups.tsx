@@ -4,6 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { ComingUp } from "@/components/ComingUp";
 import { DatePicker } from "@/components/DatePicker";
 import { Divider } from "@/components/Divider";
 import { Monogram } from "@/components/Monogram";
@@ -136,6 +137,10 @@ export default function FollowUps() {
           )}
         </Card>
       )}
+
+      <View style={styles.comingUp}>
+        <ComingUp returnPath="/follow-ups" limit={6} onAdded={load} />
+      </View>
 
       {suggestions.length > 0 && (
         <Card style={styles.suggestCard}>
@@ -330,6 +335,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     marginTop: spacing.sm,
+  },
+  comingUp: {
+    marginTop: spacing.lg,
   },
   suggestCard: {
     marginTop: spacing.lg,

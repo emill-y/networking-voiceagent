@@ -5,6 +5,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 import { Card } from "@/components/Card";
+import { ComingUp } from "@/components/ComingUp";
 import { GhostNetwork } from "@/components/GhostNetwork";
 import { Icon } from "@/components/Icon";
 import { Monogram } from "@/components/Monogram";
@@ -128,6 +129,9 @@ export default function Home() {
 
   const side = (
     <View style={[styles.column, desktop && styles.sideColumn]}>
+      <View style={!desktop && styles.sideLabelMobile}>
+        <ComingUp returnPath="/" limit={3} onAdded={load} />
+      </View>
       <Text style={[styles.sectionLabel, !desktop && styles.sideLabelMobile]}>Up next</Text>
       <Card style={styles.sideCard}>
         {followUps.length > 0 ? (

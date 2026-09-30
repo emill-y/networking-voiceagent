@@ -56,3 +56,28 @@ export function friendly(value: string, today: string): string {
     ...(sameYear ? {} : { year: "numeric" }),
   });
 }
+
+// "Today · 10:00 AM", "Tomorrow · All day", "Thu, Oct 2 · 3:30 PM" for an event start.
+export function eventWhen(start: string | null, allDay: boolean, now = new Date()): string {
+  if (!start) return "";
+  const date = allDay ? new Date(`${start}T12:00:00`) : new Date(start);
+  if (Number.isNaN(date.getTime())) return "";
+  const day = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const today = day(now);
+  const label =
+    day(date) === today
+      ? "Today"
+      : day(date) === addDays(today, 1)
+        ? "Tomorrow"
+        : date.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+  const time = allDay ? "All day" : date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return `${label} · ${time}`;
+}
+
+// The local calendar date of an event start ("YYYY-MM-DD").
+export function eventDate(start: string | null, allDay: boolean): string | null {
+  if (!start) return null;
+  if (allDay) return start.slice(0, 10);
+  const d = new Date(start);
+  return Number.isNaN(d.getTime()) ? null : `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}

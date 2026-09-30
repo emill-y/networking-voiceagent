@@ -73,6 +73,14 @@ class Settings:
 
     cors_origins: list[str] = field(default_factory=list)
 
+    # Google Calendar sync (optional). The OAuth client from Google Cloud;
+    # the key encrypts stored calendar tokens (derived from the secret if unset).
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    calendar_key: str | None = None
+    # The public address, e.g. https://nomi.vercel.app (else taken from the request).
+    public_url: str | None = None
+
 
 @lru_cache
 def get_settings() -> Settings:
@@ -103,6 +111,10 @@ def get_settings() -> Settings:
         supabase_jwt_secret=env.get("SUPABASE_JWT_SECRET") or None,
         dev_auth=env.get("NOMI_DEV_AUTH", "").strip().lower() in {"1", "true", "yes"},
         dev_user_id=env.get("DEV_USER_ID", "00000000-0000-0000-0000-000000000001"),
+        google_client_id=env.get("GOOGLE_CLIENT_ID") or None,
+        google_client_secret=env.get("GOOGLE_CLIENT_SECRET") or None,
+        calendar_key=env.get("CALENDAR_ENCRYPTION_KEY") or None,
+        public_url=(env.get("PUBLIC_URL") or "").rstrip("/") or None,
         cors_origins=_csv(
             env.get("CORS_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081")
         ),

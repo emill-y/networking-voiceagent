@@ -89,7 +89,7 @@ def people_profiles(conn: Connection, user_id: UUID, limit: int = 500) -> list[d
     return conn.execute(
         """
         select c.id, c.name, c.company, c.role, c.school, c.major, c.location, c.summary,
-               c.last_interaction_at,
+               c.email, c.last_interaction_at,
                coalesce((select json_agg(json_build_object(
                           'event', i.event, 'date', i.interaction_date::date,
                           'projects', i.projects, 'needs', i.needs, 'topics', i.topics,

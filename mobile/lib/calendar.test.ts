@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { addDays, monthGrid, nextMonday } from "./calendar.ts";
+import { addDays, eventDate, eventWhen, monthGrid, nextMonday } from "./calendar.ts";
 
 test("month grid starts on the right weekday and drops empty rows", () => {
   const sept = monthGrid(2026, 8); // September 2026 starts on a Tuesday
@@ -19,4 +19,13 @@ test("quick picks cross month and year ends", () => {
   assert.equal(nextMonday("2026-09-27"), "2026-09-28"); // Sunday -> Monday
   assert.equal(nextMonday("2026-09-28"), "2026-10-05"); // Monday -> next Monday
   assert.equal(nextMonday("2026-10-02"), "2026-10-05"); // Friday -> Monday
+});
+
+test("event times read naturally", () => {
+  const now = new Date("2026-09-30T09:00:00");
+  assert.equal(eventWhen("2026-09-30", true, now), "Today · All day");
+  assert.equal(eventWhen("2026-10-01", true, now), "Tomorrow · All day");
+  assert.match(eventWhen("2026-09-30T15:30:00", false, now), /^Today · 3:30/);
+  assert.equal(eventDate("2026-10-02", true), "2026-10-02");
+  assert.equal(eventDate(null, false), null);
 });

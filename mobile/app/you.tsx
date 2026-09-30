@@ -1,6 +1,6 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Platform, Share, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Platform, Share, StyleSheet, Switch, Text, View } from "react-native";
 
 import { Card } from "@/components/Card";
 import { Monogram } from "@/components/Monogram";
@@ -16,7 +16,16 @@ import { contactsSupported } from "@/lib/deviceContacts";
 import { colors, fonts, spacing, type } from "@/lib/theme";
 import { useSession } from "@/hooks/useSession";
 import { supabase } from "@/lib/supabase";
-import { deleteAccount, deleteAllData, exportData } from "@/services/nomi";
+import { calendarNotice, connectGoogleCalendar } from "@/lib/calendarConnect";
+import {
+  calendarStatus,
+  deleteAccount,
+  deleteAllData,
+  disconnectCalendar,
+  exportData,
+  setCalendarPush,
+} from "@/services/nomi";
+import type { CalendarStatus } from "@/types/api";
 
 export default function You() {
   const router = useRouter();
@@ -24,6 +33,33 @@ export default function You() {
   const profile = useProfile();
   const [busy, setBusy] = useState<"export" | "delete" | "account" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ calendar?: string }>();
+  const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      calendarStatus().then(setCalendar).catch(() => undefined);
+    }, []),
+  );
+
+  async function togglePush(value: boolean) {
+    setCalendar((c) => (c ? { ...c, pushFollowUps: value } : c));
+    try {
+      setCalendar(await setCalendarPush(value));
+    } catch {
+      setMessage("Couldn’t change the calendar setting.");
+    }
+  }
+
+  async function disconnect() {
+    const ok = await confirm(
+      "Disconnect Google Calendar?",
+      "Nomi stops reading your calendar and adding follow-ups to it. Events it already added stay.",
+      "Disconnect",
+    );
+    if (!ok) return;
+    await disconnectCalendar();
+    setCalendar(await calendarStatus());
+  }
 
   async function exportMemories() {
     setBusy("export");
@@ -118,6 +154,41 @@ export default function You() {
         </View>
       </Card>
 
+      {calendar?.available && (
+        <Card style={styles.card}>
+          <Text style={type.heading}>Google Calendar</Text>
+          {params.calendar && calendarNotice[params.calendar] ? (
+            <Text style={[type.meta, styles.message]}>{calendarNotice[params.calendar]}</Text>
+          ) : null}
+          {calendar.connected ? (
+            <>
+              <Text style={styles.body}>
+                Connected as {calendar.email ?? "your Google account"}. Nomi suggests who to talk to
+                before your events.
+              </Text>
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchTitle}>Add follow-ups to my calendar</Text>
+                  <Text style={type.meta}>Dated follow-ups appear as all-day events, kept in step when you tick them off.</Text>
+                </View>
+                <Switch value={calendar.pushFollowUps} onValueChange={(v) => void togglePush(v)}
+                  trackColor={{ true: colors.accent, false: colors.raised }} thumbColor={colors.text} accessibilityLabel="Add follow-ups to my calendar" />
+              </View>
+              <PillButton title="Disconnect" onPress={() => void disconnect()} />
+            </>
+          ) : (
+            <>
+              <Text style={styles.body}>
+                See who to talk to before each class, meeting or event, and put your follow-ups on
+                your calendar automatically. Nomi only reads and adds events; you can disconnect anytime.
+              </Text>
+              <PillButton title="Connect Google Calendar" icon="calendar" variant="primary"
+                onPress={() => void connectGoogleCalendar("/you").catch(() => setMessage("Couldn’t start Google sign-in."))} />
+            </>
+          )}
+        </Card>
+      )}
+
       {session && (
         <Card style={styles.card}>
           <Text style={type.heading}>Account</Text>
@@ -174,6 +245,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
+  },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  switchTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
   },
   divider: {
     height: 1,

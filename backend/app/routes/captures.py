@@ -13,6 +13,7 @@ from app.schemas.contacts import (
     DuplicateCheckRequest,
     DuplicateCheckResponse,
 )
+from app.services.calendar_sync import PushFollowUp, get_calendar_push
 from app.services.captures import save_capture
 from app.services.identity import find_candidates
 
@@ -24,9 +25,14 @@ def create_capture(
     body: CaptureRequest,
     conn: Connection = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
+    push: PushFollowUp = Depends(get_calendar_push),
 ) -> CaptureResponse:
     """Save everything the user confirmed from one voice note, atomically."""
-    return CaptureResponse(saved=save_capture(conn, user_id, body))
+    saved = save_capture(conn, user_id, body)
+    for person in saved:
+        if person.follow_up_id:
+            push(conn, user_id, person.follow_up_id)
+    return CaptureResponse(saved=saved)
 
 
 @router.post("/duplicate-check", response_model=DuplicateCheckResponse)

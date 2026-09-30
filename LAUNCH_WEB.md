@@ -63,6 +63,39 @@ For launch day, also connect a real email sender in Supabase → Authentication
 → Emails → SMTP (e.g. Resend's free plan). Supabase's built-in sender only
 allows a few magic-link emails per hour.
 
+## Google Calendar sync (optional, 20 min)
+
+Two-way: Nomi reads upcoming events and suggests who to talk to at each one,
+and dated follow-ups are added to the user's Google Calendar (and kept in
+step when they're ticked off or dismissed). Users connect it from **You** or
+the **Coming up** card.
+
+1. **Google Cloud console** (the project you use for Google sign-in):
+   - **APIs & Services → Library →** enable **Google Calendar API**.
+   - **Google Auth Platform → Data access → Add or remove scopes →** add
+     `openid`, `.../auth/userinfo.email` and `.../auth/calendar.events`. Save.
+   - **Clients →** your *Web application* client → **Authorized redirect URIs →**
+     add `https://nomi-connect.vercel.app/calendar/callback` (your address) and,
+     for local testing, `http://localhost:8000/calendar/callback`. Save.
+   - **Audience:** calendar access is a *sensitive* scope. Until Google verifies
+     the app, only listed **test users** (up to 100) can connect: add yourselves
+     there. To open it to everyone, submit the app for verification (Google asks
+     for the privacy policy, homepage and a short screen recording; it takes
+     days to weeks).
+2. **Vercel → Settings → Environment Variables (Production):**
+   - `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` from that client
+   - `CALENDAR_ENCRYPTION_KEY`: run `python3 -c "import secrets; print(secrets.token_urlsafe(32))"`
+   - `PUBLIC_URL`: `https://nomi-connect.vercel.app`
+   (or fill them into `backend/prod.env.yaml` and run `scripts/vercel-env.sh`).
+3. **Database:** add the new table (once):
+   ```bash
+   cd ~/networking-voiceagent/backend && source .venv/bin/activate
+   DATABASE_URL="$(grep '^DATABASE_URL:' prod.env.yaml | cut -d'"' -f2)" python -m scripts.migrate
+   ```
+4. Redeploy: `npx vercel --prod`. Then **You → Connect Google Calendar**.
+
+Without the Google settings the calendar features simply stay hidden.
+
 ## Your own domain (optional, 10 min)
 
 Vercel → your project → **Settings → Domains** → add `nomi.yourdomain.com` and

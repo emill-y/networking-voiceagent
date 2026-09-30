@@ -189,3 +189,20 @@ export type NetworkResponse = {
   groups: NetworkGroup[];
   edges: NetworkEdge[];
 };
+
+export type CalendarStatus = {
+  available: boolean;
+  connected: boolean;
+  email: string | null;
+  pushFollowUps: boolean;
+};
+
+export type UpcomingEvent = {
+  id: string | null;
+  title: string;
+  start: string | null;
+  allDay: boolean;
+  location: string | null;
+  link: string | null;
+  people: { contactId: string; name: string; why: string }[];
+};

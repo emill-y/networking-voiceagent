@@ -6,6 +6,7 @@ from psycopg import Connection
 from app.core.auth import get_current_user_id
 from app.core.db import get_db
 from app.repositories import contacts as repo
+from app.services.calendar_sync import RemoveEvents, get_remove_events
 from app.schemas.contacts import (
     ContactDetail,
     ContactSummary,
@@ -76,7 +77,9 @@ def delete_contact(
     contact_id: UUID,
     conn: Connection = Depends(get_db),
     user_id: UUID = Depends(get_current_user_id),
+    remove_events: RemoveEvents = Depends(get_remove_events),
 ):
+    remove_events(conn, user_id, contact_id)
     if not repo.delete_contact(conn, user_id, contact_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, NOT_FOUND)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

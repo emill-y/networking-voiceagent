@@ -6,6 +6,7 @@ import type { ImportedPerson } from "@/lib/addressBook";
 import { request } from "@/lib/api";
 import { localToday } from "@/lib/dates";
 import type {
+  CalendarStatus,
   CapturedPerson,
   ContactDetail,
   ContactExtractionResult,
@@ -18,6 +19,7 @@ import type {
   SavedPerson,
   SearchResponse,
   Transcription,
+  UpcomingEvent,
 } from "@/types/api";
 
 export async function transcribe(audioUri: string): Promise<Transcription> {
@@ -134,4 +136,28 @@ export function importContacts(people: ImportedPerson[]) {
 
 export function getNetwork() {
   return request<NetworkResponse>("/network");
+}
+
+// ---------- Google Calendar ----------
+
+export function calendarStatus() {
+  return request<CalendarStatus>("/calendar");
+}
+
+export function startCalendarConnect(returnTo: string) {
+  return request<{ url: string }>("/calendar/connect", { method: "POST", body: { returnTo } });
+}
+
+export function setCalendarPush(pushFollowUps: boolean) {
+  return request<CalendarStatus>("/calendar", { method: "PATCH", body: { pushFollowUps } });
+}
+
+export function disconnectCalendar() {
+  return request<void>("/calendar", { method: "DELETE" });
+}
+
+export function upcomingEvents(days = 7) {
+  return request<{ connected: boolean; events: UpcomingEvent[] }>(`/calendar/upcoming?days=${days}`, {
+    timeoutMs: 60_000,
+  });
 }

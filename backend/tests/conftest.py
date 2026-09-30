@@ -66,7 +66,7 @@ def database_url():
 
     with psycopg.connect(url, autocommit=True) as conn:
         conn.execute(
-            "drop table if exists follow_ups, interactions, contacts, nomi_migrations cascade;"
+            "drop table if exists calendar_connections, follow_ups, interactions, contacts, nomi_migrations cascade;"
             "drop function if exists set_updated_at cascade;"
             "drop table if exists auth.users cascade;"
         )
@@ -80,7 +80,7 @@ def database_url():
 @pytest.fixture
 def db_client(database_url):
     with psycopg.connect(database_url, autocommit=True) as conn:
-        conn.execute("truncate contacts, interactions, follow_ups cascade")
+        conn.execute("truncate contacts, interactions, follow_ups, calendar_connections cascade")
 
     def test_db():
         with psycopg.connect(database_url, row_factory=dict_row) as conn:
