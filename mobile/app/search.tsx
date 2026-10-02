@@ -1,24 +1,33 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
+import { Icon } from "@/components/Icon";
+import { PageHeader, eyebrowStyle } from "@/components/PageHeader";
 import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
+import { examples } from "@/lib/profile";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { search } from "@/services/nomi";
-import type { SearchResult } from "@/types/api";
-
-const EXAMPLES = [
-  "Who did I meet in the last two weeks?",
-  "Who is working on robotics?",
-  "Who did I promise to follow up with?",
-];
+import { listContacts, search } from "@/services/nomi";
+import { searchPlaceholder, searchSuggestions } from "@/lib/suggest";
+import type { ContactSummary, SearchResult } from "@/types/api";
 
 export default function Search() {
   const router = useRouter();
   const [query, setQuery] = useState("");
+  const profileExamples = examples(useProfile()).searches;
+  // Suggestions come from the people you've saved ("What do I know about Eisha?").
+  const [people, setPeople] = useState<ContactSummary[]>([]);
+  useFocusEffect(
+    useCallback(() => {
+      listContacts().then(setPeople).catch(() => undefined);
+    }, []),
+  );
+  const EXAMPLES = people.length ? searchSuggestions(people) : profileExamples;
   const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [smart, setSmart] = useState(true);
   const [asked, setAsked] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +41,7 @@ export default function Search() {
     try {
       const response = await search(q);
       setResults(response.results);
+      setSmart(response.interpreted);
       setAsked(q);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Search didn’t work.");
@@ -42,18 +52,17 @@ export default function Search() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Back</Text>
-      </Pressable>
-      <Text style={[type.display, styles.title]}>Who are you looking for?</Text>
+      <PageHeader eyebrow="Find what you remember" title="Search your people"
+        subtitle="Look up a name, a detail, or ask Nomi a question." />
 
+      <Text style={styles.fieldLabel}>What are you looking for?</Text>
       <TextInput
         value={query}
         onChangeText={setQuery}
         onSubmitEditing={() => void run(query)}
         returnKeyType="search"
         autoFocus
-        placeholder="Who did I meet at Cal Hacks?"
+        placeholder={searchPlaceholder(people)}
         placeholderTextColor={colors.faint}
         selectionColor={colors.accent}
         accessibilityLabel="Search your people"
@@ -61,13 +70,33 @@ export default function Search() {
       />
 
       {!results && !loading && (
-        <View style={styles.examples}>
-          {EXAMPLES.map((example) => (
-            <Pressable key={example} onPress={() => void run(example)} accessibilityRole="button">
-              <Text style={[type.body, styles.example]}>{example}</Text>
-            </Pressable>
-          ))}
-        </View>
+        <>
+          <Text style={styles.sectionEyebrow}>
+            {people.length ? "Try a question from your memories" : "Try asking"}
+          </Text>
+          <View style={styles.exampleGrid}>
+            {EXAMPLES.map((example) => (
+              <Pressable key={example} onPress={() => void run(example)} accessibilityRole="button"
+                style={({ pressed }) => [styles.examplePill, pressed && styles.pressed]}>
+                <Text style={styles.exampleText}>{example}</Text>
+              </Pressable>
+            ))}
+          </View>
+          <Text style={styles.sectionEyebrow}>How it works</Text>
+          <View style={styles.howGrid}>
+            {[
+              ["spark", "By meaning", "“Bad guy” finds “not a good guy”. “Startup” finds founders."],
+              ["user", "Your own notes", "Nomi reads only what you’ve saved about people."],
+              ["check", "With reasons", "Every result says why that person fits."],
+            ].map(([icon, title, body]) => (
+              <View key={title} style={styles.howCard}>
+                <Icon name={icon as "spark" | "check" | "user"} size={18} color={colors.accentBright} />
+                <Text style={styles.howTitle}>{title}</Text>
+                <Text style={type.meta}>{body}</Text>
+              </View>
+            ))}
+          </View>
+        </>
       )}
 
       {loading && <ActivityIndicator color={colors.accent} style={styles.loading} />}
@@ -75,6 +104,11 @@ export default function Search() {
 
       {results && !loading && (
         <View style={styles.results}>
+          {!smart && (
+            <Text style={[type.meta, styles.notice]}>
+              Smart search didn’t respond, so these are exact matches only. Try again in a moment.
+            </Text>
+          )}
           {results.length === 0 ? (
             <Text style={[type.body, styles.muted]}>No one matches “{asked}” yet.</Text>
           ) : (
@@ -110,20 +144,66 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: "rgba(255, 200, 170, 0.16)",
     paddingHorizontal: spacing.lg,
-    paddingVertical: 14,
+    paddingVertical: 18,
     fontSize: 17,
     color: colors.text,
   },
-  examples: {
-    marginTop: spacing.lg,
-    gap: spacing.md,
+  sectionLabel: {
+    marginTop: spacing.xl,
+    marginBottom: spacing.sm,
   },
-  example: {
-    color: colors.muted,
-    fontStyle: "italic",
+  exampleGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  fieldLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.textSoft,
+    marginBottom: spacing.sm,
+  },
+  sectionEyebrow: {
+    ...eyebrowStyle,
+    color: colors.textSoft,
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
+  },
+  examplePill: {
+    paddingVertical: 10,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    backgroundColor: "rgba(255, 122, 42, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255, 150, 100, 0.25)",
+  },
+  exampleText: {
+    fontSize: 15,
+    color: colors.text,
+  },
+  howGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  howCard: {
+    flexGrow: 1,
+    flexBasis: 180,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    gap: 4,
+  },
+  howTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 4,
   },
   loading: {
     marginTop: spacing.xl,
@@ -134,6 +214,10 @@ const styles = StyleSheet.create({
   },
   results: {
     marginTop: spacing.lg,
+  },
+  notice: {
+    color: colors.accent,
+    marginBottom: spacing.md,
   },
   muted: {
     color: colors.muted,

@@ -2,12 +2,15 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
+import { DatePicker } from "@/components/DatePicker";
 import { Divider } from "@/components/Divider";
 import { Field } from "@/components/Field";
 import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
 import { ApiError } from "@/lib/api";
-import { isDateString } from "@/lib/dates";
+import { examples, extractionContext } from "@/lib/profile";
 import { formatRelative } from "@/lib/format";
 import {
   chooseExisting,
@@ -52,8 +55,9 @@ function describe(error: unknown): string {
 
 export default function Review() {
   const router = useRouter();
+  const profile = useProfile();
   // `uri` comes from the record screen; `transcript` lets you type a note instead.
-  const params = useLocalSearchParams<{ uri?: string; transcript?: string }>();
+  const params = useLocalSearchParams<{ uri?: string; transcript?: string; source?: string }>();
   const [stage, setStage] = useState<Stage>(params.transcript ? "extracting" : "transcribing");
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState(params.transcript ?? "");
@@ -82,7 +86,7 @@ export default function Review() {
         }
 
         setStage("extracting");
-        const result = await extract(text);
+        const result = await extract(text, extractionContext(profile));
         let next = result.people.map(draftFromExtracted);
 
         // Suggestions are a convenience; if the check fails, carry on.
@@ -127,7 +131,7 @@ export default function Review() {
       const { saved } = await saveCapture(
         transcript || null,
         included.map(toCapturedPerson),
-        params.uri ? "voice" : "manual",
+        params.uri || params.source === "voice" ? "voice" : "manual",
       );
       if (saved.length === 1) {
         router.replace({ pathname: "/people/[id]", params: { id: saved[0].contactId } });
@@ -173,9 +177,7 @@ export default function Review() {
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Discard</Text>
-      </Pressable>
+      <CloseButton label="Discard" />
 
       <Text style={[type.display, styles.title]}>
         {drafts.length === 0
@@ -235,16 +237,6 @@ export default function Review() {
   );
 }
 
-function formatDueHint(value: string): string {
-  if (!isDateString(value.trim())) return "Use YYYY-MM-DD";
-  const [y, m, d] = value.trim().split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-}
-
 function PersonEditor({
   draft,
   index,
@@ -254,6 +246,7 @@ function PersonEditor({
   index: number;
   onChange: (change: (draft: Draft) => Draft) => void;
 }) {
+  const followUpExample = examples(useProfile()).followUp;
   // Only show what was heard; empty fields wait behind "More details".
   const [showAll, setShowAll] = useState(false);
   const set = (field: keyof Draft) => (value: string) =>
@@ -325,11 +318,9 @@ function PersonEditor({
             </Pressable>
           )}
           <Field label="Follow up" value={draft.followUp} onChangeText={set("followUp")}
-            placeholder="e.g. Send the deck next week" />
+            placeholder={followUpExample} />
           {draft.followUp.trim() ? (
-            <Field label="Due" value={draft.followUpDue} onChangeText={set("followUpDue")}
-              placeholder="YYYY-MM-DD" autoCapitalize="none" autoCorrect={false}
-              hint={draft.followUpDue ? formatDueHint(draft.followUpDue) : "Optional"} />
+            <DatePicker label="Due" value={draft.followUpDue} onChange={set("followUpDue")} />
           ) : null}
         </>
       )}

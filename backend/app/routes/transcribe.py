@@ -1,3 +1,4 @@
+import logging
 import os
 import tempfile
 from pathlib import Path
@@ -5,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 
-from app.core.auth import get_current_user_id
+from app.core.rate_limit import limit_ai_requests
 from app.core.config import get_settings
 from app.schemas.transcription import TranscriptionResponse
 from app.services.transcription import (
@@ -16,6 +17,7 @@ from app.services.transcription import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 ALLOWED_EXTENSIONS = {".m4a", ".mp4", ".aac", ".caf", ".wav", ".webm", ".ogg", ".mp3", ".3gp"}
 CHUNK_BYTES = 64 * 1024
@@ -38,7 +40,7 @@ def _looks_like_audio(upload: UploadFile) -> bool:
 def transcribe(
     audio: UploadFile,
     transcriber: Transcriber = Depends(get_transcriber),
-    _user_id: UUID = Depends(get_current_user_id),
+    _user_id: UUID = Depends(limit_ai_requests),
 ) -> TranscriptionResponse:
     if not _looks_like_audio(audio):
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Please upload an audio file.")
@@ -64,6 +66,7 @@ def transcribe(
         if written == 0:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "The recording is empty.")
 
+        logger.info("Received %.1f KB of audio; transcribing", written / 1024)
         try:
             result = transcriber.transcribe(temp_path)
         except AudioDecodeError as exc:

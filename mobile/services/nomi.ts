@@ -1,21 +1,27 @@
 // One function per backend endpoint. Screens call these instead of fetch.
+import { File } from "expo-file-system";
 import { Platform } from "react-native";
 
 import type { ImportedPerson } from "@/lib/addressBook";
 import { request } from "@/lib/api";
 import { localToday } from "@/lib/dates";
 import type {
+  CalendarStatus,
   CapturedPerson,
   ContactDetail,
   ContactExtractionResult,
   ContactSummary,
   ContactUpdate,
   DuplicateCandidate,
+  EventFeed,
   FollowUp,
   FollowUpStatus,
+  NetworkResponse,
+  PlansResponse,
   SavedPerson,
   SearchResponse,
   Transcription,
+  UpcomingEvent,
 } from "@/types/api";
 
 export async function transcribe(audioUri: string): Promise<Transcription> {
@@ -25,17 +31,22 @@ export async function transcribe(audioUri: string): Promise<Transcription> {
     const blob = await (await fetch(audioUri)).blob();
     form.append("audio", blob, blob.type.includes("mp4") ? "note.m4a" : "note.webm");
   } else {
-    // React Native's FormData accepts a file descriptor object for local files.
-    form.append("audio", { uri: audioUri, name: "note.m4a", type: "audio/m4a" } as unknown as Blob);
+    // Expo's fetch (the global fetch since SDK 57) needs a real file object;
+    // React Native's old { uri, name, type } shortcut isn't supported and
+    // fails before anything is sent.
+    form.append("audio", new File(audioUri) as unknown as Blob, "note.m4a");
   }
   // Whisper can take a while on a laptop CPU, especially on the first call.
   return request<Transcription>("/transcribe", { method: "POST", body: form, timeoutMs: 180_000 });
 }
 
-export function extract(transcript: string) {
+export function extract(
+  transcript: string,
+  context?: { persona: string; school: string | null; major: string | null },
+) {
   return request<ContactExtractionResult>("/extract", {
     method: "POST",
-    body: { transcript, today: localToday() },
+    body: { transcript, today: localToday(), context },
     timeoutMs: 180_000,
   });
 }
@@ -123,4 +134,55 @@ export function importContacts(people: ImportedPerson[]) {
     body: { people },
     timeoutMs: 60_000,
   });
+}
+
+export function getNetwork() {
+  return request<NetworkResponse>("/network");
+}
+
+// ---------- Google Calendar ----------
+
+export function calendarStatus() {
+  return request<CalendarStatus>("/calendar");
+}
+
+export function startCalendarConnect(returnTo: string) {
+  return request<{ url: string }>("/calendar/connect", { method: "POST", body: { returnTo } });
+}
+
+export function setCalendarPush(pushFollowUps: boolean) {
+  return request<CalendarStatus>("/calendar", { method: "PATCH", body: { pushFollowUps } });
+}
+
+export function disconnectCalendar() {
+  return request<void>("/calendar", { method: "DELETE" });
+}
+
+export function upcomingEvents(days = 7) {
+  return request<{ connected: boolean; events: UpcomingEvent[] }>(`/calendar/upcoming?days=${days}`, {
+    timeoutMs: 60_000,
+  });
+}
+
+// ---------- Go together (real events) ----------
+
+export function getPlans(city: string, interests: string[], days = 60) {
+  const query = new URLSearchParams({ city, interests: interests.join(","), days: String(days) });
+  return request<PlansResponse>(`/plans?${query}`, { timeoutMs: 60_000 });
+}
+
+export function listEventFeeds() {
+  return request<EventFeed[]>("/event-feeds");
+}
+
+export function addEventFeed(url: string) {
+  return request<{ feed: EventFeed; upcoming: number }>("/event-feeds", {
+    method: "POST",
+    body: { url },
+    timeoutMs: 30_000,
+  });
+}
+
+export function removeEventFeed(id: string) {
+  return request<void>(`/event-feeds/${id}`, { method: "DELETE" });
 }

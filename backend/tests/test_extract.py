@@ -136,3 +136,196 @@ def test_follow_up_due_uses_the_callers_date(client):
         "/extract", json={"transcript": "I met Jason Chen.", "today": "2026-09-24"}
     )
     assert response.json()["people"][0]["followUpDue"] == "2026-09-28"
+
+
+# ---------- Hosted (OpenAI-compatible) provider ----------
+
+from dataclasses import replace  # noqa: E402
+
+from app.core.config import get_settings  # noqa: E402
+from app.services.llm import OpenAICompatibleClient, build_llm_client  # noqa: E402
+
+
+def test_openai_compatible_request(monkeypatch):
+    seen = {}
+
+    def fake_post(url, json, headers, timeout):
+        seen.update(url=url, payload=json, headers=headers)
+        return httpx.Response(
+            200,
+            json={"choices": [{"message": {"content": '{"people": []}'}}]},
+            request=httpx.Request("POST", url),
+        )
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    client = OpenAICompatibleClient("https://api.groq.com/openai/v1", "gsk_test", "llama-3.3-70b-versatile", 5)
+    assert client.chat_json("Extract people.", "I met Jason.", {"type": "object"}) == '{"people": []}'
+    assert seen["url"] == "https://api.groq.com/openai/v1/chat/completions"
+    assert seen["headers"]["Authorization"] == "Bearer gsk_test"
+    assert seen["payload"]["response_format"] == {"type": "json_object"}
+    assert seen["payload"]["temperature"] == 0
+    system = seen["payload"]["messages"][0]["content"]
+    assert "Extract people." in system and '"type":"object"' in system
+
+
+def test_openai_compatible_errors(monkeypatch):
+    def rate_limited(url, json, headers, timeout):
+        return httpx.Response(429, json={"error": "slow down"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", rate_limited)
+    with pytest.raises(LLMUnavailable):
+        OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", {})
+    with pytest.raises(LLMUnavailable, match="LLM_API_KEY"):
+        OpenAICompatibleClient("https://x", None, "m", 5).chat_json("s", "u", {})
+
+
+def test_llm_provider_selection():
+    base = get_settings()
+    assert isinstance(build_llm_client(replace(base, llm_provider="ollama")), OllamaClient)
+    hosted = build_llm_client(replace(base, llm_provider="openai_compatible", llm_api_key="k"))
+    assert isinstance(hosted, OpenAICompatibleClient)
+    with pytest.raises(ValueError):
+        build_llm_client(replace(base, llm_provider="magic"))
+
+
+def test_reasoning_tags_are_stripped(monkeypatch):
+    def fake_post(url, json, headers, timeout):
+        content = '<think>The user met Jason.</think>\n{"people": []}'
+        return httpx.Response(200, json={"choices": [{"message": {"content": content}}]},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    assert OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", {}) == '{"people": []}'
+
+
+def test_provider_error_message_is_logged(monkeypatch, caplog):
+    def missing_model(url, json, headers, timeout):
+        return httpx.Response(404, json={"error": {"message": "The model `m` does not exist"}},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", missing_model)
+    with pytest.raises(LLMUnavailable):
+        OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", {})
+    assert "does not exist" in caplog.text
+
+
+def test_reasoning_effort_is_sent_only_when_set(monkeypatch):
+    payloads = []
+
+    def fake_post(url, json, headers, timeout):
+        payloads.append(json)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}]},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    OpenAICompatibleClient("https://x", "k", "openai/gpt-oss-120b", 5, "low").chat_json("s", "u", {})
+    OpenAICompatibleClient("https://x", "k", "llama", 5).chat_json("s", "u", {})
+    assert payloads[0]["reasoning_effort"] == "low"
+    assert "reasoning_effort" not in payloads[1]
+
+
+def _limited(url, message="Rate limit reached. Please try again in 3.405s."):
+    return httpx.Response(429, json={"error": {"message": message}}, request=httpx.Request("POST", url))
+
+
+def _ok(url, content='{"people": []}'):
+    return httpx.Response(200, json={"choices": [{"message": {"content": content}}]},
+                          request=httpx.Request("POST", url))
+
+
+def test_rate_limit_falls_back_to_second_model(monkeypatch):
+    models = []
+
+    def fake_post(url, json, headers, timeout):
+        models.append(json["model"])
+        return _limited(url) if json["model"] == "big" else _ok(url)
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    slept = []
+    client = OpenAICompatibleClient("https://x", "k", "big", 5, fallback_model="small", sleep=slept.append)
+    assert client.chat_json("s", "u", {}) == '{"people": []}'
+    assert models == ["big", "small"] and slept == []
+
+
+def test_rate_limit_waits_briefly_then_retries(monkeypatch):
+    calls = []
+
+    def fake_post(url, json, headers, timeout):
+        calls.append(json["model"])
+        return _limited(url) if len(calls) < 3 else _ok(url)
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    slept = []
+    client = OpenAICompatibleClient("https://x", "k", "big", 5, fallback_model="small", sleep=slept.append)
+    assert client.chat_json("s", "u", {}) == '{"people": []}'
+    assert calls == ["big", "small", "big"]
+    assert slept == [3.405]
+
+
+def test_long_rate_limit_gives_a_friendly_error(monkeypatch):
+    monkeypatch.setattr(llm_module.httpx, "post",
+                        lambda url, json, headers, timeout: _limited(url, "try again in 45.2s"))
+    slept = []
+    client = OpenAICompatibleClient("https://x", "k", "big", 5, sleep=slept.append)
+    with pytest.raises(LLMUnavailable, match="busy"):
+        client.chat_json("s", "u", {})
+    assert slept == []
+
+
+def test_schema_is_sent_compactly(monkeypatch):
+    seen = {}
+
+    def fake_post(url, json, headers, timeout):
+        seen["system"] = json["messages"][0]["content"]
+        return _ok(url)
+
+    monkeypatch.setattr(llm_module.httpx, "post", fake_post)
+    OpenAICompatibleClient("https://x", "k", "m", 5).chat_json("s", "u", EXTRACTION_JSON_SCHEMA)
+    assert '", "' not in seen["system"] and '": ' not in seen["system"]
+
+
+def test_student_context_reaches_the_model(client):
+    fake = FakeLLM(json.dumps({"people": [JASON]}))
+    use(fake)
+    response = client.post("/extract", json={
+        "transcript": "Met my classmate Jason.",
+        "context": {"persona": "student", "school": "UC Berkeley", "major": "CS"},
+    })
+    assert response.status_code == 200
+    user = fake.calls[0]["user"]
+    assert "student at UC Berkeley studying CS" in user
+    assert "classmate" in user and user.index("About the speaker") < user.index("Voice note")
+
+
+def test_no_context_means_no_speaker_note(client):
+    fake = FakeLLM(json.dumps({"people": []}))
+    use(fake)
+    client.post("/extract", json={"transcript": "Met Jason."})
+    assert "About the speaker" not in fake.calls[0]["user"]
+
+
+NAME_ONLY = {k: ([] if isinstance(v, list) else None) for k, v in JASON.items()} | {"name": "Jason Chen"}
+LONG_NOTE = "met jason chen at the founders mixer he is building a robotics startup and needs designers"
+
+
+def test_long_note_with_only_a_name_is_retried(client):
+    fake = FakeLLM(json.dumps({"people": [NAME_ONLY]}), json.dumps({"people": [JASON]}))
+    use(fake)
+    person = client.post("/extract", json={"transcript": LONG_NOTE}).json()["people"][0]
+    assert len(fake.calls) == 2
+    assert "only had names" in fake.calls[1]["user"]
+    assert person["role"] == "Founder" and person["needs"] == ["designers"]
+
+
+def test_name_is_kept_if_the_retry_is_thin_too(client):
+    fake = FakeLLM(json.dumps({"people": [NAME_ONLY]}), json.dumps({"people": [NAME_ONLY]}))
+    use(fake)
+    people = client.post("/extract", json={"transcript": LONG_NOTE}).json()["people"]
+    assert [p["name"] for p in people] == ["Jason Chen"]
+
+
+def test_short_notes_with_only_a_name_are_fine(client):
+    fake = FakeLLM(json.dumps({"people": [NAME_ONLY]}))
+    use(fake)
+    assert client.post("/extract", json={"transcript": "Met Jason Chen today."}).status_code == 200
+    assert len(fake.calls) == 1

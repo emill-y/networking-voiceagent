@@ -7,12 +7,16 @@ Two interchangeable implementations of `Transcriber`:
 
 - `WhisperTranscriber` runs faster-whisper locally. The model is large and
   slow to load, so it is loaded once, lazily, and reused.
+- `OpenAICompatibleTranscriber` sends the audio to a hosted Whisper that
+  speaks OpenAI's /audio/transcriptions format (Groq by default). Fast
+  (about a second) and uses the same key as the language model.
 - `HuggingFaceTranscriber` sends the audio to a hosted Whisper through
   Hugging Face Inference Providers. Faster on a laptop, but the recording
   leaves your machine, so it is opt-in (TRANSCRIPTION_PROVIDER=huggingface).
 """
 
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -46,13 +50,28 @@ class Transcriber(Protocol):
 
 
 def decode_audio(audio_path: str):
-    """Decode any container/codec PyAV understands into 16 kHz mono floats."""
-    from faster_whisper import decode_audio as fw_decode
+    """Decode any container/codec FFmpeg understands into 16 kHz mono floats.
 
+    Uses PyAV (FFmpeg bindings) directly so the server doesn't need the
+    full faster-whisper package when transcription happens elsewhere.
+    """
+    import av
+    import numpy as np
+
+    chunks = []
     try:
-        audio = fw_decode(audio_path, sampling_rate=SAMPLE_RATE)
-    except Exception as exc:  # PyAV raises several error types for bad input.
+        with av.open(audio_path) as container:
+            resampler = av.AudioResampler(format="s16", layout="mono", rate=SAMPLE_RATE)
+            for frame in container.decode(audio=0):
+                for resampled in resampler.resample(frame):
+                    chunks.append(resampled.to_ndarray())
+            for resampled in resampler.resample(None):  # flush
+                chunks.append(resampled.to_ndarray())
+    except Exception as exc:  # FFmpeg raises several error types for bad input.
         raise AudioDecodeError("Could not read that audio file.") from exc
+    if not chunks:
+        raise AudioDecodeError("The recording is empty.")
+    audio = np.concatenate(chunks, axis=1).reshape(-1).astype(np.float32) / 32768.0
     if audio.size == 0:
         raise AudioDecodeError("The recording is empty.")
     return audio
@@ -71,9 +90,18 @@ class WhisperTranscriber:
         if self._model is None:
             with self._lock:
                 if self._model is None:
-                    from faster_whisper import WhisperModel
+                    try:
+                        from faster_whisper import WhisperModel
+                    except ImportError as exc:
+                        raise TranscriptionUnavailable(
+                            "Local Whisper isn't installed (pip install -r requirements-local.txt)."
+                        ) from exc
 
                     started = time.perf_counter()
+                    logger.info(
+                        "Loading Whisper %s (the first time, this downloads it; can take minutes)",
+                        self._model_name,
+                    )
                     try:
                         self._model = WhisperModel(
                             self._model_name,
@@ -153,10 +181,49 @@ class HuggingFaceTranscriber:
         )
 
 
+class OpenAICompatibleTranscriber:
+    def __init__(self, base_url: str, api_key: str | None, model: str, timeout_seconds: float = 60) -> None:
+        self._url = f"{base_url}/audio/transcriptions"
+        self._api_key = api_key
+        self._model = model
+        self._timeout = timeout_seconds
+
+    def transcribe(self, audio_path: str) -> Transcript:
+        import httpx
+
+        started = time.perf_counter()
+        # Decode locally first: rejects bad files before uploading, and gives the duration.
+        audio = decode_audio(audio_path)
+        if not self._api_key:
+            raise TranscriptionUnavailable("LLM_API_KEY is not set for hosted transcription.")
+        try:
+            with open(audio_path, "rb") as file:
+                response = httpx.post(
+                    self._url,
+                    headers={"Authorization": f"Bearer {self._api_key}"},
+                    data={"model": self._model, "language": "en", "response_format": "json", "temperature": "0"},
+                    files={"file": (os.path.basename(audio_path), file)},
+                    timeout=self._timeout,
+                )
+            response.raise_for_status()
+            text = response.json()["text"]
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            logger.warning("Hosted transcription failed (%s, status %s)", type(exc).__name__, status)
+            raise TranscriptionUnavailable(f"Hosted transcription ({self._model}) is unavailable.") from exc
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        audio_seconds = round(audio.size / SAMPLE_RATE, 2)
+        logger.info("Hosted transcription of %.1fs took %dms", audio_seconds, latency_ms)
+        return Transcript(text=(text or "").strip(), language="en",
+                          audio_seconds=audio_seconds, latency_ms=latency_ms)
+
+
 _transcriber: Transcriber | None = None
 
 
 def build_transcriber(settings) -> Transcriber:
+    if settings.transcription_provider == "openai_compatible":
+        return OpenAICompatibleTranscriber(settings.llm_base_url, settings.llm_api_key, settings.stt_model)
     if settings.transcription_provider == "huggingface":
         return HuggingFaceTranscriber(
             settings.hf_token, settings.hf_inference_provider, settings.hf_asr_model
@@ -164,7 +231,7 @@ def build_transcriber(settings) -> Transcriber:
     if settings.transcription_provider != "local":
         raise ValueError(
             f"Unknown TRANSCRIPTION_PROVIDER '{settings.transcription_provider}' "
-            "(use 'local' or 'huggingface')."
+            "(use 'local', 'openai_compatible' or 'huggingface')."
         )
     return WhisperTranscriber(
         settings.whisper_model, settings.whisper_device, settings.whisper_compute_type

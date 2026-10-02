@@ -1,24 +1,65 @@
-import { useRouter } from "expo-router";
-import { useState } from "react";
-import { Platform, Pressable, Share, StyleSheet, Text, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useState } from "react";
+import { Platform, Share, StyleSheet, Switch, Text, View } from "react-native";
 
-import { Button } from "@/components/Button";
-import { Divider } from "@/components/Divider";
+import { Card } from "@/components/Card";
+import { Monogram } from "@/components/Monogram";
+import { PageHeader } from "@/components/PageHeader";
+import { PillButton } from "@/components/PillButton";
 import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
+import { displayName, profileLine } from "@/lib/account";
 import { ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { localToday } from "@/lib/dates";
 import { contactsSupported } from "@/lib/deviceContacts";
-import { colors, spacing, type } from "@/lib/theme";
+import { colors, fonts, spacing, type } from "@/lib/theme";
 import { useSession } from "@/hooks/useSession";
 import { supabase } from "@/lib/supabase";
-import { deleteAccount, deleteAllData, exportData } from "@/services/nomi";
+import { calendarNotice, connectGoogleCalendar } from "@/lib/calendarConnect";
+import {
+  calendarStatus,
+  deleteAccount,
+  deleteAllData,
+  disconnectCalendar,
+  exportData,
+  setCalendarPush,
+} from "@/services/nomi";
+import type { CalendarStatus } from "@/types/api";
 
 export default function You() {
   const router = useRouter();
   const { session } = useSession();
+  const profile = useProfile();
   const [busy, setBusy] = useState<"export" | "delete" | "account" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const params = useLocalSearchParams<{ calendar?: string }>();
+  const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
+  useFocusEffect(
+    useCallback(() => {
+      calendarStatus().then(setCalendar).catch(() => undefined);
+    }, []),
+  );
+
+  async function togglePush(value: boolean) {
+    setCalendar((c) => (c ? { ...c, pushFollowUps: value } : c));
+    try {
+      setCalendar(await setCalendarPush(value));
+    } catch {
+      setMessage("Couldn’t change the calendar setting.");
+    }
+  }
+
+  async function disconnect() {
+    const ok = await confirm(
+      "Disconnect Google Calendar?",
+      "Nomi stops reading your calendar and adding follow-ups to it. Events it already added stay.",
+      "Disconnect",
+    );
+    if (!ok) return;
+    await disconnectCalendar();
+    setCalendar(await calendarStatus());
+  }
 
   async function exportMemories() {
     setBusy("export");
@@ -78,44 +119,94 @@ export default function You() {
     }
   }
 
-  const who = session?.user.email ?? session?.user.phone;
+  const name = displayName(session);
 
   return (
     <Screen>
-      <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Back</Text>
-      </Pressable>
-      <Text style={[type.display, styles.title]}>You</Text>
-      {who ? <Text style={[type.body, styles.who]}>Signed in as {who}</Text> : null}
+      <PageHeader eyebrow="Account" title="You" />
 
-      <Text style={type.label}>Your memories are yours</Text>
-      <View style={styles.principles}>
-        <Text style={type.body}>Nomi only listens while you’re recording, and says so on screen.</Text>
-        <Text style={type.body}>Recordings are deleted as soon as they’re transcribed.</Text>
-        <Text style={type.body}>Nothing is looked up about people behind your back, and nothing is sent to them.</Text>
-        <Text style={type.body}>Your address book stays on your phone; only people you pick are added.</Text>
-      </View>
-
-      <Divider />
-      <View style={styles.actions}>
-        {contactsSupported && (
-          <Button title="Import from contacts" variant="quiet"
-            onPress={() => router.push("/import-contacts")} />
-        )}
-        <Button title="Export my memories" variant="quiet" onPress={() => void exportMemories()}
-          loading={busy === "export"} />
-        <Button title="Delete all memories" variant="danger" onPress={() => void deleteEverything()}
-          loading={busy === "delete"} />
-      </View>
       {session && (
-        <>
-          <Divider />
-          <View style={styles.actions}>
-            <Button title="Sign out" variant="quiet" onPress={() => void supabase?.auth.signOut()} />
-            <Button title="Delete my account" variant="danger" onPress={() => void removeAccount()}
+        <Card style={styles.card}>
+          <View style={styles.accountRow}>
+            <Monogram name={name} size={64} />
+            <View style={styles.accountText}>
+              <Text style={styles.accountName} numberOfLines={1}>{name}</Text>
+              <Text style={styles.accountLine}>{profileLine(profile)}</Text>
+            </View>
+          </View>
+          <PillButton title="Edit profile"
+            onPress={() => router.push({ pathname: "/edit-profile", params: { edit: "1" } })} />
+        </Card>
+      )}
+
+      <Card style={styles.card}>
+        <Text style={type.heading}>Your memories are yours</Text>
+        <Text style={styles.body}>
+          Export your saved people and notes whenever you like. Nomi only listens while you’re
+          recording, never looks people up behind your back, and never sells your data.
+        </Text>
+        <View style={styles.buttons}>
+          <PillButton title="Export my memories" icon="check" onPress={() => void exportMemories()}
+            loading={busy === "export"} />
+          {contactsSupported && (
+            <PillButton title="Import from contacts" icon="people" onPress={() => router.push("/import-contacts")} />
+          )}
+        </View>
+      </Card>
+
+      {calendar?.available && (
+        <Card style={styles.card}>
+          <Text style={type.heading}>Google Calendar</Text>
+          {params.calendar && calendarNotice[params.calendar] ? (
+            <Text style={[type.meta, styles.message]}>{calendarNotice[params.calendar]}</Text>
+          ) : null}
+          {calendar.connected ? (
+            <>
+              <Text style={styles.body}>
+                Connected as {calendar.email ?? "your Google account"}. Nomi suggests who to talk to
+                before your events.
+              </Text>
+              <View style={styles.switchRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.switchTitle}>Add follow-ups to my calendar</Text>
+                  <Text style={type.meta}>Dated follow-ups appear as all-day events, kept in step when you tick them off.</Text>
+                </View>
+                <Switch value={calendar.pushFollowUps} onValueChange={(v) => void togglePush(v)}
+                  trackColor={{ true: colors.accent, false: colors.raised }} thumbColor={colors.text} accessibilityLabel="Add follow-ups to my calendar" />
+              </View>
+              <PillButton title="Disconnect" onPress={() => void disconnect()} />
+            </>
+          ) : (
+            <>
+              <Text style={styles.body}>
+                See who to talk to before each class, meeting or event, and put your follow-ups on
+                your calendar automatically. Nomi only reads and adds events; you can disconnect anytime.
+              </Text>
+              <PillButton title="Connect Google Calendar" icon="calendar" variant="primary"
+                onPress={() => void connectGoogleCalendar("/you").catch(() => setMessage("Couldn’t start Google sign-in."))} />
+            </>
+          )}
+        </Card>
+      )}
+
+      {session && (
+        <Card style={styles.card}>
+          <Text style={type.heading}>Account</Text>
+          <Text style={styles.body}>Signed in as {session.user.email ?? name}.</Text>
+          <PillButton title="Sign out" onPress={() => void supabase?.auth.signOut()} />
+          <View style={styles.divider} />
+          <Text style={styles.danger}>Danger zone</Text>
+          <Text style={styles.body}>
+            These permanently remove what you’ve saved. You’ll be asked to confirm, and told
+            exactly what will be deleted, first.
+          </Text>
+          <View style={styles.buttons}>
+            <PillButton title="Delete all memories" variant="danger" onPress={() => void deleteEverything()}
+              loading={busy === "delete"} />
+            <PillButton title="Delete my account" variant="danger" onPress={() => void removeAccount()}
               loading={busy === "account"} />
           </View>
-        </>
+        </Card>
       )}
       {message && <Text style={[type.meta, styles.message]}>{message}</Text>}
     </Screen>
@@ -123,21 +214,57 @@ export default function You() {
 }
 
 const styles = StyleSheet.create({
-  title: {
-    marginTop: spacing.xl,
+  card: {
     marginBottom: spacing.lg,
+    gap: spacing.md,
   },
-  who: {
-    marginTop: -spacing.md,
-    marginBottom: spacing.lg,
+  accountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  accountText: {
+    flex: 1,
+    gap: 4,
+  },
+  accountName: {
+    fontFamily: fonts.serifBold,
+    fontSize: 24,
+    color: colors.text,
+  },
+  accountLine: {
+    fontSize: 16,
     color: colors.muted,
   },
-  principles: {
-    marginTop: spacing.md,
+  body: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.muted,
+  },
+  buttons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  switchRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.md,
   },
-  actions: {
-    gap: spacing.md,
+  switchTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colors.hairline,
+    marginVertical: spacing.sm,
+  },
+  danger: {
+    fontFamily: fonts.serifBold,
+    fontSize: 20,
+    color: "#FFB4A8",
   },
   message: {
     marginTop: spacing.md,

@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nomi · Live demo</title>
+<meta name="description" content="Try Nomi in your browser: say who you met and watch it appear in a living map of your network. No account needed.">
+<meta property="og:title" content="Nomi · Live demo">
+<meta property="og:description" content="Try Nomi in your browser: say who you met and watch it appear in a living map of your network. No account needed.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#080605">
+<link rel="icon" href="/site/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site/style.css">
+</head>
+<body>
+<div class="ambient" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<header class="nav">
+  <div class="wrap">
+    <div class="nav-inner">
+      <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
+      <nav class="nav-links" aria-label="Main">
+        <a href="/product">Product</a>
+        <a href="/students">Students</a>
+        <a href="/demo">Live demo</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-glass btn-sm" href="/app">Sign in</a>
+        <a class="btn btn-hot btn-sm" href="/demo">Try it free</a>
+        <button class="menu-btn" aria-label="Menu" aria-expanded="false">☰</button>
+      </div>
+    </div>
+  </div>
+</header>
+<main>
+<section class="page-head" style="padding:50px 0 28px"><div class="wrap" style="display:grid;gap:16px;justify-items:center">
+  <span class="pill reveal"><span class="dot">●</span>Live demo · nothing is saved</span>
+  <h1 class="reveal d1" style="font-size:clamp(40px,5.5vw,72px)">Tell Nomi who you met.</h1>
+  <p class="reveal d2" style="font-size:18px">Tap the orb and talk, or type. Nomi pulls out the details and adds them to a sample network you can drag around.</p>
+</div></section>
+<section style="padding:0"><div class="wrap">
+  <div class="demo-shell">
+    <aside class="demo-panel">
+      <div class="orb" id="orb" role="button" tabindex="0" aria-label="Start talking"></div>
+      <div class="demo-status" id="status" aria-live="polite">Tap the orb and say who you met</div>
+      <div class="demo-words" id="words"></div>
+      <div class="demo-controls"><button class="mic" id="mic" aria-label="Start talking"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg></button></div>
+      <form class="demo-input" id="form">
+        <textarea id="text" rows="2" maxlength="800" placeholder="Or type: I met Riley at the career fair…" aria-label="Your note"></textarea>
+        <button id="send" type="submit" aria-label="Remember this">↑</button>
+      </form>
+      <div class="result" id="result" aria-live="polite"></div>
+      <div class="save-cta" id="save"><span>That’s it. Now imagine every person you meet this year.</span><a class="btn btn-hot btn-sm" href="/app">Save my real network, free →</a></div>
+      <div class="examples" id="examples">
+        <span class="eyebrow" style="font-size:11px">Or try one of these</span>
+        <button type="button">I just met Riley Evans at the career fair. She’s a chemical engineer at Tesla working on battery recycling and offered to refer me. Send her my resume by Friday.</button>
+        <button type="button">Had coffee with Marcus Lee from Stripe after the founders mixer. He’s building a climate fintech side project and needs a designer. Intro him to Sam next week.</button>
+        <button type="button">Met Hana Sato at CS 161 office hours. She’s a sophomore at UC Berkeley into robotics and looking for a Cal Hacks team.</button>
+      </div>
+    </aside>
+    <div class="graph-wrap">
+      <canvas id="graph" aria-label="Your sample network. Drag to move, scroll or pinch to zoom, click a person to see details."></canvas>
+      <div class="graph-top">
+        <label class="graph-search"><span aria-hidden="true">⌕</span><input id="filter" placeholder="Filter: chemistry, Stripe, Cal Hacks…" aria-label="Filter the map"></label>
+        <div class="legend"><span><i style="background:#ff8a3d;box-shadow:0 0 8px #ff8a3d"></i>People</span><span><i style="background:#ff6b1a"></i>Events</span><span><i style="background:#ffd8bd"></i>Companies & schools</span><span><i style="background:#9b8aa8"></i>Interests</span></div>
+      </div>
+      <div class="graph-hint">Drag · scroll to zoom · click a person</div>
+      <div class="node-card" id="card"></div>
+    </div>
+  </div>
+</div></section>
+</main>
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
+        <p>The private, voice-first memory for the people you meet.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <a href="/product">Features</a>
+        <a href="/demo">Live demo</a>
+        <a href="/app">Web app</a>
+      </div>
+      <div>
+        <h4>For</h4>
+        <a href="/students">Students</a>
+        <a href="/product#search">Founders</a>
+        <a href="/product#followups">Job seekers</a>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <a href="/privacy">Privacy</a>
+        <a href="/#support">Support</a>
+        <a href="/#faq">FAQ</a>
+      </div>
+    </div>
+    <div class="legal"><span>© 2026 Nomi</span><span>Made for people who meet people.</span></div>
+  </div>
+</footer>
+<script src="/site/graph.js"></script>
+<script src="/site/site.js"></script>
+<script src="/site/demo.js"></script>
+</body>
+</html>

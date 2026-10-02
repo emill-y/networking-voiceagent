@@ -1,0 +1,208 @@
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, { FadeInDown } from "react-native-reanimated";
+
+import { Button } from "@/components/Button";
+import { Field } from "@/components/Field";
+import { Icon, type IconName } from "@/components/Icon";
+import { Screen } from "@/components/Screen";
+import { useProfile } from "@/hooks/useProfile";
+import { saveProfile, type Persona } from "@/lib/profile";
+import { colors, fonts, radius, spacing, type } from "@/lib/theme";
+
+const PERSONAS: { value: Persona; title: string; line: string; icon: IconName }[] = [
+  { value: "student", title: "Student", line: "Classmates, professors, clubs, career fairs", icon: "spark" },
+  { value: "working", title: "Working", line: "Colleagues, clients, conferences", icon: "people" },
+  { value: "founder", title: "Building something", line: "Investors, founders, early users", icon: "map" },
+  { value: "other", title: "Just meeting people", line: "Anyone worth remembering", icon: "user" },
+];
+
+const YEARS = ["First year", "Second year", "Third year", "Fourth year", "Grad"];
+
+// One quick step after sign-in, so Nomi can tailor examples and understand
+// "my school" or "a classmate". Editable later from You.
+export default function Welcome() {
+  const router = useRouter();
+  const existing = useProfile();
+  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const [persona, setPersona] = useState<Persona | null>(existing?.persona ?? null);
+  const [school, setSchool] = useState(existing?.school ?? "");
+  const [major, setMajor] = useState(existing?.major ?? "");
+  const [year, setYear] = useState(existing?.year ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function finish() {
+    if (!persona) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await saveProfile(
+        persona === "student"
+          ? { persona, school: school.trim(), major: major.trim(), year }
+          : { persona },
+      );
+      // The session updates and the app opens; when editing, go back.
+      if (edit) router.back();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn’t save that.");
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Screen>
+      <Animated.View entering={FadeInDown.duration(500)}>
+        <Text style={styles.kicker}>{edit ? "Your profile" : "Welcome to Nomi"}</Text>
+        <Text style={[type.display, styles.title]}>What brings you here?</Text>
+        <Text style={styles.sub}>So Nomi’s suggestions fit your life. You can change this anytime.</Text>
+      </Animated.View>
+
+      <View style={styles.options}>
+        {PERSONAS.map((p, i) => {
+          const selected = persona === p.value;
+          return (
+            <Animated.View key={p.value} entering={FadeInDown.delay(80 + i * 60).duration(450)}>
+              <Pressable
+                onPress={() => setPersona(p.value)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
+                style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.pressed]}
+              >
+                <View style={[styles.optionIcon, selected && styles.optionIconSelected]}>
+                  <Icon name={p.icon} size={20} color={selected ? colors.background : colors.textSoft} />
+                </View>
+                <View style={styles.optionText}>
+                  <Text style={styles.optionTitle}>{p.title}</Text>
+                  <Text style={type.meta}>{p.line}</Text>
+                </View>
+              </Pressable>
+            </Animated.View>
+          );
+        })}
+      </View>
+
+      {persona === "student" && (
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.student}>
+          <Field label="School" value={school} onChangeText={setSchool} autoCapitalize="words"
+            placeholder="e.g. UC Berkeley" />
+          <Field label="Studying" value={major} onChangeText={setMajor} autoCapitalize="words"
+            placeholder="e.g. Computer Science" />
+          <Text style={type.label}>Year</Text>
+          <View style={styles.years}>
+            {YEARS.map((y) => (
+              <Pressable key={y} onPress={() => setYear(y === year ? "" : y)} accessibilityRole="radio"
+                accessibilityState={{ selected: y === year }}
+                style={[styles.year, y === year && styles.yearSelected]}>
+                <Text style={[styles.yearText, y === year && styles.yearTextSelected]}>{y}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </Animated.View>
+      )}
+
+      {error && <Text style={[type.meta, styles.error]}>{error}</Text>}
+      <View style={styles.cta}>
+        <Button title={edit ? "Save" : "Start remembering"} onPress={() => void finish()}
+          disabled={!persona || (persona === "student" && !school.trim())} loading={saving} />
+      </View>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  kicker: {
+    marginTop: spacing.lg,
+    fontSize: 13,
+    letterSpacing: 1.6,
+    textTransform: "uppercase",
+    color: colors.accent,
+  },
+  title: {
+    marginTop: spacing.sm,
+  },
+  sub: {
+    marginTop: spacing.xs,
+    fontFamily: fonts.serifItalic,
+    fontSize: 19,
+    color: colors.muted,
+  },
+  options: {
+    marginTop: spacing.xl,
+    gap: spacing.sm,
+  },
+  option: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+  },
+  optionSelected: {
+    borderColor: colors.accent,
+    backgroundColor: "rgba(201, 183, 156, 0.10)",
+  },
+  pressed: {
+    opacity: 0.85,
+  },
+  optionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(242, 238, 232, 0.07)",
+  },
+  optionIconSelected: {
+    backgroundColor: colors.accentBright,
+  },
+  optionText: {
+    flex: 1,
+    gap: 2,
+  },
+  optionTitle: {
+    fontFamily: fonts.serifBold,
+    fontSize: 21,
+    color: colors.text,
+  },
+  student: {
+    marginTop: spacing.xl,
+    gap: spacing.md,
+  },
+  years: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  year: {
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
+    backgroundColor: colors.card,
+  },
+  yearSelected: {
+    backgroundColor: colors.accentBright,
+    borderColor: colors.accentBright,
+  },
+  yearText: {
+    fontSize: 14,
+    color: colors.textSoft,
+  },
+  yearTextSelected: {
+    color: colors.background,
+    fontWeight: "600",
+  },
+  error: {
+    marginTop: spacing.md,
+    color: colors.danger,
+  },
+  cta: {
+    marginTop: spacing.xl,
+  },
+});

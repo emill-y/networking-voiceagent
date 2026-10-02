@@ -169,3 +169,49 @@ def test_provider_selection():
     assert isinstance(hosted, HuggingFaceTranscriber)
     with pytest.raises(ValueError):
         build_transcriber(replace(base, transcription_provider="cloud"))
+
+
+def test_hosted_openai_compatible_transcription(tmp_path, monkeypatch):
+    import httpx
+
+    from app.services.transcription import OpenAICompatibleTranscriber
+
+    seen = {}
+
+    def fake_post(url, headers, data, files, timeout):
+        seen.update(url=url, auth=headers["Authorization"], model=data["model"], name=files["file"][0])
+        return httpx.Response(200, json={"text": " I met Jason Chen. "}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    result = OpenAICompatibleTranscriber("https://api.groq.com/openai/v1", "gsk_x", "whisper-large-v3").transcribe(
+        _wav_file(tmp_path)
+    )
+    assert result.text == "I met Jason Chen."
+    assert seen == {
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "auth": "Bearer gsk_x",
+        "model": "whisper-large-v3",
+        "name": "note.wav",
+    }
+
+
+def test_hosted_openai_compatible_errors(tmp_path, monkeypatch):
+    import httpx
+
+    from app.services.transcription import OpenAICompatibleTranscriber
+
+    monkeypatch.setattr(
+        httpx, "post",
+        lambda url, **kw: httpx.Response(429, json={}, request=httpx.Request("POST", url)),
+    )
+    with pytest.raises(TranscriptionUnavailable):
+        OpenAICompatibleTranscriber("https://x", "k", "m").transcribe(_wav_file(tmp_path))
+    with pytest.raises(TranscriptionUnavailable, match="LLM_API_KEY"):
+        OpenAICompatibleTranscriber("https://x", None, "m").transcribe(_wav_file(tmp_path))
+
+
+def test_openai_compatible_transcriber_selection():
+    from app.services.transcription import OpenAICompatibleTranscriber
+
+    hosted = build_transcriber(replace(get_settings(), transcription_provider="openai_compatible", llm_api_key="k"))
+    assert isinstance(hosted, OpenAICompatibleTranscriber)

@@ -14,7 +14,11 @@ import sys
 import time
 from pathlib import Path
 
-from app.core.config import get_settings
+
+# Allow `python scripts/x.py` as well as `python -m scripts.x`.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from app.core.config import get_settings  # noqa: E402
 from app.services.extraction import extract_people
 from app.services.llm import get_llm_client
 
@@ -65,7 +69,9 @@ def main() -> int:
     selector = sys.argv[1] if len(sys.argv) > 1 else ""
     cases = [c for c in json.loads(CASES_PATH.read_text())["cases"] if selector in c["id"]]
     llm = get_llm_client()
-    print(f"Model: {get_settings().ollama_model} · {len(cases)} cases\n")
+    settings = get_settings()
+    model = settings.llm_model if settings.llm_provider == "openai_compatible" else settings.ollama_model
+    print(f"Model: {settings.llm_provider}/{model} · {len(cases)} cases\n")
 
     passed = 0
     for case in cases:

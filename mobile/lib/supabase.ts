@@ -33,6 +33,10 @@ export const supabase: SupabaseClient | null =
 // Without Supabase settings the app runs in local development mode: no
 // sign-in, and the backend must run with NOMI_DEV_AUTH=true.
 export const authEnabled = supabase !== null;
+// That's only allowed in development. A production build missing the settings
+// must never open without sign-in; it shows a setup message instead.
+export const openWithoutSignIn = !authEnabled && __DEV__;
+export const signInMissing = !authEnabled && !__DEV__;
 
 // Refresh tokens only while the app is in the foreground (Supabase's
 // recommendation for React Native).
@@ -47,4 +51,19 @@ export async function getAccessToken(): Promise<string | null> {
   if (!supabase) return null;
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token ?? null;
+}
+
+// Supabase calls can hang when the project is paused or unreachable. Give up
+// after a while with a message that says what's wrong, instead of spinning.
+export function withTimeout<T>(promise: Promise<T>, ms = 15000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("Couldn’t reach the sign-in service. Check your connection and try again in a minute.")),
+      ms,
+    );
+    promise.then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
 }

@@ -66,7 +66,7 @@ def database_url():
 
     with psycopg.connect(url, autocommit=True) as conn:
         conn.execute(
-            "drop table if exists follow_ups, interactions, contacts, nomi_migrations cascade;"
+            "drop table if exists event_feeds, calendar_connections, follow_ups, interactions, contacts, nomi_migrations cascade;"
             "drop function if exists set_updated_at cascade;"
             "drop table if exists auth.users cascade;"
         )
@@ -80,7 +80,7 @@ def database_url():
 @pytest.fixture
 def db_client(database_url):
     with psycopg.connect(database_url, autocommit=True) as conn:
-        conn.execute("truncate contacts, interactions, follow_ups cascade")
+        conn.execute("truncate contacts, interactions, follow_ups, calendar_connections, event_feeds cascade")
 
     def test_db():
         with psycopg.connect(database_url, row_factory=dict_row) as conn:
@@ -93,3 +93,14 @@ def db_client(database_url):
         test_client.act_as = lambda user: state.update(user=user)
         yield test_client
     app.dependency_overrides.clear()
+
+
+@pytest.fixture(autouse=True)
+def fresh_rate_limits():
+    """Each test starts with an empty rate-limit window."""
+    from app.core.rate_limit import ai_limiter
+    from app.routes import demo
+
+    for limiter in (ai_limiter, demo.per_minute, demo.per_day):
+        limiter._hits.clear()
+    yield

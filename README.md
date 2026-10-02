@@ -21,12 +21,16 @@ networking-voiceagent/
 ## How a memory is made
 
 ```
-tap mic ─► record (expo-audio) ─► POST /transcribe ─► faster-whisper ─► transcript
-                                                                          │
-review & edit ◄─ POST /duplicate-check ◄─ people ◄─ Qwen3 via Ollama ◄─ POST /extract
+tap mic ─► on-device speech recognition (live transcript as you talk)
+                                                     │
+review & edit ◄─ POST /duplicate-check ◄─ people ◄─ POST /extract (hosted LLM, e.g. Groq)
       │
-      └─► POST /captures ─► contacts + interactions + follow_ups (PostgreSQL)
+      └─► POST /captures ─► contacts + interactions + follow_ups (Supabase Postgres)
 ```
+
+Where on-device recognition isn't available (Expo Go, web), the app records
+audio and the backend transcribes it (`POST /transcribe`). In development the
+backend can run everything locally: faster-whisper and Qwen3 via Ollama.
 
 Every stage is its own request, so each can be tested and can fail on its own
 with a clear message. The LLM never writes to the database: its output is
@@ -59,6 +63,11 @@ npm start
 
 Details: [backend/README.md](backend/README.md) · [mobile/README.md](mobile/README.md)
 
+**Launching the website + web app:** see [LAUNCH_WEB.md](LAUNCH_WEB.md) (Vercel: website, live demo, web app and API in one project).
+
+**Shipping to the App Store:** see [DEPLOY.md](DEPLOY.md). It covers hosting the API,
+fast hosted AI, the privacy policy, EAS builds and App Store submission.
+
 ## Status
 
 Phase 1 (voice capture MVP) is complete: record → transcribe → extract → review →
@@ -74,5 +83,8 @@ briefing on each profile, and data export / delete-everything.
 Sign-in uses Supabase Auth (Apple, Google, or an email magic link); the API verifies every
 request's token. People can be brought in from the phone's contacts: matching
 happens on the device and only the people you pick are added.
+
+There's an interactive **network map** of how your people connect, and a
+**web version** (desktop layout) served by the backend at `/app`.
 
 Not yet: personalization, calendar and email integrations.

@@ -7,15 +7,21 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 
-import { supabase } from "@/lib/supabase";
+import { supabase, withTimeout } from "@/lib/supabase";
 
 // Where Google and magic links send people back to: the app's
 // /auth/callback screen (a deep link on phones, a page on web).
 export function authRedirectUrl(): string {
   if (Platform.OS === "web" && typeof window !== "undefined") {
-    return `${window.location.origin}/auth/callback`;
+    // The web app lives under a base path (/app, see app.json).
+    return `${window.location.origin}${process.env.EXPO_BASE_URL ?? ""}/auth/callback`;
   }
   return Linking.createURL("auth/callback");
+}
+
+if (__DEV__) {
+  // Handy when setting up Supabase's Redirect URLs list.
+  console.log(`[auth] sign-in redirect: ${authRedirectUrl()}`);
 }
 
 function client() {
@@ -30,7 +36,7 @@ export async function completeSignIn(url: string): Promise<void> {
   if (error) throw new Error(String(error));
   const code = queryParams?.code;
   if (typeof code !== "string") throw new Error("That sign-in link is incomplete.");
-  const { error: exchangeError } = await client().auth.exchangeCodeForSession(code);
+  const { error: exchangeError } = await withTimeout(client().auth.exchangeCodeForSession(code));
   if (exchangeError) {
     // On Android the /auth/callback screen may have used the code first.
     const { data } = await client().auth.getSession();
@@ -91,16 +97,17 @@ export async function signInWithApple(): Promise<void> {
 }
 
 export async function sendMagicLink(email: string): Promise<void> {
-  const { error } = await client().auth.signInWithOtp({
-    email: email.trim(),
-    options: { emailRedirectTo: authRedirectUrl() },
-  });
+  const { error } = await withTimeout(
+    client().auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: authRedirectUrl() } }),
+  );
   if (error) throw error;
 }
 
 // The same email can also carry a 6-digit code (see mobile/README.md), for
 // when the link opens on a different device than the one signing in.
 export async function verifyEmailCode(email: string, code: string): Promise<void> {
-  const { error } = await client().auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" });
+  const { error } = await withTimeout(
+    client().auth.verifyOtp({ email: email.trim(), token: code.trim(), type: "email" }),
+  );
   if (error) throw error;
 }

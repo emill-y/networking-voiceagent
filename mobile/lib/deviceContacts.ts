@@ -7,6 +7,7 @@ import {
   getPermissionsAsync,
   requestPermissionsAsync,
 } from "expo-contacts";
+import * as LegacyContacts from "expo-contacts/legacy";
 import { Platform } from "react-native";
 
 import type { AddressBookEntry } from "@/lib/addressBook";
@@ -51,8 +52,52 @@ function toEntry(details: Details): AddressBookEntry | null {
 }
 
 export async function loadAddressBook(): Promise<AddressBookEntry[]> {
-  const all = await Contact.getAllDetails(FIELDS, { sortOrder: ContactsSortOrder.UserDefault });
-  return all.map(toEntry).filter((e): e is AddressBookEntry => e !== null);
+  let entries: AddressBookEntry[];
+  try {
+    const all = await Contact.getAllDetails(FIELDS, { sortOrder: ContactsSortOrder.UserDefault });
+    entries = all.map(toEntry).filter((e): e is AddressBookEntry => e !== null);
+  } catch (error) {
+    // The newer API is recent; if it fails on a device, the long-standing one still works.
+    console.warn("[contacts] new API failed, using legacy:", error);
+    entries = await loadWithLegacyApi();
+  }
+  // Alphabetical, as people expect from their address book.
+  return entries.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+async function loadWithLegacyApi(): Promise<AddressBookEntry[]> {
+  const { data } = await LegacyContacts.getContactsAsync({
+    fields: [
+      LegacyContacts.Fields.Name,
+      LegacyContacts.Fields.FirstName,
+      LegacyContacts.Fields.LastName,
+      LegacyContacts.Fields.Company,
+      LegacyContacts.Fields.JobTitle,
+      LegacyContacts.Fields.PhoneNumbers,
+      LegacyContacts.Fields.Emails,
+    ],
+  });
+  return data
+    .map((c): AddressBookEntry | null => {
+      const name = c.name?.trim() || [c.firstName, c.lastName].filter(Boolean).join(" ").trim();
+      if (!name || !c.id) return null;
+      return {
+        id: c.id,
+        name,
+        company: c.company?.trim() || null,
+        role: c.jobTitle?.trim() || null,
+        phones: (c.phoneNumbers ?? [])
+          .filter((p) => p.number?.trim())
+          .map((p) => ({ label: p.label ?? null, number: p.number!.trim() })),
+        emails: (c.emails ?? []).map((e) => e.email?.trim() ?? "").filter(Boolean),
+      };
+    })
+    .filter((e): e is AddressBookEntry => e !== null);
+}
+
+// iOS 18+ "limited access": let the user add more people to what Nomi can see.
+export async function chooseMoreContacts(): Promise<void> {
+  if (Platform.OS === "ios") await Contact.presentAccessPicker();
 }
 
 // The system picker: the user chooses one contact, no permission needed on iOS.

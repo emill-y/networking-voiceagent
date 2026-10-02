@@ -4,6 +4,11 @@ import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, Vie
 
 import { Button } from "@/components/Button";
 import { Divider } from "@/components/Divider";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
+
+import { Chip, ChipRow } from "@/components/Chip";
+import { Icon, type IconName } from "@/components/Icon";
 import { Monogram } from "@/components/Monogram";
 import { Screen } from "@/components/Screen";
 import { ApiError } from "@/lib/api";
@@ -12,7 +17,7 @@ import { confirm } from "@/lib/confirm";
 import { contactsSupported, pickContact } from "@/lib/deviceContacts";
 import { formatRelative, formatShortDate } from "@/lib/format";
 import { briefing, memoryLines, subtitle } from "@/lib/memory";
-import { colors, fonts, radius, spacing, type } from "@/lib/theme";
+import { colors, fonts, radius, spacing, tintFor, type } from "@/lib/theme";
 import {
   createFollowUp,
   deleteContact,
@@ -122,39 +127,49 @@ export default function Person() {
         </Pressable>
       </View>
 
-      <View style={styles.header}>
-        <Monogram name={person.name} size={56} />
+      <Animated.View entering={FadeInDown.duration(500)} style={styles.header}>
+        {/* A soft halo in this person's own color. */}
+        <Svg style={styles.halo} width={320} height={320} pointerEvents="none">
+          <Defs>
+            <RadialGradient id="personHalo" cx="50%" cy="50%" r="50%">
+              <Stop offset="0" stopColor={tintFor(person.name)} stopOpacity={0.28} />
+              <Stop offset="1" stopColor={tintFor(person.name)} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Circle cx={160} cy={160} r={160} fill="url(#personHalo)" />
+        </Svg>
+        <Monogram name={person.name} size={84} />
         <Text style={[type.display, styles.name]}>{person.name}</Text>
         {details ? <Text style={[type.body, styles.details]}>{details}</Text> : null}
         {person.school || person.location ? (
-          <Text style={type.meta}>{[person.school, person.location].filter(Boolean).join(" · ")}</Text>
+          <Text style={[type.meta, styles.centered]}>
+            {[person.school, person.location].filter(Boolean).join(" · ")}
+          </Text>
         ) : null}
         {person.summary ? <Text style={[type.body, styles.summary]}>{person.summary}</Text> : null}
+
+        <ChipRow>
+          <Chip icon="spark" label={`${person.interactions.length} ${person.interactions.length === 1 ? "moment" : "moments"}`} />
+          {person.lastInteractionAt ? <Chip icon="calendar" label={`Seen ${formatRelative(person.lastInteractionAt)}`} /> : null}
+          {openFollowUps.length > 0 ? <Chip icon="check" tone="accent" label={`${openFollowUps.length} to do`} /> : null}
+        </ChipRow>
 
         {/* Opens the phone's own apps; Nomi never sends anything itself. */}
         <View style={styles.reach}>
           {person.phone ? (
             <>
-              <Pressable onPress={() => void Linking.openURL(`tel:${dialable(person.phone!)}`)} accessibilityRole="link" style={styles.reachButton}>
-                <Text style={styles.reachText}>Call</Text>
-              </Pressable>
-              <Pressable onPress={() => void Linking.openURL(`sms:${dialable(person.phone!)}`)} accessibilityRole="link" style={styles.reachButton}>
-                <Text style={styles.reachText}>Text</Text>
-              </Pressable>
+              <ReachButton icon="phone" label="Call" onPress={() => void Linking.openURL(`tel:${dialable(person.phone!)}`)} />
+              <ReachButton icon="message" label="Text" onPress={() => void Linking.openURL(`sms:${dialable(person.phone!)}`)} />
             </>
           ) : null}
           {person.email ? (
-            <Pressable onPress={() => void Linking.openURL(`mailto:${person.email}`)} accessibilityRole="link" style={styles.reachButton}>
-              <Text style={styles.reachText}>Email</Text>
-            </Pressable>
+            <ReachButton icon="mail" label="Email" onPress={() => void Linking.openURL(`mailto:${person.email}`)} />
           ) : null}
           {contactsSupported && (!person.phone || !person.email) ? (
-            <Pressable onPress={() => void addFromContacts()} accessibilityRole="button" style={styles.reachButton}>
-              <Text style={styles.reachText}>Add from contacts</Text>
-            </Pressable>
+            <ReachButton icon="plus" label="From contacts" onPress={() => void addFromContacts()} />
           ) : null}
         </View>
-      </View>
+      </Animated.View>
 
       {brief && (
         <View style={styles.brief}>
@@ -274,20 +289,51 @@ function dialable(phone: string): string {
   return phone.replace(/[^\d+]/g, "");
 }
 
+function ReachButton({ icon, label, onPress }: { icon: IconName; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label}
+      style={({ pressed }) => [styles.reachButton, pressed && { opacity: 0.75 }]}>
+      <View style={styles.reachIcon}>
+        <Icon name={icon} size={20} color={colors.text} />
+      </View>
+      <Text style={styles.reachText}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// A normal page: a quiet link back to the list, like any other website.
 function BackLink() {
   const router = useRouter();
   return (
     <Pressable
-      onPress={() => (router.canGoBack() ? router.back() : router.replace("/"))}
-      accessibilityRole="button"
-      hitSlop={12}
+      onPress={() => (router.canGoBack() ? router.back() : router.replace("/people"))}
+      accessibilityRole="link"
+      accessibilityLabel="Back to People"
+      hitSlop={10}
+      style={styles.backLink}
     >
-      <Text style={type.meta}>Back</Text>
+      <View style={styles.backIcon}>
+        <Icon name="chevron" size={16} color={colors.muted} />
+      </View>
+      <Text style={styles.backText}>People</Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  backLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    alignSelf: "flex-start",
+  },
+  backIcon: {
+    transform: [{ scaleX: -1 }],
+  },
+  backText: {
+    fontSize: 15,
+    color: colors.muted,
+  },
   center: {
     flex: 1,
     alignItems: "center",
@@ -298,38 +344,58 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   header: {
-    marginTop: spacing.xl,
-    gap: spacing.xs,
+    marginTop: spacing.lg,
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  halo: {
+    position: "absolute",
+    top: -100,
+  },
+  centered: {
+    textAlign: "center",
   },
   name: {
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
+    textAlign: "center",
   },
   details: {
     color: colors.text,
+    textAlign: "center",
   },
   reach: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
+    justifyContent: "center",
+    gap: spacing.lg,
     marginTop: spacing.md,
   },
   reachButton: {
-    paddingVertical: 8,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
+    alignItems: "center",
+    gap: 6,
+    minWidth: 64,
+  },
+  reachIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(242, 238, 232, 0.08)",
+    borderWidth: 1,
+    borderColor: colors.cardBorder,
   },
   reachText: {
-    fontSize: 14,
-    color: colors.text,
+    fontSize: 12,
+    color: colors.textSoft,
   },
   noMoments: {
     marginTop: spacing.sm,
     color: colors.muted,
   },
   summary: {
-    marginTop: spacing.md,
+    marginTop: spacing.xs,
     fontStyle: "italic",
+    textAlign: "center",
   },
   brief: {
     marginTop: spacing.xl,

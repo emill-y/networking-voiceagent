@@ -14,6 +14,7 @@ from app.schemas.extraction import (
     EXTRACTION_JSON_SCHEMA,
     ContactExtractionResult,
     ExtractedPerson,
+    SpeakerContext,
 )
 from app.services.dates import resolve_due_date
 from app.services.llm import LLMClient
@@ -34,12 +35,39 @@ Rules:
   a structured field. Leave that field null and add a note starting with "Unsure:",
   for example "Unsure: may work at Google".
 - If the speaker corrects themselves, keep only the corrected fact.
+- company is only a named organization ("Figma", "Google"). A description without a
+  name ("a small bakery", "a startup") is not a company: put it in role or projects,
+  e.g. role "Bakery owner".
+- projects are what they work on or build: "works on robotics" -> projects ["robotics"].
 - metAt is the event or place where they met (e.g. "Berkeley founders mixer").
 - followUp is what the user plans to do with this person, as a short action that
   keeps any timing, e.g. "Reach out next week". Use null if none was mentioned.
 - Keep list items short (a few words), without duplicates.
 - Use null for unknown text fields and [] for empty lists.
-- Do not record sensitive traits (health, religion, sexuality, politics, ethnicity)."""
+- Do not record sensitive traits (health, religion, sexuality, politics, ethnicity).
+- Capture every stated detail about each person. Voice notes are often unpunctuated
+  and lowercase; read them as speech.
+
+Example. Note: "met priya shah at the career fair she's a software engineer at figma
+working on their plugin platform she offered to refer me and we talked about design
+systems i should send her my resume by friday"
+Result: {"people":[{"name":"Priya Shah","company":"Figma","role":"Software engineer",
+"school":null,"major":null,"metAt":"Career fair","location":null,"interests":[],
+"projects":["Plugin platform"],"needs":[],"topicsDiscussed":["Design systems"],
+"notes":["Offered to refer me"],"followUp":"Send my resume by Friday"}]}"""
+
+# A note this long that yields nothing but names probably lost its details.
+THIN_NOTE_WORDS = 12
+RETRY_NUDGE = (
+    "\n\nYour previous answer only had names. Re-read the note and fill in every stated "
+    "detail (role, company, school, where you met, projects, needs, topics, notes, follow-up)."
+)
+
+
+def _only_names(people: list[ExtractedPerson]) -> bool:
+    return bool(people) and all(
+        not any(v for k, v in person if k not in {"name", "follow_up_due"}) for person in people
+    )
 
 
 class ExtractionFailed(Exception):
@@ -85,13 +113,38 @@ def clean_person(person: ExtractedPerson) -> ExtractedPerson | None:
     return cleaned
 
 
-def extract_people(transcript: str, llm: LLMClient, today: date | None = None) -> ContactExtractionResult:
+def describe_speaker(context: SpeakerContext | None) -> str:
+    """A short note about the speaker for the model, or '' if we know nothing."""
+    if not context or not (context.persona or context.school):
+        return ""
+    if context.persona == "student" and context.school:
+        studying = f" studying {context.major}" if context.major else ""
+        return (
+            f"About the speaker: a student at {context.school}{studying}. If they say someone is a "
+            f"classmate, in their class, a TA, a professor, or from their school or campus, set that "
+            f"person's school to {context.school}."
+        )
+    return f"About the speaker: {context.persona}."
+
+
+def extract_people(
+    transcript: str,
+    llm: LLMClient,
+    today: date | None = None,
+    context: SpeakerContext | None = None,
+) -> ContactExtractionResult:
     today = today or date.today()
-    user_message = f"Voice note transcript:\n\"\"\"\n{transcript.strip()}\n\"\"\""
+    about = describe_speaker(context)
+    user_message = (f"{about}\n\n" if about else "") + (
+        f"Voice note transcript:\n\"\"\"\n{transcript.strip()}\n\"\"\""
+    )
     last_error: Exception | None = None
+    thin: list[ExtractedPerson] | None = None
+    long_note = len(transcript.split()) >= THIN_NOTE_WORDS
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
-        raw = llm.chat_json(SYSTEM_PROMPT, user_message, EXTRACTION_JSON_SCHEMA)
+        message = user_message + (RETRY_NUDGE if thin is not None else "")
+        raw = llm.chat_json(SYSTEM_PROMPT, message, EXTRACTION_JSON_SCHEMA)
         try:
             parsed = ContactExtractionResult.model_validate_json(raw)
         except ValidationError as exc:
@@ -100,8 +153,21 @@ def extract_people(transcript: str, llm: LLMClient, today: date | None = None) -
             last_error = exc
             continue
         people = [p for p in (clean_person(person) for person in parsed.people) if p]
-        for person in people:
-            person.follow_up_due = resolve_due_date(person.follow_up, today)
-        return ContactExtractionResult(people=people)
+        if long_note and _only_names(people) and thin is None and attempt < MAX_ATTEMPTS:
+            logger.warning("Extraction returned only names for a %d-word note; retrying", len(transcript.split()))
+            thin = people
+            continue
+        return _finish(people, today)
+
+    if thin is not None:
+        return _finish(thin, today)  # the retry failed; names are better than nothing
 
     raise ExtractionFailed("The model returned output that didn't match the schema.") from last_error
+
+
+def _finish(people: list[ExtractedPerson], today: date) -> ContactExtractionResult:
+    for person in people:
+        person.follow_up_due = resolve_due_date(person.follow_up, today)
+    filled = sum(1 for person in people for k, v in person if v and k != "name")
+    logger.info("Extracted %d people with %d filled fields", len(people), filled)
+    return ContactExtractionResult(people=people)

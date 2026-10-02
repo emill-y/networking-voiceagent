@@ -96,13 +96,20 @@ export function matchEntries(entries: AddressBookEntry[], people: ContactSummary
   });
 }
 
+// The server limits field lengths; trim here so one odd address-book entry
+// can't make a whole import fail.
+function clip(value: string | null, max: number): string | null {
+  const trimmed = value?.trim() ?? "";
+  return trimmed ? trimmed.slice(0, max) : null;
+}
+
 export function toImportedPerson({ entry, match }: EntryMatch): ImportedPerson {
   return {
     contactId: match?.id ?? null,
-    name: entry.name,
-    company: entry.company,
-    role: entry.role,
-    email: entry.emails[0] ?? null,
-    phone: bestPhone(entry.phones),
+    name: clip(entry.name, 200) ?? "Unnamed",
+    company: clip(entry.company, 400),
+    role: clip(entry.role, 400),
+    email: clip(entry.emails[0] ?? null, 400),
+    phone: clip(bestPhone(entry.phones), 400),
   };
 }

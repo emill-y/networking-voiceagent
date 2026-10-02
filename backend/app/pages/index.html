@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nomi · Never forget a person again</title>
+<meta name="description" content="Nomi is a private, voice-first memory for the people you meet. Talk for ten seconds; Nomi remembers their name, what you talked about and what you promised, then helps you follow through.">
+<meta property="og:title" content="Nomi · Never forget a person again">
+<meta property="og:description" content="Nomi is a private, voice-first memory for the people you meet. Talk for ten seconds; Nomi remembers their name, what you talked about and what you promised, then helps you follow through.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#080605">
+<link rel="icon" href="/site/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/site/style.css">
+</head>
+<body>
+<div class="ambient" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+<header class="nav">
+  <div class="wrap">
+    <div class="nav-inner">
+      <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
+      <nav class="nav-links" aria-label="Main">
+        <a href="/product">Product</a>
+        <a href="/students">Students</a>
+        <a href="/demo">Live demo</a>
+        <a href="/privacy">Privacy</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-glass btn-sm" href="/app">Sign in</a>
+        <a class="btn btn-hot btn-sm" href="/demo">Try it free</a>
+        <button class="menu-btn" aria-label="Menu" aria-expanded="false">☰</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <span class="pill reveal"><span class="dot">●</span>Now on the web · try the live demo, no sign-up</span>
+        <h1 class="reveal d1">Never forget<br>a person <span class="grad-text">again.</span></h1>
+        <p class="lede reveal d2">You meet someone great. A week later you can’t remember their name, what they’re building, or what you promised to send. Talk to Nomi for ten seconds and it remembers all of it, then helps you follow through.</p>
+        <div class="ctas reveal d3">
+          <a class="btn btn-hot" href="/demo">Try the live demo <span class="arrow">→</span></a>
+          <a class="btn btn-glass" href="/app">Open the web app</a>
+        </div>
+        <p class="fine reveal d4">Free during early access · Works in your browser · iPhone app coming soon</p>
+      </div>
+      <div class="hero-visual reveal d2" aria-hidden="true">
+        <div class="orb"></div>
+        <div class="floating f1"><b>Jason Chen</b><small>Founder · Loop Robotics · met at Cal Hacks</small></div>
+        <div class="floating f2"><b>Follow up Friday</b><small>Send Priya my resume</small></div>
+        <div class="floating f3"><b>“Who could help with chemistry?”</b><small>Diego · Grace · Ethan</small></div>
+        <div class="transcript-live" data-typing="[&quot;I met Jason at Cal Hacks. He's building a robotics startup and needs a designer.&quot;, &quot;Priya from Figma offered to refer me. Send her my resume by Friday.&quot;, &quot;Diego is doing a chemistry PhD and wants a cofounder for his battery startup.&quot;]"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">How it works</span>
+        <h2>Talk for ten seconds.<br><span class="grad-text">Nomi does the remembering.</span></h2>
+        <p>No forms, no typing on a crowded sidewalk. Say who you met the way you’d tell a friend.</p>
+      </div>
+      <div class="phones reveal d1" aria-hidden="true">
+        <div class="phone"><div class="screen s-home"><span class="island"></span>
+          <div class="s-top"><span class="s-avatar">E</span><span class="s-icons"><i></i><i></i></span></div>
+          <div class="s-title">Who did you<br>meet today?</div>
+          <div class="s-chips">
+            <div class="s-chip"><span>✦</span>Met someone at a career fair</div>
+            <div class="s-chip"><span>✦</span>Who should I follow up with?</div>
+          </div>
+          <div class="s-input">Say who you met…<span class="s-mic"></span></div>
+        </div></div>
+        <div class="phone"><div class="screen s-listen"><span class="island"></span>
+          <span class="s-close">✕ Done</span>
+          <div class="orb listening"></div>
+          <div class="s-status">Nomi is listening…</div>
+          <div class="s-words">I met Priya from Figma at the career fair. <em>She offered to refer me.</em></div>
+          <div class="s-bar"><i></i><button class="mic" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5"/></svg></button><i></i></div>
+        </div></div>
+        <div class="phone"><div class="screen s-result"><span class="island"></span>
+          <span class="s-close">Here’s who you met</span>
+          <div class="s-msg me">I met Priya from Figma at the career fair. She offered to refer me. Send my resume Friday.</div>
+          <div class="s-person"><b>Priya Shah</b>
+            <div class="s-row"><span>Works at</span>Figma</div>
+            <div class="s-row"><span>Met at</span>Career fair</div>
+            <div class="s-row"><span>Offered</span>A referral</div>
+            <div class="s-row hot"><span>Follow up</span>Send resume · Fri</div>
+          </div>
+          <div class="s-msg ai">Saved. I’ll remind you Friday. You also met Aisha from Google at the same fair.</div>
+        </div></div>
+      </div>
+      <div class="steps" style="margin-top:80px">
+        <article class="card step reveal"><h3>Say it</h3><p>Tap the orb and talk. Your words appear as you speak, and Nomi only listens while you’re holding the conversation.</p></article>
+        <article class="card step reveal d1"><h3>Check it</h3><p>Nomi pulls out names, companies, what you talked about and what you promised. Nothing is saved until you confirm it.</p></article>
+        <article class="card step reveal d2"><h3>Use it</h3><p>Every person gets a memory page, a timeline and reminders, so the next conversation starts where the last one ended.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">Everything you’d forget</span>
+        <h2>A second brain for your network.</h2>
+      </div>
+      <div class="bento">
+        <article class="card hot w4 reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7.5" width="16" height="12" rx="2.5"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5M4 12.5h16"/></svg></div><h3>Walk in prepared</h3><p>Before you see someone again, get a two-line briefing built only from your own notes.</p>
+          <div class="mini-brief"><strong>You last saw Jason 6 weeks ago at Cal Hacks.</strong><span>· You planned to introduce him to Sam.</span><span>· Ask how the warehouse robots pilot went.</span></div></article>
+        <article class="card w2 reveal d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5.5" width="16" height="14" rx="3"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg></div><h3>Keep your promises</h3><p>“I’ll send it Friday” becomes a follow-up with a date.</p>
+          <div class="check-list"><div class="done">Send Maya the deck</div><div>Send Priya my resume · Fri</div><div>Intro Jason to Sam</div></div></article>
+        <article class="card w3 reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></div><h3>Ask in plain words</h3><p>Nomi searches by meaning, not keywords, and tells you why each person fits.</p>
+          <div class="mini-search"><div class="q">Who should I build a startup with for chemistry?</div>
+            <div class="r"><i style="--t:#ffd29d">DA</i><div>Diego Alvarez<small>Chemical engineering PhD, wants a cofounder</small></div></div>
+            <div class="r"><i style="--t:#8fe3b0">GL</i><div>Grace Liu<small>Biotech founder working on lab automation</small></div></div></div></article>
+        <article class="card w3 reveal d1" style="min-height:360px"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="7" r="2.2"/><circle cx="18" cy="6" r="2.2"/><circle cx="12" cy="17" r="2.2"/><path d="M7.8 8.2l3 7M16.5 7.8l-3.4 7.6M8.2 6.8l7.6-.6"/></svg></div><h3>See how everyone connects</h3><p>A living map of your people, the events you met at and what you share.</p>
+          <canvas class="mini-graph" data-mini-graph data-zoom="0.8" aria-label="A sample network map"></canvas></article>
+        <article class="card w2 reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/></svg></div><h3>Start with who you know</h3><p>Import from your phone’s contacts. Only the people you pick are added.</p></article>
+        <article class="card w2 reveal d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.5 2.5 3.5 5.5 3.5 8.5s-1 6-3.5 8.5c-2.5-2.5-3.5-5.5-3.5-8.5s1-6 3.5-8.5z"/></svg></div><h3>Phone and web</h3><p>Capture on the go, review and plan on a big screen. Same memory everywhere.</p></article>
+        <article class="card w2 reveal d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="10.5" width="14" height="9.5" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg></div><h3>Private by default</h3><p>No ads, no tracking, nothing sold. Export or delete everything anytime.</p></article>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="teaser reveal">
+        <div style="display:grid;gap:20px">
+          <span class="eyebrow">Live demo · no account</span>
+          <h2>Try it right now.<br>Out loud.</h2>
+          <p class="muted" style="font-size:18px">Speak or type a sentence about someone you met. Watch Nomi pull out the details and drop them into a living map of a sample network.</p>
+          <div><a class="btn btn-hot" href="/demo">Open the live demo <span class="arrow">→</span></a></div>
+        </div>
+        <canvas data-mini-graph data-zoom="1" aria-label="An interactive sample network. Drag the dots."></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section id="who">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">Made for people who meet people</span>
+        <h2>Your network is your edge.<br>Stop leaking it.</h2>
+      </div>
+      <div class="audience">
+        <article class="card reveal"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5L12 5l9 4.5-9 4.5z"/><path d="M7 11.5v4.5c3 2 7 2 10 0v-4.5"/></svg></div><h3>Students</h3><p>Career fairs, clubs, office hours, recruiting season.</p><q>Who offered to refer me?</q></article>
+        <article class="card reveal d1"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c3 2 5 5.5 5 9.5l-2.5 3h-5L7 12.5C7 8.5 9 5 12 3z"/><circle cx="12" cy="10" r="1.8"/><path d="M9.5 18.5L12 21l2.5-2.5"/></svg></div><h3>Founders</h3><p>Investors, early users, future hires, every intro you owe.</p><q>Which investors care about climate?</q></article>
+        <article class="card reveal d2"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7.5" width="16" height="12" rx="2.5"/><path d="M9 7.5V6a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v1.5M4 12.5h16"/></svg></div><h3>Job seekers</h3><p>Coffee chats and referrals that actually turn into offers.</p><q>Who works at companies I’m applying to?</q></article>
+        <article class="card reveal d3"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8.5" r="3.2"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0"/><circle cx="17" cy="9.5" r="2.5"/><path d="M15.5 14.2A4.5 4.5 0 0 1 21 18.5"/></svg></div><h3>Connectors</h3><p>Organizers and community builders who know everyone.</p><q>Who should meet Sam?</q></article>
+      </div>
+      <p class="center" style="margin-top:36px"><a class="btn btn-glass" href="/students">See Nomi for students <span class="arrow">→</span></a></p>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <span class="eyebrow">Private by design</span>
+        <h2>Your memories are yours.</h2>
+      </div>
+      <div class="promises">
+        <div class="card reveal"><b>Only when you tap</b><p>Nomi never listens in the background and always shows when it’s listening.</p></div>
+        <div class="card reveal d1"><b>You confirm everything</b><p>Nothing is saved until you check it. Edit or delete anything later.</p></div>
+        <div class="card reveal d2"><b>Never sold</b><p>No ads, no tracking, no data brokers, no looking people up behind your back.</p></div>
+        <div class="card reveal d3"><b>Leave anytime</b><p>Export everything, or delete your account and all of it goes with it.</p></div>
+      </div>
+      <p class="center" style="margin-top:28px"><a class="muted" href="/privacy" style="text-decoration:underline;text-underline-offset:4px">Read the privacy policy</a></p>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-head reveal"><span class="eyebrow">Questions</span><h2>Good to know.</h2></div>
+      <div class="faq reveal">
+        <details><summary>What does it cost?</summary><p>Nomi is free while it’s in early access. If we ever add paid plans, early users will hear first, and your data stays exportable either way.</p></details>
+        <details><summary>Does Nomi record my conversations?</summary><p>No. Nomi only listens when you tap the orb to leave yourself a note after a conversation, never during it, and it doesn’t keep recordings. It’s like texting yourself, but it understands what you said.</p></details>
+        <details><summary>Where can I use it?</summary><p>Right now in <a href="/app" style="color:var(--orange-hot)">the web app</a>, on any laptop or phone browser. The iPhone app is on its way.</p></details>
+        <details><summary>Can I import the people I already know?</summary><p>Yes. On iPhone you can pick people from your contacts; only the ones you choose are added.</p></details>
+        <details><summary>How does the search work?</summary><p>Ask a question in plain words. Nomi reads your own notes about each person and picks who fits by meaning, so “who could help with chemistry?” finds the chemical engineer even if you never wrote the word “chemistry”.</p></details>
+        <details><summary>Who can see my notes?</summary><p>Only you. Every account can only ever read its own data. We use an AI provider to process notes you send, only to give you the result.</p></details>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap">
+      <div class="orb reveal" aria-hidden="true"></div>
+      <h2 class="reveal d1">Remember everyone<br>you meet.</h2>
+      <p class="reveal d2">It takes ten seconds. Start with the demo, keep it forever with a free account.</p>
+      <div class="reveal d3" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+        <a class="btn btn-hot" href="/demo">Try the live demo <span class="arrow">→</span></a>
+        <a class="btn btn-glass" href="/app">Create a free account</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="support" style="padding:40px 0 20px">
+    <div class="wrap center"><p class="muted">Questions, problems or requests, including deleting your data: <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>. You can also delete your account anytime in the app under <em>You → Delete my account</em>.</p></div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
+        <p>The private, voice-first memory for the people you meet.</p>
+      </div>
+      <div>
+        <h4>Product</h4>
+        <a href="/product">Features</a>
+        <a href="/demo">Live demo</a>
+        <a href="/app">Web app</a>
+      </div>
+      <div>
+        <h4>For</h4>
+        <a href="/students">Students</a>
+        <a href="/product#search">Founders</a>
+        <a href="/product#followups">Job seekers</a>
+      </div>
+      <div>
+        <h4>Company</h4>
+        <a href="/privacy">Privacy</a>
+        <a href="/#support">Support</a>
+        <a href="/#faq">FAQ</a>
+      </div>
+    </div>
+    <div class="legal"><span>© 2026 Nomi</span><span>Made for people who meet people.</span></div>
+  </div>
+</footer>
+<script src="/site/graph.js"></script>
+<script src="/site/site.js"></script>
+</body>
+</html>

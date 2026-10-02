@@ -1,0 +1,132 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "installCommand": "cd mobile && npm ci",
+  "buildCommand": "node scripts/build-vercel.mjs",
+  "outputDirectory": "public",
+  "trailingSlash": false,
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 60,
+      "includeFiles": "backend/app/**",
+      "excludeFiles": "{mobile/**,supabase/**,tests/**,backend/tests/**,backend/web/**,backend/.env,backend/prod.env.yaml,**/.venv/**,**/node_modules/**}"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/product",
+      "destination": "/product.html"
+    },
+    {
+      "source": "/students",
+      "destination": "/students.html"
+    },
+    {
+      "source": "/demo",
+      "destination": "/demo.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/health",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/transcribe",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/extract",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/duplicate-check",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/captures",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/contacts",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/contacts/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/interactions/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/follow-ups",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/follow-ups/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/search",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/network",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/me",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/me/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/calendar",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/calendar/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/plans",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/event-feeds",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/event-feeds/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/demo/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/app",
+      "destination": "/app/index.html"
+    },
+    {
+      "source": "/app/:path*",
+      "destination": "/app/index.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/app/_expo/static/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ]
+}

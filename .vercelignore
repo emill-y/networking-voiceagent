@@ -1,0 +1,21 @@
+# Never upload local secrets or development settings to Vercel.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+prod.env.yaml
+backend/prod.env.yaml
+
+# Local builds, caches and dependencies (Vercel installs its own).
+**/node_modules
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.expo
+backend/web/*
+public
+.vercel
+_uv

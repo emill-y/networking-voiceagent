@@ -2,11 +2,15 @@ import * as AppleAuthentication from "expo-apple-authentication";
 import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import Animated, { FadeInDown } from "react-native-reanimated";
+
 import { Button } from "@/components/Button";
+import { Constellation } from "@/components/Constellation";
 import { Field } from "@/components/Field";
 import { Screen } from "@/components/Screen";
 import {
   appleSignInSupported,
+  authRedirectUrl,
   sendMagicLink,
   signInWithApple,
   signInWithGoogle,
@@ -44,11 +48,17 @@ export default function SignIn() {
 
   return (
     <Screen>
-      <Text style={styles.wordmark}>Nomi</Text>
-      <Text style={[type.display, styles.title]}>Remember everyone.</Text>
-      <Text style={[type.meta, styles.intro]}>
-        Your memories are private to you and stay with your account.
-      </Text>
+      <Animated.View entering={FadeInDown.duration(700)} style={styles.art}>
+        <Constellation size={260} />
+      </Animated.View>
+      <Animated.View entering={FadeInDown.delay(120).duration(700)}>
+        <Text style={styles.wordmark}>Nomi</Text>
+        <Text style={[type.display, styles.title]}>Never forget a person again.</Text>
+        <Text style={styles.intro}>
+          Say who you met in a sentence. Nomi remembers their name, what you talked
+          about, and what you promised to do next. Private to you.
+        </Text>
+      </Animated.View>
 
       {sentTo ? (
         <View style={styles.form}>
@@ -98,21 +108,41 @@ export default function SignIn() {
       )}
 
       {error && <Text style={[type.meta, styles.error]} accessibilityLiveRegion="polite">{error}</Text>}
+
+      {__DEV__ && (
+        // Development only: Supabase must list this exact address under
+        // Authentication -> URL Configuration -> Redirect URLs, or sign-in
+        // links fall back to the Site URL (often http://localhost:3000).
+        <Text style={[type.meta, styles.devHint]} selectable>
+          Dev: sign-in returns to {authRedirectUrl()}
+        </Text>
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  art: {
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
   wordmark: {
     ...type.heading,
-    color: colors.muted,
-    letterSpacing: 1,
+    color: colors.accent,
+    letterSpacing: 2,
+    textTransform: "uppercase",
+    fontSize: 16,
   },
   title: {
-    marginTop: spacing.xxl,
+    marginTop: spacing.sm,
     marginBottom: spacing.sm,
+    fontSize: 40,
+    lineHeight: 44,
   },
   intro: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.muted,
     marginBottom: spacing.xl,
   },
   form: {
@@ -142,5 +172,9 @@ const styles = StyleSheet.create({
   error: {
     marginTop: spacing.lg,
     color: colors.danger,
+  },
+  devHint: {
+    marginTop: spacing.xl,
+    color: colors.faint,
   },
 });
