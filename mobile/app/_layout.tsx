@@ -91,6 +91,7 @@ function RootNavigator() {
           <Stack.Screen name="people/[id]/index" />
           <Stack.Screen name="people/[id]/edit" />
           <Stack.Screen name="follow-ups" />
+          <Stack.Screen name="plans" />
           <Stack.Screen name="search" />
           <Stack.Screen name="you" />
           <Stack.Screen name="import-contacts" />

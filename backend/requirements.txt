@@ -8,3 +8,4 @@ pyjwt[crypto]==2.15.0
 psycopg[binary]==3.3.6
 av==18.1.0
 numpy==2.5.3
+tzdata==2026.4

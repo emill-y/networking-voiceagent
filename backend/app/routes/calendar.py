@@ -10,7 +10,7 @@
 
 import logging
 from datetime import datetime, timezone
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -31,17 +31,32 @@ from app.schemas.calendar import (
     UpcomingResponse,
 )
 from app.services import calendar_sync
-from app.services.google_calendar import CalendarError, GoogleCalendar
+from app.services.google_calendar import CalendarError, CalendarScopeMissing, GoogleCalendar
 from app.services.llm import LLMClient, get_llm_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _safe_return(return_to: str) -> str:
-    """Only send people back into Nomi itself (web app or the phone app)."""
+def _origin(url: str) -> str | None:
+    parts = urlsplit(url)
+    return f"{parts.scheme}://{parts.netloc}" if parts.scheme in ("http", "https") and parts.netloc else None
+
+
+def _safe_return(return_to: str, request: Request, settings) -> str:
+    """Only send people back into Nomi itself (web app or the phone app).
+
+    A full web address is allowed when it's the site the request came from, so
+    someone who started on another of this deployment's domains (e.g. the
+    *.vercel.app one) lands back where they're signed in, not on PUBLIC_URL.
+    """
     if return_to.startswith("/app") or return_to.startswith(("nomi://", "exp://")):
         return return_to
+    origin = _origin(return_to)
+    if origin and urlsplit(return_to).path.startswith("/app"):
+        allowed = {calendar_sync.request_base(request), *settings.cors_origins}
+        if request.headers.get("origin") == origin and origin in allowed:
+            return return_to
     return "/app/follow-ups"
 
 
@@ -80,7 +95,7 @@ def calendar_connect(
 ) -> CalendarConnectResponse:
     google = _client(client)
     settings = get_settings()
-    state = crypto.sign_state(settings, user_id, _safe_return(body.return_to))
+    state = crypto.sign_state(settings, user_id, _safe_return(body.return_to, request, settings))
     return CalendarConnectResponse(url=google.auth_url(f"{calendar_sync.public_base(request, settings)}/calendar/callback", state))
 
 
@@ -104,6 +119,8 @@ def calendar_callback(
         return RedirectResponse(_with_status(return_to, base, "denied"))
     try:
         refresh, _access, email = google.exchange(code, f"{base}/calendar/callback")
+    except CalendarScopeMissing:
+        return RedirectResponse(_with_status(return_to, base, "scope"))
     except CalendarError:
         return RedirectResponse(_with_status(return_to, base, "failed"))
     cal_repo.save_connection(conn, user_id, email, crypto.encrypt(settings, refresh))

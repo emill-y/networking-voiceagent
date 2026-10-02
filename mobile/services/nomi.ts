@@ -13,9 +13,11 @@ import type {
   ContactSummary,
   ContactUpdate,
   DuplicateCandidate,
+  EventFeed,
   FollowUp,
   FollowUpStatus,
   NetworkResponse,
+  PlansResponse,
   SavedPerson,
   SearchResponse,
   Transcription,
@@ -160,4 +162,27 @@ export function upcomingEvents(days = 7) {
   return request<{ connected: boolean; events: UpcomingEvent[] }>(`/calendar/upcoming?days=${days}`, {
     timeoutMs: 60_000,
   });
+}
+
+// ---------- Go together (real events) ----------
+
+export function getPlans(city: string, interests: string[], days = 60) {
+  const query = new URLSearchParams({ city, interests: interests.join(","), days: String(days) });
+  return request<PlansResponse>(`/plans?${query}`, { timeoutMs: 60_000 });
+}
+
+export function listEventFeeds() {
+  return request<EventFeed[]>("/event-feeds");
+}
+
+export function addEventFeed(url: string) {
+  return request<{ feed: EventFeed; upcoming: number }>("/event-feeds", {
+    method: "POST",
+    body: { url },
+    timeoutMs: 30_000,
+  });
+}
+
+export function removeEventFeed(id: string) {
+  return request<void>(`/event-feeds/${id}`, { method: "DELETE" });
 }

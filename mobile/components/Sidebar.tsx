@@ -14,6 +14,7 @@ const LINKS: { href: Href; label: string; match: (path: string) => boolean }[] =
   { href: "/people", label: "People", match: (p) => p.startsWith("/people") },
   { href: "/network", label: "Map", match: (p) => p.startsWith("/network") },
   { href: "/follow-ups", label: "Follow-ups", match: (p) => p.startsWith("/follow-ups") },
+  { href: "/plans", label: "Go together", match: (p) => p.startsWith("/plans") },
   { href: "/search", label: "Search", match: (p) => p.startsWith("/search") },
   { href: "/you", label: "You", match: (p) => p.startsWith("/you") },
 ];

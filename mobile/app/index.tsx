@@ -132,6 +132,17 @@ export default function Home() {
       <View style={!desktop && styles.sideLabelMobile}>
         <ComingUp returnPath="/" limit={3} onAdded={load} />
       </View>
+      <Card style={styles.sideCard} onPress={() => router.push("/plans")} accessibilityLabel="Go together: plan real events with your people">
+        <View style={styles.iconTile}><Icon name="people" size={20} color={colors.accentBright} /></View>
+        <Text style={styles.miniLabel}>Go together</Text>
+        <Text style={type.heading}>Real events, with your people</Text>
+        <Text style={styles.body}>
+          Conferences, meetups and mixers coming up, and who from your notes to bring. “Go to the
+          chemistry mixer with Annie: you’re both into chemistry.”
+        </Text>
+        <Text style={styles.link}>See plans →</Text>
+      </Card>
+
       <Text style={[styles.sectionLabel, !desktop && styles.sideLabelMobile]}>Up next</Text>
       <Card style={styles.sideCard}>
         {followUps.length > 0 ? (

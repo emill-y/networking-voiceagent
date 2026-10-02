@@ -1,4 +1,4 @@
-import { StyleSheet, useWindowDimensions } from "react-native";
+import { StyleSheet, View, useWindowDimensions } from "react-native";
 import Svg, { Defs, Ellipse, RadialGradient, Stop } from "react-native-svg";
 
 import { colors } from "@/lib/theme";
@@ -8,7 +8,10 @@ import { colors } from "@/lib/theme";
 export function Backdrop({ intensity = 1 }: { intensity?: number }) {
   const { width, height } = useWindowDimensions();
   return (
-    <Svg style={StyleSheet.absoluteFill} width={width} height={height} pointerEvents="none">
+    // Clipped to the screen: next to the desktop sidebar the screen is narrower
+    // than the window, and the glow mustn't make the page scroll sideways.
+    <View style={[StyleSheet.absoluteFill, styles.clip]} pointerEvents="none">
+    <Svg width={width} height={height}>
       <Defs>
         <RadialGradient id="warm" cx="50%" cy="0%" r="75%">
           <Stop offset="0" stopColor={colors.glowWarm} stopOpacity={0.3 * intensity} />
@@ -22,5 +25,12 @@ export function Backdrop({ intensity = 1 }: { intensity?: number }) {
       <Ellipse cx={width / 2} cy={0} rx={width * 1.1} ry={height * 0.55} fill="url(#warm)" />
       <Ellipse cx={width} cy={height} rx={width} ry={height * 0.5} fill="url(#cool)" />
     </Svg>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  clip: {
+    overflow: "hidden",
+  },
+});

@@ -50,7 +50,12 @@ def get_calendar_client() -> GoogleCalendar | None:
 def public_base(request: Request, settings: Settings) -> str:
     """This deployment's public address (behind Vercel, from forwarded headers)."""
     if settings.public_url:
-        return settings.public_url
+        return settings.public_url.rstrip("/")
+    return request_base(request)
+
+
+def request_base(request: Request) -> str:
+    """The address this request was made to, as the browser saw it."""
     proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",")[0].strip()
     host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.netloc
     return f"{proto}://{host.split(',')[0].strip()}"

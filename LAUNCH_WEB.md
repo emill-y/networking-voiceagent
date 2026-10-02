@@ -96,6 +96,37 @@ the **Coming up** card.
 
 Without the Google settings the calendar features simply stay hidden.
 
+**If connecting doesn't work** (check Vercel → Logs; Nomi logs Google's own message):
+
+| You see | Fix |
+|---|---|
+| Google page: `redirect_uri_mismatch` | The redirect URI in step 1 must be exactly `PUBLIC_URL` + `/calendar/callback` (https, no trailing slash). |
+| Google page: "Access blocked … has not completed verification" | Add that Google account under **Audience → Test users**. |
+| Back in Nomi: "Google didn’t give Nomi calendar access" | They unticked "See and edit events" on Google's screen. Connect again and tick it. |
+| Logs: `403 … Calendar API has not been used in project` | Enable **Google Calendar API** (step 1) and wait a minute. |
+| Connected, but disconnected again a week later | Apps in *Testing* get 7-day tokens. Publish the app (**Audience → Publish app**) to keep people connected. |
+| Signed out after coming back from Google | Fixed: Nomi now returns to the domain you started on. Keep `PUBLIC_URL` set to the domain in the redirect URI. |
+
+## Go together: real events (free, no setup)
+
+**Go together** suggests real events and who from your notes to bring ("Go to
+the chemistry mixer with Annie: you're both into chemistry"). **Plan it** adds
+a dated follow-up for each person, which also lands on Google Calendar when it's
+connected. **Invite** shares a ready-to-send message.
+
+Where events come from, all free:
+
+- **Tech conferences**: the open-source
+  [tech-conferences/conference-data](https://github.com/tech-conferences/conference-data)
+  repo (the data behind confs.tech): community-maintained JSON by topic, read
+  live from GitHub and cached for 6 hours. No key.
+- **Any public calendar feed (iCal)** a user adds: Luma calendars (e.g. SF Tech
+  Week), Meetup groups, Eventbrite organizers, school and club calendars.
+- **Their Google Calendar**, when connected (events they're already going to).
+
+The only setup is the new table: run the same migrate command as in step 3
+above once (`python -m scripts.migrate`), then redeploy.
+
 ## Your own domain (optional, 10 min)
 
 Vercel → your project → **Settings → Domains** → add `nomi.yourdomain.com` and

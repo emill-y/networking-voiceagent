@@ -10,6 +10,7 @@ from app.core.auth import get_current_user_id
 from app.core.db import get_db
 from app.services.calendar_sync import RemoveEvents, get_remove_events
 from app.repositories import contacts as repo
+from app.repositories import event_feeds as feeds_repo
 from app.schemas.base import ApiModel
 from app.schemas.contacts import ContactDetail
 
@@ -48,6 +49,7 @@ def delete_all_data(
     remove_events(conn, user_id, None)
     # Interactions and follow-ups cascade from contacts.
     conn.execute("delete from contacts where user_id = %s", (user_id,))
+    feeds_repo.delete_all(conn, user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

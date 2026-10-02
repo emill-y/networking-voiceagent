@@ -17,7 +17,8 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 REVOKE_URL = "https://oauth2.googleapis.com/revoke"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 EVENTS_URL = "https://www.googleapis.com/calendar/v3/calendars/primary/events"
-SCOPES = "openid email https://www.googleapis.com/auth/calendar.events"
+CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar.events"
+SCOPES = f"openid email {CALENDAR_SCOPE}"
 
 
 class CalendarError(Exception):
@@ -26,6 +27,10 @@ class CalendarError(Exception):
 
 class CalendarRevoked(CalendarError):
     """The user removed Nomi's access in their Google account."""
+
+
+class CalendarScopeMissing(CalendarError):
+    """They signed in but unticked "See and edit events" on Google's consent screen."""
 
 
 class GoogleCalendar:
@@ -56,6 +61,10 @@ class GoogleCalendar:
             "grant_type": "authorization_code",
         })
         refresh = data.get("refresh_token")
+        # Google lets people untick individual permissions; without calendar
+        # access every later call would fail, so say so now.
+        if "scope" in data and CALENDAR_SCOPE not in data["scope"].split():
+            raise CalendarScopeMissing("Calendar access wasn't granted.")
         if not refresh:
             raise CalendarError("Google didn't return a refresh token.")
         email = None
@@ -83,7 +92,7 @@ class GoogleCalendar:
         if response.status_code == 400 and "invalid_grant" in response.text:
             raise CalendarRevoked("Google Calendar access was removed.")
         if response.status_code >= 400:
-            logger.warning("Google token request failed: %s", response.status_code)
+            logger.warning("Google token request failed: %s %s", response.status_code, response.text[:300])
             raise CalendarError("Google didn't accept the calendar sign-in.")
         return response.json()
 
@@ -117,6 +126,7 @@ class GoogleCalendar:
         except httpx.HTTPError as exc:
             raise CalendarError("Couldn't reach Google Calendar.") from exc
         if response.status_code >= 400:
-            logger.warning("Google Calendar %s failed: %s", method, response.status_code)
+            # Google's message names the fix (e.g. "Calendar API has not been used in project ...").
+            logger.warning("Google Calendar %s failed: %s %s", method, response.status_code, response.text[:300])
             raise CalendarError(f"Google Calendar returned {response.status_code}.")
         return response.json() if response.content else {}

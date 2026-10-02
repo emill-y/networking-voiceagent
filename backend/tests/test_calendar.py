@@ -8,7 +8,7 @@ from app.core import crypto
 from app.core.config import get_settings
 from app.main import app
 from app.services import calendar_sync
-from app.services.google_calendar import CalendarRevoked
+from app.services.google_calendar import CalendarRevoked, CalendarScopeMissing, GoogleCalendar
 from app.services.llm import get_llm_client
 from tests.conftest import USER_ID
 from tests.test_contacts import capture, jason
@@ -24,6 +24,7 @@ class FakeGoogle:
         self.revoked = False
         self.revoked_tokens: list[str] = []
         self.redirects: list[str] = []
+        self.exchange_error: Exception | None = None
 
     def auth_url(self, redirect_uri, state):
         self.redirects.append(redirect_uri)
@@ -31,6 +32,8 @@ class FakeGoogle:
 
     def exchange(self, code, redirect_uri):
         assert redirect_uri == self.redirects[-1]  # must match the one Google was given
+        if self.exchange_error:
+            raise self.exchange_error
         return "refresh-1", "access-1", "eisha@example.com"
 
     def access_token(self, refresh_token):
@@ -206,3 +209,33 @@ def test_disconnect_revokes(db_client, google):
     assert db_client.delete("/calendar").status_code == 204
     assert google.revoked_tokens == ["refresh-1"]
     assert db_client.get("/calendar").json()["connected"] is False
+
+
+def test_coming_back_to_the_site_you_started_on(db_client, google):
+    def returned_to(return_to, origin):
+        url = db_client.post("/calendar/connect", json={"returnTo": return_to}, headers={"Origin": origin}).json()["url"]
+        return crypto.verify_state(SETTINGS, parse_qs(urlparse(url).query)["state"][0])[1]
+
+    # Same site as the request (e.g. the *.vercel.app domain while PUBLIC_URL is another).
+    assert returned_to("http://testserver/app/you", "http://testserver") == "http://testserver/app/you"
+    # Someone else's site, or a mismatched Origin, falls back to a path on this site.
+    assert returned_to("https://evil.test/app/you", "https://evil.test") == "/app/follow-ups"
+    assert returned_to("http://testserver/app/you", "https://evil.test") == "/app/follow-ups"
+    assert returned_to("http://testserver/elsewhere", "http://testserver") == "/app/follow-ups"
+
+
+def test_unticked_calendar_permission_is_explained(db_client, google):
+    google.exchange_error = CalendarScopeMissing("no calendar")
+    assert connect(db_client, google).endswith("/app/follow-ups?calendar=scope")
+    assert db_client.get("/calendar").json()["connected"] is False
+
+
+def test_google_client_checks_the_granted_scope():
+    import httpx
+
+    def handler(request):
+        return httpx.Response(200, json={"access_token": "a", "refresh_token": "r", "scope": "openid email"})
+
+    client = GoogleCalendar("id", "secret", http=httpx.Client(transport=httpx.MockTransport(handler)))
+    with pytest.raises(CalendarScopeMissing):
+        client.exchange("code", "https://nomi.test/calendar/callback")

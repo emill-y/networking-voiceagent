@@ -11,6 +11,9 @@ export type UserProfile = {
   school?: string;
   major?: string;
   year?: string;
+  // For "Go together": where to look for events, and what you're into.
+  city?: string;
+  interests?: string[];
 };
 
 export function profileFrom(session: Session | null): UserProfile | null {

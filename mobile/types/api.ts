@@ -206,3 +206,34 @@ export type UpcomingEvent = {
   link: string | null;
   people: { contactId: string; name: string; why: string }[];
 };
+
+// ---------- Go together (real events) ----------
+
+export type EventWhere = "local" | "nearby" | "online" | "travel" | "anywhere";
+
+export type PlanPerson = { contactId: string; name: string; why: string | null };
+
+export type RealEvent = {
+  id: string;
+  title: string;
+  start: string;
+  end: string | null;
+  allDay: boolean;
+  city: string | null;
+  country: string | null;
+  online: boolean;
+  url: string | null;
+  source: "conferences" | "feed" | "calendar";
+  sourceLabel: string;
+  topics: string[];
+  where: EventWhere;
+  people: PlanPerson[];
+};
+
+export type Plan = { event: RealEvent; people: PlanPerson[]; shared: string; why: string };
+
+export type EventSource = { label: string; kind: string; url: string | null; events: number };
+
+export type PlansResponse = { plans: Plan[]; events: RealEvent[]; sources: EventSource[] };
+
+export type EventFeed = { id: string; url: string; label: string; createdAt: string };
