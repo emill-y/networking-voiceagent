@@ -70,6 +70,7 @@ class Settings:
     # Local development without Supabase: every request acts as dev_user_id.
     dev_auth: bool = False
     dev_user_id: str = "00000000-0000-0000-0000-000000000001"
+    dev_user_email: str | None = None
 
     cors_origins: list[str] = field(default_factory=list)
 
@@ -80,6 +81,16 @@ class Settings:
     calendar_key: str | None = None
     # The public address, e.g. https://nomi.vercel.app (else taken from the request).
     public_url: str | None = None
+
+    # Email for contact shares and invites (optional): a Resend API key and
+    # the verified sender, e.g. "Nomi <hello@yourdomain.com>". Without it,
+    # shares still work through a link the sender copies.
+    resend_api_key: str | None = None
+    email_from: str = "Nomi <onboarding@resend.dev>"
+
+    # Event providers for Plan Events (optional, free keys).
+    ticketmaster_api_key: str | None = None
+    seatgeek_client_id: str | None = None
 
 
 @lru_cache
@@ -111,10 +122,15 @@ def get_settings() -> Settings:
         supabase_jwt_secret=env.get("SUPABASE_JWT_SECRET") or None,
         dev_auth=env.get("NOMI_DEV_AUTH", "").strip().lower() in {"1", "true", "yes"},
         dev_user_id=env.get("DEV_USER_ID", "00000000-0000-0000-0000-000000000001"),
+        dev_user_email=env.get("DEV_USER_EMAIL") or None,
         google_client_id=env.get("GOOGLE_CLIENT_ID") or None,
         google_client_secret=env.get("GOOGLE_CLIENT_SECRET") or None,
         calendar_key=env.get("CALENDAR_ENCRYPTION_KEY") or None,
         public_url=(env.get("PUBLIC_URL") or "").rstrip("/") or None,
+        resend_api_key=env.get("RESEND_API_KEY") or None,
+        email_from=env.get("EMAIL_FROM") or "Nomi <onboarding@resend.dev>",
+        ticketmaster_api_key=env.get("TICKETMASTER_API_KEY") or None,
+        seatgeek_client_id=env.get("SEATGEEK_CLIENT_ID") or None,
         cors_origins=_csv(
             env.get("CORS_ORIGINS", "http://localhost:8081,http://127.0.0.1:8081")
         ),

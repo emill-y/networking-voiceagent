@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 
+import { isDemo } from "@/lib/demo";
 import { getAccessToken, supabase } from "@/lib/supabase";
 
 // Backend base URL. See mobile/README.md for device-specific values.
@@ -16,20 +17,29 @@ export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number | null,
+    // Extra fields from the error body, e.g. {calendarState: "needs_reauth"}.
+    public readonly info: Record<string, unknown> = {},
   ) {
     super(message);
   }
 }
 
-type RequestOptions = {
+export type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   body?: unknown;
   timeoutMs?: number;
+  // Return the body as text (CSV exports) instead of JSON.
+  text?: boolean;
 };
 
 // Small fetch wrapper: JSON in, JSON out, with a timeout and readable errors.
 // FastAPI error bodies look like {"detail": "..."}; we surface that message.
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  // Demo mode answers from the made-up demo network; nothing leaves the app.
+  if (isDemo()) {
+    const { demoRequest } = await import("@/services/demoData");
+    return demoRequest<T>(path, options);
+  }
   const { method = "GET", body, timeoutMs = 15000 } = options;
   const isForm = typeof FormData !== "undefined" && body instanceof FormData;
   const controller = new AbortController();
@@ -68,15 +78,21 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 
   if (!response.ok) {
     let detail = `Request failed (${response.status}).`;
+    let info: Record<string, unknown> = {};
     try {
       const data = await response.json();
       if (typeof data?.detail === "string") detail = data.detail;
+      else if (data?.detail && typeof data.detail.message === "string") {
+        detail = data.detail.message;
+        info = data.detail;
+      }
     } catch {
       // Non-JSON error body; keep the generic message.
     }
-    throw new ApiError(detail, response.status);
+    throw new ApiError(detail, response.status, info);
   }
 
   if (response.status === 204) return undefined as T;
+  if (options.text) return (await response.text()) as T;
   return (await response.json()) as T;
 }

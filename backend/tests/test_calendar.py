@@ -51,10 +51,11 @@ class FakeGoogle:
     def insert_event(self, token, body):
         event_id = f"ev{len(self.events) + 1}"
         self.events[event_id] = body
-        return event_id
+        return event_id, f"https://calendar.google.test/{event_id}"
 
     def patch_event(self, token, event_id, body):
         self.events[event_id] = body
+        return f"https://calendar.google.test/{event_id}"
 
     def delete_event(self, token, event_id):
         self.deleted.append(event_id)
@@ -75,6 +76,7 @@ def google(monkeypatch):
     fake = FakeGoogle()
     monkeypatch.setattr("app.routes.calendar.get_settings", lambda: SETTINGS)
     monkeypatch.setattr("app.services.calendar_sync.get_settings", lambda: SETTINGS)
+    monkeypatch.setattr("app.routes.follow_ups.get_settings", lambda: SETTINGS)
     calendar_sync._cache.clear()
     app.dependency_overrides[calendar_sync.get_calendar_client] = lambda: fake
     app.dependency_overrides[get_llm_client] = lambda: ExpandingLLM()
@@ -93,12 +95,12 @@ def test_not_configured_says_so(db_client):
     app.dependency_overrides[calendar_sync.get_calendar_client] = lambda: None
     assert db_client.get("/calendar").json()["available"] is False
     assert db_client.post("/calendar/connect", json={}).status_code == 503
-    assert db_client.get("/calendar/upcoming").json() == {"connected": False, "events": []}
+    assert db_client.get("/calendar/upcoming").json() == {"connected": False, "state": "unavailable", "events": []}
 
 
 def test_connect_stores_an_encrypted_token_and_comes_back(db_client, google, database_url):
     assert db_client.get("/calendar").json() == {
-        "available": True, "connected": False, "email": None, "pushFollowUps": True,
+        "available": True, "state": "disconnected", "connected": False, "email": None, "pushFollowUps": True,
     }
     location = connect(db_client, google)
     assert location.endswith("/app/follow-ups?calendar=connected")
@@ -197,11 +199,57 @@ def test_upcoming_events_suggest_people(db_client, google, database_url):
     assert lunch["allDay"] is True
 
 
-def test_revoked_access_disconnects(db_client, google):
+def test_revoked_access_asks_to_reconnect(db_client, google):
     connect(db_client, google)
     google.revoked = True
-    assert db_client.get("/calendar/upcoming").json()["connected"] is False
-    assert db_client.get("/calendar").json()["connected"] is False
+    upcoming = db_client.get("/calendar/upcoming").json()
+    assert upcoming["connected"] is False and upcoming["state"] == "needs_reauth"
+    status = db_client.get("/calendar").json()
+    # Remembered (with its email) so Profile can offer "Reconnect".
+    assert status["state"] == "needs_reauth" and status["connected"] is False
+    assert status["email"] == "eisha@example.com"
+    # Reconnecting clears it.
+    google.revoked = False
+    connect(db_client, google)
+    assert db_client.get("/calendar").json()["state"] == "connected"
+
+
+def test_add_and_remove_one_follow_up(db_client, google):
+    saved = capture(db_client, jason())
+    contact_id = saved[0]["contactId"]
+    follow_up = db_client.post("/follow-ups", json={
+        "contactId": contact_id, "action": "Send the deck", "dueAt": "2026-10-09T12:00:00Z",
+    }).json()
+    # Not connected yet: the button explains what to do.
+    refused = db_client.post(f"/follow-ups/{follow_up['id']}/calendar")
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["calendarState"] == "disconnected"
+
+    connect(db_client, google)
+    db_client.patch("/calendar", json={"pushFollowUps": False})  # only explicit adds
+    added = db_client.post(f"/follow-ups/{follow_up['id']}/calendar").json()
+    assert added["onCalendar"] is True and added["calendarLink"].startswith("https://calendar.google.test/")
+    [event] = google.events.values()
+    assert event["start"] == {"date": "2026-10-09"} and "Send the deck" in event["summary"]
+
+    removed = db_client.delete(f"/follow-ups/{follow_up['id']}/calendar").json()
+    assert removed["onCalendar"] is False and removed["calendarLink"] is None
+    assert google.events == {}
+
+    # Expired Google access: the button says to reconnect, and Profile shows it.
+    google.revoked = True
+    expired = db_client.post(f"/follow-ups/{follow_up['id']}/calendar")
+    assert expired.status_code == 409 and expired.json()["detail"]["calendarState"] == "needs_reauth"
+    assert db_client.get("/calendar").json()["state"] == "needs_reauth"
+
+
+def test_undated_follow_ups_cant_go_on_the_calendar(db_client, google):
+    saved = capture(db_client, jason())
+    connect(db_client, google)
+    follow_up = db_client.post("/follow-ups", json={"contactId": saved[0]["contactId"], "action": "Say hi"}).json()
+    refused = db_client.post(f"/follow-ups/{follow_up['id']}/calendar")
+    assert refused.status_code == 502 or refused.status_code == 409
+    assert "date" in refused.json()["detail"]["message"]
 
 
 def test_disconnect_revokes(db_client, google):

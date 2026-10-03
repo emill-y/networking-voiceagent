@@ -100,9 +100,11 @@ def test_feed_redirects_are_checked_again():
 
 def conference(name, days, city, topic, online=False):
     start = date.fromordinal(TODAY.toordinal() + days).isoformat()
-    return conferences_from_json([{"name": name, "url": f"https://{name.lower().replace(' ', '')}.test",
-                                   "startDate": start, "endDate": start, "city": city,
-                                   "country": "U.S.A.", "online": online}], topic)[0]
+    event = conferences_from_json([{"name": name, "url": f"https://{name.lower().replace(' ', '')}.test",
+                                    "startDate": start, "endDate": start, "city": city,
+                                    "country": "U.S.A.", "online": online}], topic)[0]
+    return {**event, "category": "networking" if topic == "leadership" else "tech",
+            "venue": None, "lat": None, "lon": None, "image_url": None}
 
 
 def test_where_events_are():
@@ -122,9 +124,11 @@ class FakeSources:
             conference("Rust Days", 12, "San Francisco, CA", "rust"),
         ]
         self.feeds = {"https://lu.ma/ics/chem": mixer_ics()}
+        self.queries = []
 
-    def conferences(self, today, days):
-        return self.conference_list
+    def discover(self, query):
+        self.queries.append(query)
+        return self.conference_list, []
 
     def feed(self, url, label, feed_id):
         if url not in self.feeds:
@@ -195,8 +199,8 @@ def test_plans_pair_real_events_with_your_people(db_client, sources):
     assert {"Founders Summit", "Chemistry mixer", "Rust Days"} <= set(titles)
     mixer = next(e for e in body["events"] if e["title"] == "Chemistry mixer")
     assert mixer["where"] == "local" and mixer["sourceLabel"] == "Cal Chem Club"
-    assert [s["kind"] for s in body["sources"]] == ["conferences", "feed"]
-    assert "github.com/tech-conferences" in body["sources"][0]["url"]
+    assert [s["kind"] for s in body["sources"]] == ["feed"]  # the calendars you follow
+    assert {c["key"] for c in body["categories"]} >= {"networking", "tech"}
 
 
 def test_plans_fall_back_to_keywords(db_client, sources):
@@ -212,13 +216,12 @@ def test_plans_fall_back_to_keywords(db_client, sources):
 def test_a_broken_source_doesnt_break_the_page(db_client, sources):
     app.dependency_overrides[get_llm_client] = lambda: DownLLM()
 
-    def down(today, days):
-        raise httpx.ConnectError("github down")
+    def down(query):
+        raise httpx.ConnectError("providers down")
 
-    sources.conferences = down
+    sources.discover = down
     body = db_client.get("/plans").json()
-    assert body["plans"] == [] and body["events"] == []
-    assert body["sources"][0]["events"] == 0
+    assert body["plans"] == [] and body["events"] == [] and body["categories"] == []
 
 
 def test_feeds_are_yours_and_can_be_removed(db_client, sources):

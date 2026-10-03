@@ -1,15 +1,12 @@
 import { StyleSheet, View } from "react-native";
 
-import { colors, spacing } from "@/lib/theme";
+import { makeStyles } from "@/lib/theme";
 
-export function Divider() {
-  return <View style={styles.line} />;
+export function Divider({ inset = 0 }: { inset?: number }) {
+  const s = useStyles();
+  return <View style={[s.line, { marginLeft: inset }]} />;
 }
 
-const styles = StyleSheet.create({
-  line: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.hairline,
-    marginVertical: spacing.xl,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({ line: { height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong } }),
+);

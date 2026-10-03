@@ -26,11 +26,24 @@ INTERACTION_COLUMNS = (
     "id, contact_id, event, location, summary, raw_transcript, interests, projects, needs, "
     "topics as topics_discussed, notes, interaction_date, source_type"
 )
+# Each follow-up comes with what it's about: the person's role and the
+# moment it came from (or their latest one), so the list can say why.
 FOLLOW_UP_SELECT = """
     select f.id, f.contact_id, c.name as contact_name, f.interaction_id, f.action,
-           f.due_at, f.status, f.created_at, f.completed_at
+           f.due_at, f.status, f.created_at, f.completed_at,
+           f.calendar_event_id, f.calendar_event_link,
+           c.role as contact_role, c.company as contact_company, c.school as contact_school,
+           m.event as moment_event, m.needs as moment_needs, m.projects as moment_projects,
+           m.topics as moment_topics, m.interaction_date as moment_date
     from follow_ups f
     join contacts c on c.id = f.contact_id
+    left join lateral (
+      select i.event, i.needs, i.projects, i.topics, i.interaction_date
+      from interactions i
+      where i.contact_id = f.contact_id and (f.interaction_id is null or i.id = f.interaction_id)
+      order by (i.id = f.interaction_id) desc nulls last, i.interaction_date desc
+      limit 1
+    ) m on true
 """
 
 
@@ -38,22 +51,57 @@ FOLLOW_UP_SELECT = """
 
 
 def list_contacts(conn: Connection, user_id: UUID, limit: int | None = 50) -> list[Row]:
-    """Most recently seen first. limit=None returns everyone."""
+    """Most recently seen first. limit=None returns everyone.
+
+    Includes what Contacts filters on: interests, events, location, and how
+    often you've met.
+    """
     return conn.execute(
         """
-        select c.id, c.name, c.company, c.role, c.school, c.email, c.phone,
-               c.last_interaction_at,
+        select c.id, c.name, c.company, c.role, c.school, c.major, c.location, c.email, c.phone,
+               c.last_interaction_at, c.created_at,
                (select i.event from interactions i
                  where i.contact_id = c.id
                  order by i.interaction_date desc limit 1) as last_event,
                (select count(*) from follow_ups f
-                 where f.contact_id = c.id and f.status = 'open')::int as open_follow_ups
+                 where f.contact_id = c.id and f.status = 'open')::int as open_follow_ups,
+               (select count(*) from interactions i where i.contact_id = c.id)::int as moments,
+               (select min(i.interaction_date) from interactions i where i.contact_id = c.id) as first_met_at,
+               coalesce((select array_agg(distinct lower(x)) from interactions i, unnest(i.interests) x
+                          where i.contact_id = c.id), '{}') as interests,
+               coalesce((select array_agg(distinct i.event) from interactions i
+                          where i.contact_id = c.id and i.event is not null), '{}') as events
         from contacts c
         where c.user_id = %s
         order by c.last_interaction_at desc nulls last, c.created_at desc
         limit %s
         """,
         (user_id, limit),
+    ).fetchall()
+
+
+def export_rows(conn: Connection, user_id: UUID, ids: list[UUID] | None) -> list[Row]:
+    """Everything stored about each person, for a spreadsheet. ids=None: everyone."""
+    return conn.execute(
+        """
+        select c.id, c.name, c.email, c.phone, c.company, c.role, c.school, c.major, c.location,
+               c.linkedin_url, c.website_url, c.summary, c.last_interaction_at,
+               (select min(i.interaction_date) from interactions i where i.contact_id = c.id) as first_met_at,
+               (select count(*) from interactions i where i.contact_id = c.id)::int as moments,
+               coalesce((select array_agg(distinct x) from interactions i, unnest(i.interests) x where i.contact_id = c.id), '{}') as interests,
+               coalesce((select array_agg(distinct x) from interactions i, unnest(i.projects) x where i.contact_id = c.id), '{}') as projects,
+               coalesce((select array_agg(distinct x) from interactions i, unnest(i.needs) x where i.contact_id = c.id), '{}') as needs,
+               coalesce((select array_agg(distinct x) from interactions i, unnest(i.topics) x where i.contact_id = c.id), '{}') as topics,
+               coalesce((select array_agg(distinct x) from interactions i, unnest(i.notes) x where i.contact_id = c.id), '{}') as notes,
+               coalesce((select array_agg(distinct i.event) from interactions i
+                          where i.contact_id = c.id and i.event is not null), '{}') as events,
+               coalesce((select array_agg(f.action order by f.due_at nulls last) from follow_ups f
+                          where f.contact_id = c.id and f.status = 'open'), '{}') as open_follow_ups
+        from contacts c
+        where c.user_id = %(user_id)s and (%(all)s or c.id = any(%(ids)s))
+        order by lower(c.name)
+        """,
+        {"user_id": user_id, "all": ids is None, "ids": ids or []},
     ).fetchall()
 
 

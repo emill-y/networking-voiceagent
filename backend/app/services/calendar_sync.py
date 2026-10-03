@@ -25,7 +25,7 @@ from app.core import crypto
 from app.core.config import Settings, get_settings
 from app.repositories import calendar as cal_repo
 from app.repositories import search as search_repo
-from app.services.google_calendar import CalendarError, CalendarRevoked, GoogleCalendar
+from app.services.google_calendar import CalendarError, CalendarRevoked, CalendarScopeMissing, GoogleCalendar
 from app.services.llm import LLMClient
 from app.services.search import expand_query, match_terms
 
@@ -73,17 +73,32 @@ def get_calendar_push(
     return lambda conn, user_id, follow_up_id: sync_follow_up(conn, user_id, follow_up_id, client, settings, app_url)
 
 
+def connection_state(connection: dict | None) -> str:
+    if connection is None:
+        return "disconnected"
+    return "needs_reauth" if connection["needs_reauth"] else "connected"
+
+
 def access_token(conn: Connection, user_id: UUID, client: GoogleCalendar, settings: Settings) -> str | None:
-    """A fresh access token, or None if the user isn't connected (anymore)."""
+    """A fresh access token, or None if not connected or Google needs a new sign-in."""
     connection = cal_repo.get_connection(conn, user_id)
-    if not connection:
+    if not connection or connection["needs_reauth"]:
         return None
     try:
         return client.access_token(crypto.decrypt(settings, connection["refresh_token_encrypted"]))
-    except (CalendarRevoked, crypto.CryptoError):
-        # They removed access in Google, or the key changed: forget the connection.
-        cal_repo.delete_connection(conn, user_id)
+    except (CalendarRevoked, CalendarScopeMissing, crypto.CryptoError):
+        # Access was removed in Google, a testing-mode token expired, or the
+        # key changed. Keep the connection and ask them to reconnect.
+        cal_repo.mark_needs_reauth(conn, user_id)
         return None
+
+
+class CalendarActionError(Exception):
+    """A calendar action the user asked for didn't work; the message says why."""
+
+    def __init__(self, message: str, state: str) -> None:
+        super().__init__(message)
+        self.state = state
 
 
 # ---------- Nomi → Calendar ----------
@@ -128,17 +143,69 @@ def sync_follow_up(
     if not token:
         return
     try:
-        if not wanted:
-            client.delete_event(token, event_id)
-            cal_repo.set_event_id(conn, user_id, follow_up_id, None)
-        elif event_id:
-            client.patch_event(token, event_id, event_body(follow_up, app_url))
-        else:
-            new_id = client.insert_event(token, event_body(follow_up, app_url))
-            cal_repo.set_event_id(conn, user_id, follow_up_id, new_id)
+        _write(conn, user_id, follow_up, wanted, token, client, app_url)
+    except CalendarScopeMissing:
+        cal_repo.mark_needs_reauth(conn, user_id)
     except CalendarError as exc:
         # The follow-up is saved either way; the calendar catches up next change.
         logger.warning("Calendar sync failed for a follow-up: %s", exc)
+
+
+def _write(conn: Connection, user_id: UUID, follow_up: dict, wanted: bool, token: str,
+           client: GoogleCalendar, app_url: str | None) -> None:
+    event_id = follow_up["calendar_event_id"]
+    if not wanted:
+        client.delete_event(token, event_id)
+        cal_repo.set_event_id(conn, user_id, follow_up["id"], None)
+    elif event_id:
+        link = client.patch_event(token, event_id, event_body(follow_up, app_url))
+        cal_repo.set_event_id(conn, user_id, follow_up["id"], event_id, link or follow_up.get("calendar_event_link"))
+    else:
+        new_id, link = client.insert_event(token, event_body(follow_up, app_url))
+        cal_repo.set_event_id(conn, user_id, follow_up["id"], new_id, link)
+
+
+def add_to_calendar(conn: Connection, user_id: UUID, follow_up_id: UUID, client: GoogleCalendar | None,
+                    settings: Settings, app_url: str | None) -> None:
+    """The "Add to Google Calendar" button: raises CalendarActionError with a reason."""
+    if client is None:
+        raise CalendarActionError("Google Calendar isn’t set up on this server yet.", "unavailable")
+    connection = cal_repo.get_connection(conn, user_id)
+    state = connection_state(connection)
+    if state == "disconnected":
+        raise CalendarActionError("Connect Google Calendar in Profile first.", state)
+    follow_up = cal_repo.follow_up_for_calendar(conn, user_id, follow_up_id)
+    if follow_up is None:
+        raise LookupError(follow_up_id)
+    if follow_up["due_at"] is None:
+        raise CalendarActionError("Pick a date for this follow-up first.", state)
+    token = access_token(conn, user_id, client, settings)
+    if not token:
+        raise CalendarActionError("Google needs you to reconnect your calendar.", "needs_reauth")
+    try:
+        _write(conn, user_id, follow_up, True, token, client, app_url)
+    except CalendarScopeMissing as exc:
+        cal_repo.mark_needs_reauth(conn, user_id)
+        raise CalendarActionError("Google needs you to reconnect your calendar.", "needs_reauth") from exc
+    except CalendarError as exc:
+        raise CalendarActionError("Google Calendar didn’t respond. Try again in a moment.", state) from exc
+
+
+def remove_from_calendar(conn: Connection, user_id: UUID, follow_up_id: UUID, client: GoogleCalendar | None,
+                         settings: Settings) -> None:
+    follow_up = cal_repo.follow_up_for_calendar(conn, user_id, follow_up_id)
+    if follow_up is None:
+        raise LookupError(follow_up_id)
+    if not follow_up["calendar_event_id"]:
+        return
+    token = access_token(conn, user_id, client, settings) if client else None
+    if token:
+        try:
+            client.delete_event(token, follow_up["calendar_event_id"])  # type: ignore[union-attr]
+        except CalendarError as exc:
+            raise CalendarActionError("Google Calendar didn’t respond. Try again in a moment.", "connected") from exc
+    # Forget the link even if Google can't be reached for a disconnected account.
+    cal_repo.set_event_id(conn, user_id, follow_up_id, None)
 
 
 RemoveEvents = Callable[[Connection, UUID, UUID | None], None]

@@ -6,7 +6,9 @@ from psycopg import Connection
 from app.core.auth import get_current_user_id
 from app.core.db import get_db
 from app.repositories import contacts as repo
+from app.schemas.accounts import ExportRequest
 from app.services.calendar_sync import RemoveEvents, get_remove_events
+from app.services.export import to_table
 from app.schemas.contacts import (
     ContactDetail,
     ContactSummary,
@@ -39,6 +41,23 @@ def list_contacts(
     user_id: UUID = Depends(get_current_user_id),
 ):
     return repo.list_contacts(conn, user_id, limit)
+
+
+@router.post("/contacts/export")
+def export_contacts(
+    body: ExportRequest,
+    conn: Connection = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+) -> Response:
+    """The contacts in view as CSV (download) or TSV (paste into Google Sheets)."""
+    rows = repo.export_rows(conn, user_id, body.ids)
+    tsv = body.format == "tsv"
+    content = to_table(rows, "\t" if tsv else ",")
+    if tsv:
+        return Response(content, media_type="text/tab-separated-values; charset=utf-8")
+    # A byte-order mark so Excel reads accents correctly; Sheets ignores it.
+    return Response("\ufeff" + content, media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": 'attachment; filename="nomi-contacts.csv"'})
 
 
 @router.post("/contacts/import", response_model=ImportResponse)

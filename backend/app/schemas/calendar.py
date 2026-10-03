@@ -8,6 +8,8 @@ from app.schemas.base import ApiModel
 
 class CalendarStatus(ApiModel):
     available: bool  # is Google Calendar set up on this server
+    # connected | disconnected | needs_reauth (Google needs a new sign-in)
+    state: str = "disconnected"
     connected: bool
     email: str | None = None
     push_follow_ups: bool = True
@@ -44,4 +46,5 @@ class UpcomingEvent(ApiModel):
 
 class UpcomingResponse(ApiModel):
     connected: bool
+    state: str = "disconnected"
     events: list[UpcomingEvent]

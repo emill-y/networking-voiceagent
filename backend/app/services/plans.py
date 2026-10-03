@@ -10,10 +10,12 @@ If the model can't answer, the keyword matches become the plans.
 
 import logging
 import re
+from dataclasses import dataclass
 from datetime import date
 
 from pydantic import BaseModel, ValidationError
 
+from app.services.event_providers import CATEGORIES, distance_km
 from app.services.llm import LLMClient, LLMUnavailable
 from app.services.real_events import TOPICS, event_day, topic_label
 from app.services.search import profile_text, resolve_person
@@ -38,18 +40,42 @@ global international world europe america north south east west new city
 
 # ---------- Matching ----------
 
+# What someone's notes say when they're into a category.
+CATEGORY_WORDS: dict[str, list[str]] = {
+    "music": ["music", "concerts", "live music"],
+    "arts": ["art", "arts", "theater", "museums", "comedy"],
+    "food": ["food", "cooking", "foodie", "restaurants"],
+    "sports": ["sports", "fitness", "running", "basketball", "soccer", "climbing", "yoga"],
+    "outdoors": ["outdoors", "hiking", "nature", "camping"],
+    "learning": ["workshops", "classes", "learning", "pottery", "ceramics"],
+    "networking": ["networking", "startups", "startup", "founder", "career"],
+    "tech": ["tech", "software", "engineering", "coding"],
+    "community": ["volunteering", "community", "nonprofit"],
+    "social": ["nightlife", "parties", "social"],
+    "students": ["student", "campus"],
+}
+
 
 def event_terms(event: dict) -> list[str]:
     """The words someone's notes would contain if this event is their thing."""
     terms: list[str] = []
     for topic in event.get("topics", []):
-        terms += TOPICS.get(topic, [])
+        # Open-data topic keys map to the words people use; providers' genres
+        # ("Rock", "Basketball") are words already.
+        terms += TOPICS.get(topic, [topic.lower()] if topic.lower() not in STOPWORDS else [])
+
     words = re.findall(r"[a-z][a-z+#.\-]{2,}", f"{event['title']} {event.get('description', '')[:200]}".lower())
     for word in words:
         word = word.strip(".-")
         if len(word) >= 4 and word not in STOPWORDS:
             terms.append(word)
     return list(dict.fromkeys(terms))[:30]
+
+
+def category_terms(event: dict) -> list[str]:
+    """Broad words for the event's category: a weaker match than its own words."""
+    category = event.get("category")
+    return CATEGORY_WORDS.get(category, []) if category and category != "other" else []
 
 
 def _pattern(term: str) -> re.Pattern:
@@ -109,10 +135,22 @@ def _place(text: str | None) -> tuple[str, str]:
     return parts[0], parts[-1] if len(parts) > 1 else ""
 
 
-def where(event: dict, city: str) -> str:
+@dataclass
+class Near:
+    """Where you are, when the app knows your location (for distances)."""
+
+    lat: float
+    lon: float
+    radius_km: float = 40.0
+
+
+def where(event: dict, city: str, near: Near | None = None) -> str:
     """local, nearby, online, travel, or anywhere (when we don't know your city)."""
     if event["source"] in ("calendar", "feed"):
         return "online" if event.get("online") else "local"
+    if near and event.get("lat") is not None and event.get("lon") is not None:
+        km = distance_km(near.lat, near.lon, event["lat"], event["lon"])
+        return "local" if km <= near.radius_km * 0.5 else "nearby" if km <= near.radius_km else "travel"
     mine, my_region = _place(city)
     theirs, their_region = _place(event.get("city"))
     if mine and (mine == theirs or mine in (event.get("city") or "").lower()):
@@ -182,15 +220,20 @@ def _when_text(event: dict) -> str:
     return f"{day:%a %b} {day.day}" if day else "soon"
 
 
-def candidates(events: list[dict], matcher: Matcher, city: str, interests: list[str]) -> list[dict]:
+def candidates(events: list[dict], matcher: Matcher, city: str, interests: list[str],
+               near: Near | None = None, limit: int = MAX_CANDIDATES) -> list[dict]:
     """Every event scored for you; returns the best, each with its keyword matches."""
     scored = []
     for order, event in enumerate(events):
         terms = event_terms(event)
-        place = where(event, city)
-        mine = interest_hits(terms, interests)
-        matched = [(person, matcher.shared_interest(person, mine) or term)
-                   for person, term in matcher.match(terms)[:PEOPLE_PER_EVENT]]
+        place = where(event, city, near)
+        category = event.get("category") or "other"
+        # "music" as an interest matches every music event, not only ones that say so.
+        mine = interest_hits(terms + category_terms(event) + [category, CATEGORIES.get(category, "").lower()], interests)
+        # The event's own words first ("chemistry"); its category ("student
+        # events") only when nobody matches those.
+        hits = matcher.match(terms) or matcher.match(category_terms(event))
+        matched = [(person, matcher.shared_interest(person, mine) or term) for person, term in hits[:PEOPLE_PER_EVENT]]
         # Far-away conferences only count when they're really about you.
         if place == "travel" and not (mine and matched):
             continue
@@ -199,7 +242,7 @@ def candidates(events: list[dict], matcher: Matcher, city: str, interests: list[
         score -= order / 200  # sooner first, as a tie-break (events are sorted by date)
         scored.append((score, order, {**event, "where": place, "mine": mine, "matched": matched}))
     scored.sort(key=lambda row: (-row[0], row[1]))
-    return [event for _, _, event in scored[:MAX_CANDIDATES]]
+    return [event for _, _, event in scored[:limit]]
 
 
 def _why(person: dict, term: str, mine: list[str]) -> tuple[str, str]:
@@ -245,6 +288,8 @@ def model_plans(events: list[dict], people: list[dict], city: str, interests: li
         if event.get("city"):
             bits.append(event["city"])
         bits.append(event["where"])
+        if event.get("category") and event["category"] != "other":
+            bits.append(CATEGORIES[event["category"]])
         if event.get("topics"):
             bits.append("topics: " + ", ".join(topic_label(t) for t in event["topics"]))
         if event["source"] == "calendar":
@@ -292,11 +337,11 @@ def model_plans(events: list[dict], people: list[dict], city: str, interests: li
 
 
 def plan(events: list[dict], people: list[dict], city: str, interests: list[str],
-         llm: LLMClient, today: date) -> tuple[list[dict], list[dict]]:
+         llm: LLMClient, today: date, near: Near | None = None) -> tuple[list[dict], list[dict]]:
     """(plans, events worth showing). Each shown event carries its keyword matches."""
     matcher = Matcher(people)
-    shortlist = candidates(events, matcher, city, interests)
-    plans = model_plans(shortlist, people, city, interests, llm, today)
+    shortlist = candidates(events, matcher, city, interests, near, limit=60)
+    plans = model_plans(shortlist[:MAX_CANDIDATES], people, city, interests, llm, today)
     if not plans:
         plans = keyword_plans(shortlist)
     return plans, shortlist

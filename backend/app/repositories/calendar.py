@@ -10,7 +10,7 @@ Row = dict[str, Any]
 
 def get_connection(conn: Connection, user_id: UUID) -> Row | None:
     return conn.execute(
-        "select user_id, google_email, refresh_token_encrypted, push_follow_ups "
+        "select user_id, google_email, refresh_token_encrypted, push_follow_ups, needs_reauth "
         "from calendar_connections where user_id = %s",
         (user_id,),
     ).fetchone()
@@ -24,6 +24,7 @@ def save_connection(conn: Connection, user_id: UUID, email: str | None, refresh_
         on conflict (user_id) do update
           set google_email = excluded.google_email,
               refresh_token_encrypted = excluded.refresh_token_encrypted,
+              needs_reauth = false,
               updated_at = now()
         """,
         (user_id, email, refresh_token_encrypted),
@@ -32,7 +33,16 @@ def save_connection(conn: Connection, user_id: UUID, email: str | None, refresh_
 
 def delete_connection(conn: Connection, user_id: UUID) -> None:
     conn.execute("delete from calendar_connections where user_id = %s", (user_id,))
-    conn.execute("update follow_ups set calendar_event_id = null where user_id = %s", (user_id,))
+    conn.execute(
+        "update follow_ups set calendar_event_id = null, calendar_event_link = null where user_id = %s", (user_id,)
+    )
+
+
+def mark_needs_reauth(conn: Connection, user_id: UUID) -> None:
+    conn.execute(
+        "update calendar_connections set needs_reauth = true, updated_at = now() where user_id = %s",
+        (user_id,),
+    )
 
 
 def set_push(conn: Connection, user_id: UUID, push: bool) -> None:
@@ -45,7 +55,8 @@ def set_push(conn: Connection, user_id: UUID, push: bool) -> None:
 def follow_up_for_calendar(conn: Connection, user_id: UUID, follow_up_id: UUID) -> Row | None:
     return conn.execute(
         """
-        select f.id, f.action, f.due_at, f.status, f.calendar_event_id, f.contact_id, c.name as contact_name
+        select f.id, f.action, f.due_at, f.status, f.calendar_event_id, f.calendar_event_link, f.contact_id,
+               c.name as contact_name
         from follow_ups f join contacts c on c.id = f.contact_id
         where f.user_id = %s and f.id = %s
         """,
@@ -53,10 +64,12 @@ def follow_up_for_calendar(conn: Connection, user_id: UUID, follow_up_id: UUID) 
     ).fetchone()
 
 
-def set_event_id(conn: Connection, user_id: UUID, follow_up_id: UUID, event_id: str | None) -> None:
+def set_event_id(
+    conn: Connection, user_id: UUID, follow_up_id: UUID, event_id: str | None, link: str | None = None
+) -> None:
     conn.execute(
-        "update follow_ups set calendar_event_id = %s where user_id = %s and id = %s",
-        (event_id, user_id, follow_up_id),
+        "update follow_ups set calendar_event_id = %s, calendar_event_link = %s where user_id = %s and id = %s",
+        (event_id, link if event_id else None, user_id, follow_up_id),
     )
 
 

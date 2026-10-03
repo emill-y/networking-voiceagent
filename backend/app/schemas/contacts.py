@@ -126,11 +126,18 @@ class ContactSummary(ApiModel):
     company: str | None
     role: str | None
     school: str | None
+    major: str | None = None
+    location: str | None = None
     email: str | None = None
     phone: str | None = None
     last_interaction_at: datetime | None
+    created_at: datetime | None = None
+    first_met_at: datetime | None = None
     last_event: str | None
     open_follow_ups: int
+    moments: int = 0
+    interests: list[str] = []
+    events: list[str] = []
 
 
 class Interaction(ApiModel):
@@ -159,6 +166,54 @@ class FollowUp(ApiModel):
     status: FollowUpStatus
     created_at: datetime
     completed_at: datetime | None
+    # Why it matters, from what's stored: "Founder at Lumen · Met at Cal Hacks · Looking for designers"
+    context: str | None = None
+    on_calendar: bool = False
+    calendar_link: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def from_row(cls, data):
+        if isinstance(data, dict) and "moment_event" in data:
+            data = {
+                **data,
+                "context": follow_up_context(data),
+                "on_calendar": bool(data.get("calendar_event_id")),
+                "calendar_link": data.get("calendar_event_link"),
+            }
+        return data
+
+
+GENERIC_EVENTS = {"coffee", "lunch", "dinner", "call", "meeting", "chat", "zoom", "drinks", "breakfast"}
+
+
+def _first(items) -> str | None:
+    for item in items or []:
+        text = " ".join(str(item).split())
+        if text:
+            return text
+    return None
+
+
+def follow_up_context(row: dict) -> str | None:
+    """Who they are, where you met, and what you talked about. Only stored facts."""
+    parts: list[str] = []
+    role, company, school = row.get("contact_role"), row.get("contact_company"), row.get("contact_school")
+    if role and company:
+        parts.append(f"{role} at {company}")
+    elif role or company or school:
+        parts.append(role or company or school)
+    event = row.get("moment_event")
+    if event and event.strip().lower() not in GENERIC_EVENTS:
+        parts.append(f"Met at {event.strip()}")
+    need, project, topic = _first(row.get("moment_needs")), _first(row.get("moment_projects")), _first(row.get("moment_topics"))
+    if need:
+        parts.append(f"Looking for {need[0].lower() + need[1:]}")
+    elif project:
+        parts.append(f"Working on {project[0].lower() + project[1:]}")
+    elif topic:
+        parts.append(f"Talked about {topic}")
+    return " · ".join(parts)[:240] or None
 
 
 class ContactDetail(ApiModel):

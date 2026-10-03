@@ -23,7 +23,10 @@ class RealEvent(ApiModel):
     country: str | None = None
     online: bool
     url: str | None = None
-    source: str  # conferences | feed | calendar
+    venue: str | None = None
+    image_url: str | None = None
+    category: str = "other"
+    source: str  # conferences | ticketmaster | seatgeek | feed
     source_label: str
     topics: list[str]
     where: str  # local | nearby | online | travel | anywhere
@@ -44,9 +47,17 @@ class EventSource(ApiModel):
     events: int
 
 
+class EventCategory(ApiModel):
+    key: str
+    label: str
+    count: int
+
+
 class PlansResponse(ApiModel):
     plans: list[Plan]
     events: list[RealEvent]
+    categories: list[EventCategory] = []
+    # The calendars you follow (iCal feeds), with how many events each has.
     sources: list[EventSource]
 
 

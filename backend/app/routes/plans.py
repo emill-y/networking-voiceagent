@@ -1,6 +1,6 @@
-"""Go together: real upcoming events, and who from your notes to bring.
+"""Plan Events: real upcoming events near you, and who from your notes to bring.
 
-    GET    /plans               plans + events near you (city, interests, days)
+    GET    /plans               plans + events near you (city or location, dates, categories, interests)
     GET    /event-feeds         your added calendar feeds
     POST   /event-feeds         add one (an iCal link); checked by reading it
     DELETE /event-feeds/{id}    remove one
@@ -17,24 +17,15 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from psycopg import Connection
 
 from app.core.auth import get_current_user_id
-from app.core.config import get_settings
 from app.core.db import get_db
 from app.core.rate_limit import limit_ai_requests
 from app.repositories import event_feeds as feeds_repo
 from app.repositories import search as search_repo
 from app.schemas.plans import EventFeed, EventFeedAdded, EventFeedRequest, PlansResponse
-from app.services import calendar_sync, plans as planner
-from app.services.google_calendar import CalendarError, GoogleCalendar
+from app.services import plans as planner
+from app.services.event_providers import CATEGORIES, EventQuery, dedupe
 from app.services.llm import LLMClient, get_llm_client
-from app.services.real_events import (
-    CONFERENCE_REPO,
-    EventSources,
-    FeedError,
-    from_google,
-    get_event_sources,
-    in_window,
-    normalize_feed_url,
-)
+from app.services.real_events import EventSources, FeedError, get_event_sources, in_window, normalize_feed_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -44,32 +35,15 @@ CACHE_SECONDS = 600
 _cache: dict[UUID, tuple[float, tuple, PlansResponse]] = {}
 
 
-def _calendar_events(conn: Connection, user_id: UUID, client: GoogleCalendar | None, now: datetime, days: int) -> list[dict] | None:
-    """Your Google Calendar's events (not the ones Nomi put there), or None if not connected."""
-    if client is None:
-        return None
-    token = calendar_sync.access_token(conn, user_id, client, get_settings())
-    if not token:
-        return None
-    try:
-        raw = client.list_events(token, now, now + timedelta(days=days), limit=50)
-    except CalendarError:
-        return []
-    return [
-        from_google(e) for e in raw
-        if e.get("summary") and e.get("status") != "cancelled"
-        and e.get("extendedProperties", {}).get("private", {}).get("nomi") != "follow-up"
-    ]
-
-
 def _person(person: dict, why: str | None = None) -> dict:
     return {"contact_id": person["id"], "name": person["name"], "why": why}
 
 
 def _event_out(event: dict) -> dict:
     return {
-        **{k: event.get(k) for k in ("id", "title", "start", "end", "all_day", "city", "country",
-                                     "online", "url", "source", "source_label", "topics")},
+        **{k: event.get(k) for k in ("id", "title", "start", "end", "all_day", "city", "country", "online",
+                                     "url", "venue", "image_url", "source", "source_label", "topics")},
+        "category": event.get("category") or "other",
         "where": event["where"],
         "people": [_person(p, f"Notes mention “{term}”") for p, term in event["matched"]],
     }
@@ -79,35 +53,42 @@ def _event_out(event: dict) -> dict:
 def get_plans(
     city: str = Query("", max_length=80),
     interests: str = Query("", max_length=300),
-    days: int = Query(60, ge=7, le=120),
+    days: int = Query(30, ge=1, le=120),
+    categories: str = Query("", max_length=200),
+    lat: float | None = Query(None, ge=-90, le=90),
+    lon: float | None = Query(None, ge=-180, le=180),
+    radius_km: float = Query(40, ge=2, le=300),
     conn: Connection = Depends(get_db),
     user_id: UUID = Depends(limit_ai_requests),
     llm: LLMClient = Depends(get_llm_client),
     sources: EventSources = Depends(get_event_sources),
-    client: GoogleCalendar | None = Depends(calendar_sync.get_calendar_client),
 ) -> PlansResponse:
     now = datetime.now(timezone.utc)
     today = now.date()
     wanted = [i.strip() for i in interests.split(",") if i.strip()][:12]
+    picked = [c for c in (x.strip() for x in categories.split(",")) if c in CATEGORIES]
+    near = planner.Near(lat, lon, radius_km) if lat is not None and lon is not None else None
     people = search_repo.people_profiles(conn, user_id)
     feeds = feeds_repo.list_feeds(conn, user_id)
 
-    key = (city.strip().lower(), tuple(wanted), days, len(people),
-           max((str(p["last_interaction_at"]) for p in people), default=""), tuple(f["id"] for f in feeds))
+    key = (city.strip().lower(), tuple(wanted), days, tuple(picked), lat and round(lat, 2), lon and round(lon, 2),
+           radius_km, len(people), max((str(p["last_interaction_at"]) for p in people), default=""),
+           tuple(f["id"] for f in feeds))
     cached = _cache.get(user_id)
     if cached and cached[1] == key and time.time() - cached[0] < CACHE_SECONDS:
         return cached[2]
 
+    query = EventQuery(start=today, end=today + timedelta(days=days), city=city.strip(), lat=lat, lon=lon,
+                       radius_km=radius_km)
     # Every source at once; one being down never hides the others.
     with ThreadPoolExecutor(max_workers=6) as pool:
-        conference_job = pool.submit(sources.conferences, today, days)
+        discover_job = pool.submit(sources.discover, query)
         feed_jobs = [(f, pool.submit(sources.feed, f["url"], f["label"], str(f["id"]))) for f in feeds]
-        calendar = _calendar_events(conn, user_id, client, now, min(days, 45))
         try:
-            conferences = conference_job.result()
-        except Exception:  # noqa: BLE001 - open data being down shouldn't break the page
-            logger.exception("Couldn't load the open conference data")
-            conferences = []
+            found, _failed = discover_job.result()
+        except Exception:  # noqa: BLE001 - providers being down shouldn't break the page
+            logger.exception("Event discovery failed")
+            found = []
         feed_events: list[tuple[dict, list[dict]]] = []
         for feed, job in feed_jobs:
             try:
@@ -116,21 +97,17 @@ def get_plans(
                 logger.warning("Couldn't read an event feed: %s", exc)
                 feed_events.append((feed, []))
 
-    conferences = in_window(conferences, today, days)
-    events = conferences + [e for _, es in feed_events for e in in_window(es, today, days)]
-    if calendar:
-        events += in_window(calendar, today, days)
+    events = dedupe(in_window(found, today, days) + [e for _, es in feed_events for e in in_window(es, today, days)])
     events.sort(key=lambda e: e["start"])
 
-    plans, shortlist = planner.plan(events, people, city.strip(), wanted, llm, today)
-
-    source_list = [{"label": "Tech conferences (open data)", "kind": "conferences", "url": CONFERENCE_REPO,
-                    "events": len(conferences)}]
-    source_list += [{"label": f["label"], "kind": "feed", "url": f["url"], "events": len(in_window(es, today, days))}
-                    for f, es in feed_events]
-    if calendar is not None:
-        source_list.append({"label": "Your Google Calendar", "kind": "calendar", "url": None,
-                            "events": len(in_window(calendar, today, days))})
+    # Everything worth showing (for category counts), then only the picked categories.
+    matcher = planner.Matcher(people)
+    relevant = planner.candidates(events, matcher, city.strip(), wanted, near, limit=10_000)
+    counts: dict[str, int] = {}
+    for event in relevant:
+        counts[event["category"]] = counts.get(event["category"], 0) + 1
+    in_view = [e for e in events if not picked or (e.get("category") or "other") in picked]
+    plans, shortlist = planner.plan(in_view, people, city.strip(), wanted, llm, today, near)
 
     response = PlansResponse.model_validate({
         "plans": [
@@ -139,7 +116,10 @@ def get_plans(
             for p in plans
         ],
         "events": [_event_out(e) for e in shortlist],
-        "sources": source_list,
+        "categories": [{"key": k, "label": CATEGORIES[k], "count": counts[k]}
+                       for k in CATEGORIES if counts.get(k)],
+        "sources": [{"label": f["label"], "kind": "feed", "url": f["url"], "events": len(in_window(es, today, days))}
+                    for f, es in feed_events],
     })
     _cache[user_id] = (time.time(), key, response)
     return response

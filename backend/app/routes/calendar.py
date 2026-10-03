@@ -80,7 +80,8 @@ def calendar_status(
     connection = cal_repo.get_connection(conn, user_id)
     return CalendarStatus(
         available=client is not None,
-        connected=connection is not None,
+        state=calendar_sync.connection_state(connection),
+        connected=connection is not None and not connection["needs_reauth"],
         email=connection["google_email"] if connection else None,
         push_follow_ups=connection["push_follow_ups"] if connection else True,
     )
@@ -164,9 +165,13 @@ def calendar_upcoming(
     llm: LLMClient = Depends(get_llm_client),
 ) -> UpcomingResponse:
     if client is None:
-        return UpcomingResponse(connected=False, events=[])
+        return UpcomingResponse(connected=False, state="unavailable", events=[])
     try:
         events = calendar_sync.upcoming(conn, user_id, client, get_settings(), llm, datetime.now(timezone.utc), days)
+    except CalendarScopeMissing:
+        cal_repo.mark_needs_reauth(conn, user_id)
+        events = None
     except CalendarError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn’t read your Google Calendar right now.") from exc
-    return UpcomingResponse(connected=events is not None, events=events or [])
+    state = calendar_sync.connection_state(cal_repo.get_connection(conn, user_id))
+    return UpcomingResponse(connected=events is not None, state=state, events=events or [])

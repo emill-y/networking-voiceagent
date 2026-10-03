@@ -1,89 +1,272 @@
-// Nomi design tokens: dark editorial minimalism.
-// Screens import from here instead of hard-coding colors, so the palette
-// can change in one place.
+// Nomi design tokens. Every screen reads colors through the theme (dark by
+// default, optional light) and sizes from the scales below, so spacing,
+// type and color stay consistent everywhere.
+import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export const colors = {
-  background: "#080605", // near-black with a warm undertone
-  surface: "#15100D", // dark ember section
-  raised: "#221914", // interactive surface
-  text: "#FFF6EE", // warm white
-  textSoft: "#EFE1D6",
-  muted: "#AD9A8D", // warm gray metadata
-  faint: "#6F5F55",
-  hairline: "rgba(255, 220, 200, 0.08)",
-  accent: "#FF7A2A", // molten orange
-  accentBright: "#FFB37F", // highlight end of the orange gradient
-  glowWarm: "#FF6B1A", // background light, top
-  glowCool: "#B8360A", // deep ember light, bottom
-  card: "rgba(28, 19, 14, 0.72)", // glass cards float over the glow
-  cardBorder: "rgba(255, 200, 170, 0.09)",
-  danger: "#FF8A7A", // errors and destructive actions
-} as const;
+export type ThemeMode = "dark" | "light";
 
-// The glossy orange orb (record button, tab bar), light to shadow.
-export const orb = {
-  light: "#FFE3C7",
-  mid: "#FF8A3D",
-  deep: "#E2440C",
-  shadow: "#5A1604",
-  glow: "#FF6B1A",
-} as const;
+type Palette = {
+  // Surfaces, back to front
+  bg: string; // page
+  chrome: string; // sidebar, tab bar
+  surface: string; // cards
+  surfaceHover: string;
+  sunken: string; // inputs, segmented controls, tracks
+  overlay: string; // modal scrim
+  border: string;
+  borderStrong: string;
+  // Text
+  text: string;
+  textSecondary: string;
+  textTertiary: string;
+  // Brand: Jupiter orange
+  accent: string;
+  accentHover: string;
+  accentSoft: string; // tinted backgrounds
+  accentText: string; // accent used as text on surfaces (contrast-checked)
+  onAccent: string;
+  // Status
+  success: string;
+  successSoft: string;
+  warning: string;
+  warningSoft: string;
+  danger: string;
+  dangerSoft: string;
+  // Network: why two people are connected
+  edgeWork: string;
+  edgeEvent: string;
+  edgeInterest: string;
+  edgeYou: string;
+  // Cosmic backdrop
+  glow: string;
+  orbit: string;
+  // Skeletons
+  skeleton: string;
+};
 
-// A personal color for each person: muted, warm-leaning tints that read on
-// the dark background and never compete with text. Chosen by name, so a
-// person keeps their color everywhere.
-export const personTints = [
-  "#FF8A3D", // flame
-  "#FFB37F", // apricot
-  "#F2643A", // ember
-  "#FFD29D", // sand
-  "#E8866A", // clay
-  "#C9A0FF", // lilac
-  "#7FC8FF", // sky
-  "#8FE3B0", // mint
-] as const;
+const dark: Palette = {
+  bg: "#0A0B0F",
+  chrome: "#0D0E13",
+  surface: "#13151B",
+  surfaceHover: "#191C23",
+  sunken: "#0E1015",
+  overlay: "rgba(4, 5, 8, 0.72)",
+  border: "rgba(255, 255, 255, 0.07)",
+  borderStrong: "rgba(255, 255, 255, 0.13)",
+  text: "#F3EFE9",
+  textSecondary: "#A9A49C",
+  textTertiary: "#706B64",
+  accent: "#F08A4B",
+  accentHover: "#F79A60",
+  accentSoft: "rgba(240, 138, 75, 0.13)",
+  accentText: "#F5A06C",
+  onAccent: "#1B0F07",
+  success: "#5CC08C",
+  successSoft: "rgba(92, 192, 140, 0.13)",
+  warning: "#E6B450",
+  warningSoft: "rgba(230, 180, 80, 0.13)",
+  danger: "#F0705F",
+  dangerSoft: "rgba(240, 112, 95, 0.13)",
+  edgeWork: "#6FA0F6",
+  edgeEvent: "#F08A4B",
+  edgeInterest: "#5CC08C",
+  edgeYou: "rgba(240, 138, 75, 0.22)",
+  glow: "rgba(240, 138, 75, 0.10)",
+  orbit: "rgba(255, 255, 255, 0.05)",
+  skeleton: "rgba(255, 255, 255, 0.06)",
+};
 
-export function tintFor(name: string | null | undefined): string {
-  let hash = 0;
-  for (const ch of name ?? "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return personTints[hash % personTints.length];
-}
+const light: Palette = {
+  bg: "#F7F5F1",
+  chrome: "#F1EEE8",
+  surface: "#FFFFFF",
+  surfaceHover: "#FBF9F6",
+  sunken: "#EFECE6",
+  overlay: "rgba(23, 20, 15, 0.38)",
+  border: "rgba(23, 20, 15, 0.08)",
+  borderStrong: "rgba(23, 20, 15, 0.15)",
+  text: "#18150F",
+  textSecondary: "#5E5850",
+  textTertiary: "#8E877D",
+  accent: "#D9682A",
+  accentHover: "#C85B20",
+  accentSoft: "rgba(217, 104, 42, 0.10)",
+  accentText: "#B8541C",
+  onAccent: "#FFFFFF",
+  success: "#2F9463",
+  successSoft: "rgba(47, 148, 99, 0.10)",
+  warning: "#B7811C",
+  warningSoft: "rgba(183, 129, 28, 0.11)",
+  danger: "#D24B3A",
+  dangerSoft: "rgba(210, 75, 58, 0.09)",
+  edgeWork: "#3F74D8",
+  edgeEvent: "#D9682A",
+  edgeInterest: "#2F9463",
+  edgeYou: "rgba(217, 104, 42, 0.22)",
+  glow: "rgba(217, 104, 42, 0.07)",
+  orbit: "rgba(23, 20, 15, 0.06)",
+  skeleton: "rgba(23, 20, 15, 0.06)",
+};
 
-// Display = Inter Tight, set tight and bold; body = the platform system font.
-// (Keys kept from the earlier serif design so every screen picks this up.)
-export const fonts = {
-  serif: "InterTight_600SemiBold",
-  serifItalic: "InterTight_500Medium_Italic",
-  serifBold: "InterTight_700Bold",
-} as const;
-
-export const spacing = {
-  xs: 4,
-  sm: 8,
+// Spacing scale (4pt grid). Use these, never ad-hoc numbers.
+export const space = {
+  xxs: 4,
+  xs: 8,
+  sm: 12,
   md: 16,
   lg: 24,
-  xl: 40,
-  xxl: 64,
+  xl: 32,
+  xxl: 48,
 } as const;
 
 export const radius = {
-  sm: 10,
-  md: 16,
-  lg: 24,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
   pill: 999,
 } as const;
 
-export const type = {
-  display: { fontFamily: fonts.serif, fontSize: 38, lineHeight: 42, letterSpacing: -1.2, color: colors.text },
-  title: { fontFamily: fonts.serif, fontSize: 28, lineHeight: 33, letterSpacing: -0.8, color: colors.text },
-  heading: { fontFamily: fonts.serifBold, fontSize: 20, lineHeight: 26, letterSpacing: -0.4, color: colors.text },
-  body: { fontSize: 16, lineHeight: 24, color: colors.textSoft },
-  meta: { fontSize: 13, lineHeight: 18, color: colors.muted, letterSpacing: 0.2 },
-  label: {
-    fontSize: 11,
-    lineHeight: 14,
-    color: colors.muted,
-    letterSpacing: 1.4,
-    textTransform: "uppercase",
+// Page widths on desktop.
+export const layout = {
+  page: 1080,
+  narrow: 720,
+  sidebar: 232,
+  // Below this width, the phone layout (tab bar) is used.
+  desktopBreakpoint: 900,
+} as const;
+
+// Headings: Inter Tight. Body: the platform's UI font.
+export const font = {
+  heading: "InterTight_600SemiBold",
+  headingBold: "InterTight_700Bold",
+  medium: "InterTight_500Medium",
+} as const;
+
+function typeScale(c: Palette) {
+  return {
+    display: { fontFamily: font.heading, fontSize: 30, lineHeight: 36, letterSpacing: -0.7, color: c.text },
+    title: { fontFamily: font.heading, fontSize: 22, lineHeight: 28, letterSpacing: -0.4, color: c.text },
+    heading: { fontFamily: font.heading, fontSize: 17, lineHeight: 22, letterSpacing: -0.2, color: c.text },
+    body: { fontSize: 15, lineHeight: 22, color: c.text },
+    bodySecondary: { fontSize: 15, lineHeight: 22, color: c.textSecondary },
+    label: { fontSize: 14, lineHeight: 20, fontWeight: "500" as const, color: c.text },
+    small: { fontSize: 13, lineHeight: 18, color: c.textSecondary },
+    caption: { fontSize: 12, lineHeight: 16, color: c.textTertiary },
+    overline: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "600" as const,
+      letterSpacing: 0.8,
+      textTransform: "uppercase" as const,
+      color: c.textTertiary,
+    },
+    stat: { fontFamily: font.heading, fontSize: 26, lineHeight: 30, letterSpacing: -0.6, color: c.text },
+  };
+}
+
+const shadows = {
+  dark: {
+    card: {},
+    raised: { shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 8 },
+  },
+  light: {
+    card: { shadowColor: "#2A2017", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
+    raised: { shadowColor: "#2A2017", shadowOpacity: 0.14, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 8 },
   },
 } as const;
+
+export type Theme = {
+  mode: ThemeMode;
+  colors: Palette;
+  type: ReturnType<typeof typeScale>;
+  shadow: (typeof shadows)[ThemeMode];
+};
+
+export const themes: Record<ThemeMode, Theme> = {
+  dark: { mode: "dark", colors: dark, type: typeScale(dark), shadow: shadows.dark },
+  light: { mode: "light", colors: light, type: typeScale(light), shadow: shadows.light },
+};
+
+// ---------- Provider ----------
+
+const STORAGE_KEY = "nomi.theme";
+
+type ThemeContextValue = Theme & { setMode: (mode: ThemeMode) => void };
+
+const ThemeContext = createContext<ThemeContextValue>({ ...themes.dark, setMode: () => undefined });
+
+function storedModeSync(): ThemeMode | null {
+  if (Platform.OS !== "web") return null;
+  try {
+    const value = globalThis.localStorage?.getItem(STORAGE_KEY);
+    return value === "light" || value === "dark" ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+export function ThemeProvider({ children, initial }: { children: ReactNode; initial?: ThemeMode }) {
+  // Dark is the default. Web reads the saved choice synchronously (no flash).
+  const [mode, setModeState] = useState<ThemeMode>(initial ?? storedModeSync() ?? "dark");
+
+  useEffect(() => {
+    if (initial || Platform.OS === "web") return;
+    AsyncStorage.getItem(STORAGE_KEY)
+      .then((value) => {
+        if (value === "light" || value === "dark") setModeState(value);
+      })
+      .catch(() => undefined);
+  }, [initial]);
+
+  useEffect(() => {
+    if (Platform.OS !== "web" || typeof document === "undefined") return;
+    // Page background behind the app, and native form controls/scrollbars.
+    document.documentElement.style.backgroundColor = themes[mode].colors.bg;
+    document.documentElement.style.colorScheme = mode;
+  }, [mode]);
+
+  const value = useMemo<ThemeContextValue>(
+    () => ({
+      ...themes[mode],
+      setMode: (next: ThemeMode) => {
+        setModeState(next);
+        void AsyncStorage.setItem(STORAGE_KEY, next).catch(() => undefined);
+      },
+    }),
+    [mode],
+  );
+  return createElement(ThemeContext.Provider, { value }, children);
+}
+
+export function useTheme(): ThemeContextValue {
+  return useContext(ThemeContext);
+}
+
+// Styles that depend on the theme, built once per mode:
+//   const useStyles = makeStyles((t) => StyleSheet.create({ ... }));
+//   const s = useStyles();
+export function makeStyles<T>(factory: (theme: Theme) => T): () => T {
+  const cache: Partial<Record<ThemeMode, T>> = {};
+  return function useStyles() {
+    const theme = useTheme();
+    return (cache[theme.mode] ??= factory(themes[theme.mode]));
+  };
+}
+
+// ---------- People ----------
+
+// A personal color for each person, chosen by name so it's the same everywhere.
+const tints = {
+  dark: ["#F08A4B", "#E7B07A", "#D97757", "#C8A2F0", "#7FB2F2", "#6CC6A0", "#E6C25A", "#EE8FA8"],
+  light: ["#D9682A", "#B9803F", "#C0583A", "#8B63C9", "#3F74D8", "#2F9463", "#A5800F", "#C5507A"],
+} as const;
+
+export function tintFor(name: string | null | undefined, mode: ThemeMode = "dark"): string {
+  let hash = 0;
+  for (const ch of name ?? "") hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  const list = tints[mode];
+  return list[hash % list.length];
+}

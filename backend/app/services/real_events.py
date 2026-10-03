@@ -299,6 +299,11 @@ def parse_ics(text: str, feed_label: str, feed_id: str) -> tuple[str | None, lis
             "source_label": name or feed_label,
             "topics": [],
             "description": description,
+            "venue": location[:120] or None,
+            "lat": None,
+            "lon": None,
+            "image_url": None,
+            "category": _classify(raw["title"], description),
         })
     return name, out
 
@@ -357,15 +362,36 @@ FEED_CACHE_SECONDS = 1800
 _feed_cache: dict[str, tuple[float, str | None, list[dict]]] = {}
 
 
+def _classify(title: str, description: str) -> str:
+    from app.services.event_providers import classify  # avoid an import cycle
+
+    return classify(title, description)
+
+
 class EventSources:
     """Where events come from. A FastAPI dependency, so tests can swap it."""
 
-    def __init__(self, http: httpx.Client | None = None) -> None:
-        self._http = http or httpx.Client(timeout=8, headers={"User-Agent": "Nomi/1.0 (+events)"})
+    def __init__(self, http: httpx.Client | None = None, settings=None) -> None:
+        from app.core.config import get_settings
 
-    def conferences(self, today: date, days: int) -> list[dict]:
-        years = sorted({today.year, (today + timedelta(days=days)).year})
-        return fetch_conferences(self._http, years)
+        self._http = http or httpx.Client(timeout=8, headers={"User-Agent": "Nomi/1.0 (+events)"})
+        self._settings = settings or get_settings()
+
+    def providers(self) -> list:
+        from app.services import event_providers as ep
+
+        found: list = [ep.ConferenceProvider(self._http)]
+        if self._settings.ticketmaster_api_key:
+            found.append(ep.TicketmasterProvider(self._settings.ticketmaster_api_key, self._http))
+        if self._settings.seatgeek_client_id:
+            found.append(ep.SeatGeekProvider(self._settings.seatgeek_client_id, self._http))
+        return found
+
+    def discover(self, query) -> tuple[list[dict], list[str]]:
+        """(events, providers that failed) for a city/area and date range."""
+        from app.services.event_providers import discover
+
+        return discover(self.providers(), query)
 
     def feed(self, url: str, label: str, feed_id: str) -> tuple[str | None, list[dict]]:
         """(calendar name, events). Raises FeedError."""

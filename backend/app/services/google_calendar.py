@@ -108,11 +108,14 @@ class GoogleCalendar:
         })
         return data.get("items", [])
 
-    def insert_event(self, access_token: str, body: dict) -> str:
-        return self._request("POST", EVENTS_URL, access_token, json=body)["id"]
+    def insert_event(self, access_token: str, body: dict) -> tuple[str, str | None]:
+        """Returns (event id, link to the event in Google Calendar)."""
+        created = self._request("POST", EVENTS_URL, access_token, json=body)
+        return created["id"], created.get("htmlLink")
 
-    def patch_event(self, access_token: str, event_id: str, body: dict) -> None:
-        self._request("PATCH", f"{EVENTS_URL}/{event_id}", access_token, json=body)
+    def patch_event(self, access_token: str, event_id: str, body: dict) -> str | None:
+        """Returns the event's link."""
+        return self._request("PATCH", f"{EVENTS_URL}/{event_id}", access_token, json=body).get("htmlLink")
 
     def delete_event(self, access_token: str, event_id: str) -> None:
         try:
@@ -125,6 +128,8 @@ class GoogleCalendar:
             response = self._http.request(method, url, headers={"Authorization": f"Bearer {access_token}"}, **kwargs)
         except httpx.HTTPError as exc:
             raise CalendarError("Couldn't reach Google Calendar.") from exc
+        if response.status_code == 403 and "insufficient" in response.text.lower():
+            raise CalendarScopeMissing("Calendar access wasn't granted.")
         if response.status_code >= 400:
             # Google's message names the fix (e.g. "Calendar API has not been used in project ...").
             logger.warning("Google Calendar %s failed: %s %s", method, response.status_code, response.text[:300])

@@ -98,6 +98,18 @@
       "destination": "/api/index"
     },
     {
+      "source": "/shares",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/shares/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/invites/:path*",
+      "destination": "/api/index"
+    },
+    {
       "source": "/event-feeds",
       "destination": "/api/index"
     },

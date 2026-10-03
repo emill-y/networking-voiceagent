@@ -80,6 +80,24 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> UUI
     settings = get_settings()
     if settings.dev_auth:
         return UUID(settings.dev_user_id)
+    claims = _verified_claims(authorization)
+    try:
+        return UUID(claims["sub"])
+    except (KeyError, ValueError) as exc:
+        raise _unauthorized("Please sign in again.") from exc
+
+
+def get_current_email(authorization: str | None = Header(default=None)) -> str | None:
+    """FastAPI dependency: the signed-in user's email (lowercased), if their account has one."""
+    settings = get_settings()
+    if settings.dev_auth:
+        return (settings.dev_user_email or "").lower() or None
+    email = _verified_claims(authorization).get("email")
+    return email.strip().lower() if isinstance(email, str) and email.strip() else None
+
+
+def _verified_claims(authorization: str | None) -> dict:
+    settings = get_settings()
     if not settings.supabase_url:
         logger.error("SUPABASE_URL is not set in backend/.env")
         raise HTTPException(
@@ -102,8 +120,4 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> UUI
     except jwt.PyJWTError as exc:
         logger.info("Rejected token: %s", type(exc).__name__)
         raise _unauthorized("Please sign in again.") from exc
-
-    try:
-        return UUID(claims["sub"])
-    except (KeyError, ValueError) as exc:
-        raise _unauthorized("Please sign in again.") from exc
+    return claims
