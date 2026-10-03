@@ -6,6 +6,7 @@ import type { ImportedPerson } from "@/lib/addressBook";
 import { request } from "@/lib/api";
 import { localToday } from "@/lib/dates";
 import type {
+  CalendarState,
   CalendarStatus,
   CapturedPerson,
   ContactDetail,
@@ -16,10 +17,13 @@ import type {
   EventFeed,
   FollowUp,
   FollowUpStatus,
+  IncomingShare,
+  MyProfile,
   NetworkResponse,
   PlansResponse,
   SavedPerson,
   SearchResponse,
+  ShareCreated,
   Transcription,
   UpcomingEvent,
 } from "@/types/api";
@@ -159,15 +163,41 @@ export function disconnectCalendar() {
 }
 
 export function upcomingEvents(days = 7) {
-  return request<{ connected: boolean; events: UpcomingEvent[] }>(`/calendar/upcoming?days=${days}`, {
+  return request<{ connected: boolean; state: CalendarState; events: UpcomingEvent[] }>(`/calendar/upcoming?days=${days}`, {
     timeoutMs: 60_000,
   });
 }
 
-// ---------- Go together (real events) ----------
+export function addFollowUpToCalendar(id: string) {
+  return request<FollowUp>(`/follow-ups/${encodeURIComponent(id)}/calendar`, { method: "POST", timeoutMs: 30_000 });
+}
 
-export function getPlans(city: string, interests: string[], days = 60) {
-  const query = new URLSearchParams({ city, interests: interests.join(","), days: String(days) });
+export function removeFollowUpFromCalendar(id: string) {
+  return request<FollowUp>(`/follow-ups/${encodeURIComponent(id)}/calendar`, { method: "DELETE", timeoutMs: 30_000 });
+}
+
+// ---------- Plan Events ----------
+
+export type EventFilters = {
+  city: string;
+  interests: string[];
+  days: number;
+  categories: string[];
+  near?: { lat: number; lon: number; radiusKm: number } | null;
+};
+
+export function getPlans(f: EventFilters) {
+  const query = new URLSearchParams({
+    city: f.city,
+    interests: f.interests.join(","),
+    days: String(f.days),
+    categories: f.categories.join(","),
+  });
+  if (f.near) {
+    query.set("lat", f.near.lat.toFixed(4));
+    query.set("lon", f.near.lon.toFixed(4));
+    query.set("radius_km", String(f.near.radiusKm));
+  }
   return request<PlansResponse>(`/plans?${query}`, { timeoutMs: 60_000 });
 }
 
@@ -185,4 +215,45 @@ export function addEventFeed(url: string) {
 
 export function removeEventFeed(id: string) {
   return request<void>(`/event-feeds/${id}`, { method: "DELETE" });
+}
+
+// ---------- Contacts: export and sharing ----------
+
+// The contacts in the current view as CSV (download) or TSV (paste into Google Sheets).
+export function exportContacts(ids: string[] | null, format: "csv" | "tsv") {
+  return request<string>("/contacts/export", { method: "POST", body: { ids, format }, text: true, timeoutMs: 60_000 });
+}
+
+export function shareContacts(contactIds: string[], email: string, message?: string) {
+  return request<ShareCreated>("/shares", { method: "POST", body: { contactIds, email, message: message || null } });
+}
+
+export function incomingShares() {
+  return request<IncomingShare[]>("/shares/incoming");
+}
+
+export function shareFromLink(token: string) {
+  return request<IncomingShare>(`/shares/link/${encodeURIComponent(token)}`);
+}
+
+export function acceptShare(id: string, token?: string) {
+  return request<{ added: number; skipped: number }>(`/shares/${id}/accept`, { method: "POST", body: { token: token ?? null } });
+}
+
+export function declineShare(id: string, token?: string) {
+  return request<void>(`/shares/${id}/decline`, { method: "POST", body: { token: token ?? null } });
+}
+
+// ---------- Profile and invites ----------
+
+export function getMyProfile() {
+  return request<MyProfile>("/me/profile");
+}
+
+export function updateMyProfile(changes: { displayName?: string | null; avatar?: string | null }) {
+  return request<MyProfile>("/me/profile", { method: "PATCH", body: changes, timeoutMs: 30_000 });
+}
+
+export function redeemInvite(code: string) {
+  return request<{ redeemed: boolean }>("/invites/redeem", { method: "POST", body: { code } });
 }

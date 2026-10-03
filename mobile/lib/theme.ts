@@ -270,3 +270,12 @@ export function tintFor(name: string | null | undefined, mode: ThemeMode = "dark
   const list = tints[mode];
   return list[hash % list.length];
 }
+
+// The planet: the record button's glossy orb, the same in both themes.
+export const orb = {
+  light: "#FFE1C4",
+  mid: "#F08A4B",
+  deep: "#D2561C",
+  shadow: "#5A1E08",
+  glow: "#F08A4B",
+} as const;

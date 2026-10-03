@@ -15,9 +15,9 @@ import { Linking, Platform, Pressable, StyleSheet, Text, View } from "react-nati
 import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { MicButton } from "@/components/MicButton";
-import { Screen } from "@/components/Screen";
+import { Page } from "@/components/Page";
 import { formatDuration } from "@/lib/format";
-import { colors, spacing, type } from "@/lib/theme";
+import { makeStyles, space, useTheme } from "@/lib/theme";
 
 // Matches the backend's upload limit comfortably: 3 minutes of AAC is ~3 MB.
 const MAX_RECORDING_MS = 3 * 60 * 1000;
@@ -27,6 +27,8 @@ type Phase = "idle" | "denied" | "recording" | "recorded" | "error";
 // Fallback capture: record audio, then transcribe it on the backend.
 // Used where on-device speech recognition isn't available (Expo Go, web).
 export function AudioCapture() {
+  const styles = useStyles();
+  const { type } = useTheme();
   const router = useRouter();
   const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const recorderState = useAudioRecorderState(recorder, 250);
@@ -130,7 +132,7 @@ export function AudioCapture() {
   const recording = phase === "recording";
 
   return (
-    <Screen scroll={false}>
+    <Page scroll={false}>
       <CloseButton />
 
       <View style={styles.center}>
@@ -149,7 +151,7 @@ export function AudioCapture() {
               happens while you hold this screen open and tap record.
             </Text>
             {Platform.OS !== "web" && (
-              <Button title="Open Settings" variant="quiet" onPress={() => void Linking.openSettings()} />
+              <Button title="Open Settings" variant="secondary" onPress={() => void Linking.openSettings()} />
             )}
           </View>
         ) : phase === "recorded" ? (
@@ -161,12 +163,12 @@ export function AudioCapture() {
               style={styles.playRow}
             >
               <Text style={styles.playGlyph}>{playback.playing ? "❚❚" : "▶"}</Text>
-              <Text style={type.meta}>
+              <Text style={type.small}>
                 {formatDuration((playback.currentTime || 0) * 1000)} / {formatDuration(durationMs)}
               </Text>
             </Pressable>
             <Button title="Remember this" onPress={remember} />
-            <Button title="Record again" variant="quiet" onPress={discard} />
+            <Button title="Record again" variant="secondary" onPress={discard} />
           </View>
         ) : (
           <>
@@ -178,9 +180,9 @@ export function AudioCapture() {
             <Text style={[styles.timer, !recording && styles.hidden]} accessibilityLiveRegion="polite">
               {formatDuration(recorderState.durationMillis)}
             </Text>
-            <Text style={type.meta}>{recording ? "Tap to stop" : "Tap to record"}</Text>
+            <Text style={type.small}>{recording ? "Tap to stop" : "Tap to record"}</Text>
             {recording ? (
-              <Text style={[type.meta, styles.recordingNote]}>● Recording</Text>
+              <Text style={[type.small, styles.recordingNote]}>● Recording</Text>
             ) : (
               <Pressable
                 onPress={() => router.replace("/write")}
@@ -188,32 +190,33 @@ export function AudioCapture() {
                 hitSlop={8}
                 style={styles.typeInstead}
               >
-                <Text style={type.meta}>or type instead</Text>
+                <Text style={type.small}>or type instead</Text>
               </Pressable>
             )}
           </>
         )}
 
-        {message && <Text style={[type.meta, styles.error]}>{message}</Text>}
+        {message && <Text style={[type.small, styles.error]}>{message}</Text>}
       </View>
-    </Screen>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: spacing.xxl,
+    paddingBottom: space.xxl,
   },
   title: {
     textAlign: "center",
-    marginBottom: spacing.xl,
+    marginBottom: space.xl,
   },
   block: {
     alignSelf: "stretch",
-    gap: spacing.md,
+    gap: space.md,
   },
   centerText: {
     textAlign: "center",
@@ -222,23 +225,23 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: colors.text,
     fontVariant: ["tabular-nums"],
-    marginBottom: spacing.xs,
+    marginBottom: space.xxs,
   },
   hidden: {
     opacity: 0,
   },
   recordingNote: {
-    marginTop: spacing.md,
+    marginTop: space.md,
     color: colors.accent,
   },
   playRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    marginBottom: spacing.sm,
-    backgroundColor: colors.surface,
+    gap: space.md,
+    paddingVertical: space.md,
+    marginBottom: space.xs,
+    backgroundColor: colors.sunken,
     borderRadius: 999,
   },
   playGlyph: {
@@ -248,11 +251,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   typeInstead: {
-    marginTop: spacing.xl,
+    marginTop: space.xl,
   },
   error: {
-    marginTop: spacing.lg,
+    marginTop: space.lg,
     color: colors.danger,
     textAlign: "center",
   },
-});
+}),
+);

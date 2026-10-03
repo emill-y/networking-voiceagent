@@ -11,7 +11,7 @@ export type UserProfile = {
   school?: string;
   major?: string;
   year?: string;
-  // For "Go together": where to look for events, and what you're into.
+  // For Plan Events: where to look for events, and what you're into.
   city?: string;
   interests?: string[];
 };

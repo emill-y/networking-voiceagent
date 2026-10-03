@@ -3,10 +3,10 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
-import { Field } from "@/components/Field";
-import { Screen } from "@/components/Screen";
+import { Input as Field } from "@/components/Input";
+import { Page } from "@/components/Page";
 import { ApiError } from "@/lib/api";
-import { colors, spacing, type } from "@/lib/theme";
+import { makeStyles, space, useTheme } from "@/lib/theme";
 import { getContact, updateContact } from "@/services/nomi";
 import type { ContactDetail, ContactUpdate } from "@/types/api";
 
@@ -27,6 +27,8 @@ const FIELDS: { key: EditableField; label: string; multiline?: boolean; keyboard
 ];
 
 export default function EditPerson() {
+  const styles = useStyles();
+  const { colors, type } = useTheme();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [original, setOriginal] = useState<ContactDetail | null>(null);
@@ -73,9 +75,9 @@ export default function EditPerson() {
   }
 
   return (
-    <Screen>
+    <Page>
       <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-        <Text style={type.meta}>Cancel</Text>
+        <Text style={type.small}>Cancel</Text>
       </Pressable>
       <Text style={[type.title, styles.title]}>Edit</Text>
 
@@ -96,7 +98,7 @@ export default function EditPerson() {
               onChangeText={(value) => setValues((current) => ({ ...current, [key]: value }))}
             />
           ))}
-          {error && <Text style={[type.meta, styles.error]}>{error}</Text>}
+          {error && <Text style={[type.small, styles.error]}>{error}</Text>}
           <Button
             title="Save"
             onPress={() => void save()}
@@ -105,23 +107,25 @@ export default function EditPerson() {
           />
         </View>
       )}
-    </Screen>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
   title: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.lg,
+    marginTop: space.xl,
+    marginBottom: space.lg,
   },
   loading: {
-    paddingVertical: spacing.xxl,
+    paddingVertical: space.xxl,
     alignItems: "center",
   },
   form: {
-    gap: spacing.md,
+    gap: space.md,
   },
   error: {
     color: colors.danger,
   },
-});
+}),
+);

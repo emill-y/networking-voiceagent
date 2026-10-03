@@ -1,4 +1,4 @@
-// Go together: small helpers for showing real events and planning them.
+// Plan Events: small helpers for showing real events and planning them.
 import type { EventWhere, RealEvent } from "@/types/api";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

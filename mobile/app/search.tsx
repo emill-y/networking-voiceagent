@@ -1,40 +1,53 @@
-import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { Pressable, StyleSheet, TextInput, View } from "react-native";
 
+import { Avatar } from "@/components/Avatar";
+import { Button } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
-import { PageHeader, eyebrowStyle } from "@/components/PageHeader";
-import { Screen } from "@/components/Screen";
-import { useProfile } from "@/hooks/useProfile";
-import { examples } from "@/lib/profile";
+import { OrbitLoader } from "@/components/OrbitLoader";
+import { Page } from "@/components/Page";
+import { Txt } from "@/components/Txt";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { searchSuggestions } from "@/lib/suggest";
+import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 import { listContacts, search } from "@/services/nomi";
-import { searchPlaceholder, searchSuggestions } from "@/lib/suggest";
 import type { ContactSummary, SearchResult } from "@/types/api";
 
+// Questions about a network, answered by meaning (not keywords). Contacts is
+// the directory; this is where you ask.
+const EXAMPLES = [
+  "Who do I know at Berkeley interested in AI?",
+  "Who did I meet recently who works in design?",
+  "Who should I ask about biotech?",
+  "Who could help me build a startup?",
+];
+
 export default function Search() {
+  const s = useStyles();
   const router = useRouter();
-  const [query, setQuery] = useState("");
-  const profileExamples = examples(useProfile()).searches;
-  // Suggestions come from the people you've saved ("What do I know about Eisha?").
+  const { colors } = useTheme();
+  const params = useLocalSearchParams<{ q?: string }>();
+  const [query, setQuery] = useState(params.q ?? "");
   const [people, setPeople] = useState<ContactSummary[]>([]);
+  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [asked, setAsked] = useState("");
+  const [smart, setSmart] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   useFocusEffect(
     useCallback(() => {
       listContacts().then(setPeople).catch(() => undefined);
     }, []),
   );
-  const EXAMPLES = people.length ? searchSuggestions(people) : profileExamples;
-  const [results, setResults] = useState<SearchResult[] | null>(null);
-  const [smart, setSmart] = useState(true);
-  const [asked, setAsked] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   async function run(text: string) {
     const q = text.trim();
-    if (!q) return;
+    if (!q || loading) return;
     setQuery(q);
     setLoading(true);
     setError(null);
@@ -44,198 +57,118 @@ export default function Search() {
       setSmart(response.interpreted);
       setAsked(q);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Search didn’t work.");
+      setError(e instanceof ApiError ? e.message : "Search didn’t work. Try again.");
     } finally {
       setLoading(false);
     }
   }
 
+  useEffect(() => {
+    if (params.q) void run(params.q);
+    // Only for a question passed in the link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.q]);
+
+  // Your own people make the best examples; general ones until you have some.
+  const suggestions = people.length >= 3 ? searchSuggestions(people) : EXAMPLES;
+
   return (
-    <Screen>
-      <PageHeader eyebrow="Find what you remember" title="Search your people"
-        subtitle="Look up a name, a detail, or ask Nomi a question." />
+    <Page title="Search" width="narrow">
+      <View style={s.box}>
+        <Icon name="spark" size={18} color={colors.accentText} />
+        <TextInput
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={() => void run(query)}
+          returnKeyType="search"
+          autoFocus
+          placeholder="Ask anything about your network"
+          placeholderTextColor={colors.textTertiary}
+          selectionColor={colors.accent}
+          accessibilityLabel="Ask about your network"
+          style={s.input}
+        />
+        <Button title="Ask" variant="primary" loading={loading} disabled={!query.trim()} onPress={() => void run(query)} />
+      </View>
 
-      <Text style={styles.fieldLabel}>What are you looking for?</Text>
-      <TextInput
-        value={query}
-        onChangeText={setQuery}
-        onSubmitEditing={() => void run(query)}
-        returnKeyType="search"
-        autoFocus
-        placeholder={searchPlaceholder(people)}
-        placeholderTextColor={colors.faint}
-        selectionColor={colors.accent}
-        accessibilityLabel="Search your people"
-        style={styles.input}
-      />
-
-      {!results && !loading && (
-        <>
-          <Text style={styles.sectionEyebrow}>
-            {people.length ? "Try a question from your memories" : "Try asking"}
-          </Text>
-          <View style={styles.exampleGrid}>
-            {EXAMPLES.map((example) => (
-              <Pressable key={example} onPress={() => void run(example)} accessibilityRole="button"
-                style={({ pressed }) => [styles.examplePill, pressed && styles.pressed]}>
-                <Text style={styles.exampleText}>{example}</Text>
-              </Pressable>
-            ))}
+      {loading ? (
+        <View style={s.loading}><OrbitLoader label="Searching your network" /></View>
+      ) : error ? (
+        <EmptyState icon="alert" title="Search didn’t work" body={error} action={<Button title="Try again" onPress={() => void run(query)} />} />
+      ) : results ? (
+        results.length === 0 ? (
+          <Card padding="none">
+            <EmptyState icon="search" title="No one fits that yet" body={`Nothing in your notes matches “${asked}”. Try other words, or browse Contacts.`}
+              action={<Button title="Browse contacts" onPress={() => router.push("/contacts")} />} />
+          </Card>
+        ) : (
+          <View style={s.results}>
+            <Txt variant="small">{results.length} {results.length === 1 ? "person" : "people"}{smart ? "" : " · matched by keywords"}</Txt>
+            <Card padding="none">
+              {results.map((r, i) => (
+                <Pressable key={r.contact.id} onPress={() => router.push({ pathname: "/contacts/[id]", params: { id: r.contact.id } })}
+                  accessibilityRole="button" accessibilityLabel={r.contact.name}
+                  style={({ hovered }) => [s.result, i > 0 && s.border, hovered && s.hover]}>
+                  <Avatar name={r.contact.name} size={40} />
+                  <View style={s.flex}>
+                    <View style={s.nameRow}>
+                      <Txt variant="label" numberOfLines={1} style={s.flexShrink}>{r.contact.name}</Txt>
+                      <Txt variant="caption">{formatRelative(r.contact.lastInteractionAt)}</Txt>
+                    </View>
+                    <Txt variant="caption" numberOfLines={1}>
+                      {[r.contact.role, r.contact.company ?? r.contact.school].filter(Boolean).join(" · ") || r.contact.lastEvent || ""}
+                    </Txt>
+                    {r.reasons[0] ? <Txt variant="small" tone="default" style={s.reason}>{r.reasons[0]}</Txt> : null}
+                  </View>
+                  <Icon name="chevron" size={16} color={colors.textTertiary} />
+                </Pressable>
+              ))}
+            </Card>
           </View>
-          <Text style={styles.sectionEyebrow}>How it works</Text>
-          <View style={styles.howGrid}>
-            {[
-              ["spark", "By meaning", "“Bad guy” finds “not a good guy”. “Startup” finds founders."],
-              ["user", "Your own notes", "Nomi reads only what you’ve saved about people."],
-              ["check", "With reasons", "Every result says why that person fits."],
-            ].map(([icon, title, body]) => (
-              <View key={title} style={styles.howCard}>
-                <Icon name={icon as "spark" | "check" | "user"} size={18} color={colors.accentBright} />
-                <Text style={styles.howTitle}>{title}</Text>
-                <Text style={type.meta}>{body}</Text>
-              </View>
-            ))}
-          </View>
-        </>
-      )}
-
-      {loading && <ActivityIndicator color={colors.accent} style={styles.loading} />}
-      {error && <Text style={[type.meta, styles.error]}>{error}</Text>}
-
-      {results && !loading && (
-        <View style={styles.results}>
-          {!smart && (
-            <Text style={[type.meta, styles.notice]}>
-              Smart search didn’t respond, so these are exact matches only. Try again in a moment.
-            </Text>
-          )}
-          {results.length === 0 ? (
-            <Text style={[type.body, styles.muted]}>No one matches “{asked}” yet.</Text>
-          ) : (
-            results.map(({ contact, reasons }) => (
-              <Pressable
-                key={contact.id}
-                onPress={() => router.push({ pathname: "/people/[id]", params: { id: contact.id } })}
-                accessibilityRole="button"
-                style={({ pressed }) => [styles.result, pressed && styles.pressed]}
-              >
-                <Text style={styles.name}>{contact.name}</Text>
-                {reasons.map((reason) => (
-                  <Text key={reason} style={[type.body, styles.reason]}>{reason}</Text>
-                ))}
-                {contact.lastInteractionAt && (
-                  <Text style={type.meta}>
-                    Last seen {formatRelative(contact.lastInteractionAt)}
-                    {contact.lastEvent ? ` · ${contact.lastEvent}` : ""}
-                  </Text>
-                )}
-              </Pressable>
-            ))
-          )}
+        )
+      ) : (
+        <View style={s.suggestions}>
+          <Txt variant="overline">Try asking</Txt>
+          {suggestions.map((q) => (
+            <Pressable key={q} onPress={() => void run(q)} accessibilityRole="button"
+              style={({ hovered }) => [s.suggestion, hovered && s.hover]}>
+              <Icon name="search" size={15} color={colors.textTertiary} />
+              <Txt variant="label" style={s.flex}>{q}</Txt>
+              <Icon name="arrow" size={15} color={colors.textTertiary} />
+            </Pressable>
+          ))}
         </View>
       )}
-    </Screen>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
-  title: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.lg,
-  },
-  input: {
-    backgroundColor: "rgba(255, 255, 255, 0.03)",
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: "rgba(255, 200, 170, 0.16)",
-    paddingHorizontal: spacing.lg,
-    paddingVertical: 18,
-    fontSize: 17,
-    color: colors.text,
-  },
-  sectionLabel: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
-  },
-  exampleGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  fieldLabel: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.textSoft,
-    marginBottom: spacing.sm,
-  },
-  sectionEyebrow: {
-    ...eyebrowStyle,
-    color: colors.textSoft,
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  examplePill: {
-    paddingVertical: 10,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255, 122, 42, 0.1)",
-    borderWidth: 1,
-    borderColor: "rgba(255, 150, 100, 0.25)",
-  },
-  exampleText: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  howGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  howCard: {
-    flexGrow: 1,
-    flexBasis: 180,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.surface,
-    gap: 4,
-  },
-  howTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 4,
-  },
-  loading: {
-    marginTop: spacing.xl,
-  },
-  error: {
-    marginTop: spacing.md,
-    color: colors.danger,
-  },
-  results: {
-    marginTop: spacing.lg,
-  },
-  notice: {
-    color: colors.accent,
-    marginBottom: spacing.md,
-  },
-  muted: {
-    color: colors.muted,
-  },
-  result: {
-    paddingVertical: spacing.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.hairline,
-    gap: 4,
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  name: {
-    ...type.heading,
-    marginBottom: 2,
-  },
-  reason: {
-    color: colors.text,
-  },
-});
+const useStyles = makeStyles(({ colors, shadow }) =>
+  StyleSheet.create({
+    flex: { flex: 1, minWidth: 0 },
+    flexShrink: { flexShrink: 1 },
+    box: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: space.sm,
+      paddingLeft: space.md,
+      paddingRight: space.xs,
+      paddingVertical: space.xs,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.borderStrong,
+      ...shadow.card,
+    },
+    input: { flex: 1, minWidth: 0, fontSize: 17, color: colors.text, paddingVertical: space.xs, outlineStyle: "none" } as object,
+    loading: { paddingVertical: space.xxl, alignItems: "center" },
+    results: { gap: space.xs },
+    result: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
+    border: { borderTopWidth: 1, borderTopColor: colors.border },
+    hover: { backgroundColor: colors.surfaceHover },
+    nameRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: space.xs },
+    reason: { marginTop: 4 },
+    suggestions: { gap: space.xxs },
+    suggestion: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.sm, minHeight: 44, borderRadius: radius.md },
+  }),
+);

@@ -3,14 +3,16 @@ import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
-import { Screen } from "@/components/Screen";
+import { Page } from "@/components/Page";
 import { profileFrom } from "@/lib/profile";
 import { supabase, withTimeout } from "@/lib/supabase";
-import { colors, spacing, type } from "@/lib/theme";
+import { makeStyles, space, useTheme } from "@/lib/theme";
 
 // Google and magic links land here with ?code=… (or ?error_description=…).
 // Exchanging the code creates the session; then we go home.
 export default function AuthCallback() {
+  const styles = useStyles();
+  const { colors, type } = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams<{ code?: string; error?: string; error_description?: string }>();
   const [error, setError] = useState<string | null>(null);
@@ -45,13 +47,13 @@ export default function AuthCallback() {
   }, [params.code, params.error, params.error_description, router]);
 
   return (
-    <Screen scroll={false}>
+    <Page scroll={false}>
       <View style={styles.center}>
         {error ? (
           <>
             <Text style={[type.title, styles.text]}>That link didn’t work.</Text>
             <Text style={[type.body, styles.text]}>{error}</Text>
-            <Text style={[type.meta, styles.text]}>
+            <Text style={[type.small, styles.text]}>
               Links work once, in the same browser that asked for them, for about an hour.
             </Text>
             <View style={styles.action}>
@@ -61,26 +63,28 @@ export default function AuthCallback() {
         ) : (
           <>
             <ActivityIndicator color={colors.accent} />
-            <Text style={[type.meta, styles.text]}>Signing you in…</Text>
+            <Text style={[type.small, styles.text]}>Signing you in…</Text>
           </>
         )}
       </View>
-    </Screen>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(() =>
+  StyleSheet.create({
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: spacing.md,
+    gap: space.md,
   },
   text: {
     textAlign: "center",
   },
   action: {
     alignSelf: "stretch",
-    marginTop: spacing.lg,
+    marginTop: space.lg,
   },
-});
+}),
+);

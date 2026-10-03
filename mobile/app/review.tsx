@@ -6,8 +6,8 @@ import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { DatePicker } from "@/components/DatePicker";
 import { Divider } from "@/components/Divider";
-import { Field } from "@/components/Field";
-import { Screen } from "@/components/Screen";
+import { Input as Field } from "@/components/Input";
+import { Page } from "@/components/Page";
 import { useProfile } from "@/hooks/useProfile";
 import { ApiError } from "@/lib/api";
 import { examples, extractionContext } from "@/lib/profile";
@@ -22,7 +22,7 @@ import {
   withCandidates,
   type Draft,
 } from "@/lib/review";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 import { duplicateCheck, extract, saveCapture, transcribe } from "@/services/nomi";
 
 type TextField = "role" | "company" | "school" | "major" | "location" | "metAt" | "projects"
@@ -54,6 +54,8 @@ function describe(error: unknown): string {
 }
 
 export default function Review() {
+  const styles = useStyles();
+  const { colors, type } = useTheme();
   const router = useRouter();
   const profile = useProfile();
   // `uri` comes from the record screen; `transcript` lets you type a note instead.
@@ -134,7 +136,7 @@ export default function Review() {
         params.uri || params.source === "voice" ? "voice" : "manual",
       );
       if (saved.length === 1) {
-        router.replace({ pathname: "/people/[id]", params: { id: saved[0].contactId } });
+        router.replace({ pathname: "/contacts/[id]", params: { id: saved[0].contactId } });
       } else {
         router.replace("/");
       }
@@ -146,37 +148,37 @@ export default function Review() {
 
   if (stage === "transcribing" || stage === "extracting") {
     return (
-      <Screen scroll={false}>
+      <Page scroll={false}>
         <View style={styles.center}>
           <ActivityIndicator color={colors.accent} />
           <Text style={[type.title, styles.centerText]}>{stageCopy[stage]}</Text>
-          <Text style={[type.meta, styles.centerText]}>
+          <Text style={[type.small, styles.centerText]}>
             {stage === "transcribing"
               ? "Turning your voice into words."
               : "Finding the people and what matters about them."}
           </Text>
         </View>
-      </Screen>
+      </Page>
     );
   }
 
   if (stage === "error") {
     return (
-      <Screen scroll={false}>
+      <Page scroll={false}>
         <View style={styles.center}>
           <Text style={[type.title, styles.centerText]}>That didn’t work.</Text>
           <Text style={[type.body, styles.centerText]}>{error}</Text>
           <View style={styles.actions}>
             <Button title="Try again" onPress={() => setAttempt((n) => n + 1)} />
-            <Button title="Record again" variant="quiet" onPress={() => router.replace("/record")} />
+            <Button title="Record again" variant="secondary" onPress={() => router.replace("/record")} />
           </View>
         </View>
-      </Screen>
+      </Page>
     );
   }
 
   return (
-    <Screen>
+    <Page>
       <CloseButton label="Discard" />
 
       <Text style={[type.display, styles.title]}>
@@ -186,13 +188,13 @@ export default function Review() {
             ? "Here’s who you met."
             : `You met ${drafts.length} people.`}
       </Text>
-      <Text style={type.meta}>
+      <Text style={type.small}>
         Check what I heard. Nothing is saved until you confirm.
       </Text>
 
       {transcript ? (
         <Pressable onPress={() => setShowTranscript((v) => !v)} style={styles.transcriptToggle}>
-          <Text style={type.label}>{showTranscript ? "Hide" : "Show"} what you said</Text>
+          <Text style={type.overline}>{showTranscript ? "Hide" : "Show"} what you said</Text>
           {showTranscript && <Text style={[type.body, styles.transcript]}>“{transcript}”</Text>}
         </Pressable>
       ) : null}
@@ -221,11 +223,11 @@ export default function Review() {
         accessibilityRole="button"
         style={styles.addPerson}
       >
-        <Text style={type.meta}>+ Add someone I missed</Text>
+        <Text style={type.small}>+ Add someone I missed</Text>
       </Pressable>
 
       {(problem || error) && (
-        <Text style={[type.meta, styles.problem]}>{error ?? problem}</Text>
+        <Text style={[type.small, styles.problem]}>{error ?? problem}</Text>
       )}
       <Button
         title={included.length > 1 ? `Remember ${included.length} people` : "Remember"}
@@ -233,7 +235,7 @@ export default function Review() {
         disabled={!!problem || included.length === 0}
         loading={saving}
       />
-    </Screen>
+    </Page>
   );
 }
 
@@ -246,6 +248,8 @@ function PersonEditor({
   index: number;
   onChange: (change: (draft: Draft) => Draft) => void;
 }) {
+  const styles = useStyles();
+  const { type } = useTheme();
   const followUpExample = examples(useProfile()).followUp;
   // Only show what was heard; empty fields wait behind "More details".
   const [showAll, setShowAll] = useState(false);
@@ -261,7 +265,7 @@ function PersonEditor({
           accessibilityRole="button"
           hitSlop={8}
         >
-          <Text style={type.meta}>{draft.include ? "Skip" : "Include"}</Text>
+          <Text style={type.small}>{draft.include ? "Skip" : "Include"}</Text>
         </Pressable>
       </View>
 
@@ -281,7 +285,7 @@ function PersonEditor({
                     style={[styles.choice, selected && styles.choiceSelected]}
                   >
                     <Text style={styles.choiceTitle}>Yes — {c.name}</Text>
-                    <Text style={type.meta}>
+                    <Text style={type.small}>
                       {[c.role, c.company ?? c.school].filter(Boolean).join(" · ")}
                       {c.lastInteractionAt ? ` · last seen ${formatRelative(c.lastInteractionAt)}` : ""}
                       {` · ${c.reason}`}
@@ -314,7 +318,7 @@ function PersonEditor({
           ))}
           {!showAll && OPTIONAL_FIELDS.some((f) => !draft[f.key].trim()) && (
             <Pressable onPress={() => setShowAll(true)} accessibilityRole="button" hitSlop={8}>
-              <Text style={type.meta}>+ More details</Text>
+              <Text style={type.small}>+ More details</Text>
             </Pressable>
           )}
           <Field label="Follow up" value={draft.followUp} onChangeText={set("followUp")}
@@ -328,39 +332,40 @@ function PersonEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
   center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    gap: spacing.md,
-    paddingBottom: spacing.xxl,
+    gap: space.md,
+    paddingBottom: space.xxl,
   },
   centerText: {
     textAlign: "center",
   },
   actions: {
     alignSelf: "stretch",
-    gap: spacing.md,
-    marginTop: spacing.lg,
+    gap: space.md,
+    marginTop: space.lg,
   },
   title: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
+    marginTop: space.xl,
+    marginBottom: space.xs,
   },
   transcriptToggle: {
-    marginTop: spacing.lg,
-    gap: spacing.sm,
+    marginTop: space.lg,
+    gap: space.xs,
   },
   transcript: {
     fontStyle: "italic",
-    color: colors.muted,
+    color: colors.textSecondary,
   },
   empty: {
-    marginTop: spacing.lg,
+    marginTop: space.lg,
   },
   person: {
-    gap: spacing.md,
+    gap: space.md,
   },
   excluded: {
     opacity: 0.5,
@@ -371,9 +376,9 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
   },
   match: {
-    gap: spacing.sm,
-    padding: spacing.md,
-    backgroundColor: colors.surface,
+    gap: space.xs,
+    padding: space.md,
+    backgroundColor: colors.sunken,
     borderRadius: radius.md,
   },
   matchQuestion: {
@@ -381,9 +386,9 @@ const styles = StyleSheet.create({
   },
   choice: {
     paddingVertical: 10,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: space.md,
     borderRadius: radius.sm,
-    backgroundColor: colors.raised,
+    backgroundColor: colors.surfaceHover,
     borderWidth: 1,
     borderColor: "transparent",
     gap: 2,
@@ -396,11 +401,12 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   addPerson: {
-    paddingVertical: spacing.sm,
-    marginBottom: spacing.lg,
+    paddingVertical: space.xs,
+    marginBottom: space.lg,
   },
   problem: {
     color: colors.accent,
-    marginBottom: spacing.md,
+    marginBottom: space.md,
   },
-});
+}),
+);

@@ -101,6 +101,7 @@ function RootNavigator() {
         <Stack.Screen name="search" />
         <Stack.Screen name="profile" />
         <Stack.Screen name="invite" />
+        <Stack.Screen name="shared/[token]" />
         <Stack.Screen name="import-contacts" />
         <Stack.Screen name="network" />
         <Stack.Screen name="edit-profile" />

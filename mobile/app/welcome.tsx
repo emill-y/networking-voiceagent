@@ -4,12 +4,12 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, { FadeInDown } from "react-native-reanimated";
 
 import { Button } from "@/components/Button";
-import { Field } from "@/components/Field";
+import { Input as Field } from "@/components/Input";
 import { Icon, type IconName } from "@/components/Icon";
-import { Screen } from "@/components/Screen";
+import { Page } from "@/components/Page";
 import { useProfile } from "@/hooks/useProfile";
 import { saveProfile, type Persona } from "@/lib/profile";
-import { colors, fonts, radius, spacing, type } from "@/lib/theme";
+import { font, makeStyles, radius, space, useTheme } from "@/lib/theme";
 
 const PERSONAS: { value: Persona; title: string; line: string; icon: IconName }[] = [
   { value: "student", title: "Student", line: "Classmates, professors, clubs, career fairs", icon: "spark" },
@@ -23,6 +23,8 @@ const YEARS = ["First year", "Second year", "Third year", "Fourth year", "Grad"]
 // One quick step after sign-in, so Nomi can tailor examples and understand
 // "my school" or "a classmate". Editable later from You.
 export default function Welcome() {
+  const styles = useStyles();
+  const { colors, type } = useTheme();
   const router = useRouter();
   const existing = useProfile();
   const { edit } = useLocalSearchParams<{ edit?: string }>();
@@ -52,7 +54,7 @@ export default function Welcome() {
   }
 
   return (
-    <Screen>
+    <Page>
       <Animated.View entering={FadeInDown.duration(500)}>
         <Text style={styles.kicker}>{edit ? "Your profile" : "Welcome to Nomi"}</Text>
         <Text style={[type.display, styles.title]}>What brings you here?</Text>
@@ -71,11 +73,11 @@ export default function Welcome() {
                 style={({ pressed }) => [styles.option, selected && styles.optionSelected, pressed && styles.pressed]}
               >
                 <View style={[styles.optionIcon, selected && styles.optionIconSelected]}>
-                  <Icon name={p.icon} size={20} color={selected ? colors.background : colors.textSoft} />
+                  <Icon name={p.icon} size={20} color={selected ? colors.bg : colors.text} />
                 </View>
                 <View style={styles.optionText}>
                   <Text style={styles.optionTitle}>{p.title}</Text>
-                  <Text style={type.meta}>{p.line}</Text>
+                  <Text style={type.small}>{p.line}</Text>
                 </View>
               </Pressable>
             </Animated.View>
@@ -89,7 +91,7 @@ export default function Welcome() {
             placeholder="e.g. UC Berkeley" />
           <Field label="Studying" value={major} onChangeText={setMajor} autoCapitalize="words"
             placeholder="e.g. Computer Science" />
-          <Text style={type.label}>Year</Text>
+          <Text style={type.overline}>Year</Text>
           <View style={styles.years}>
             {YEARS.map((y) => (
               <Pressable key={y} onPress={() => setYear(y === year ? "" : y)} accessibilityRole="radio"
@@ -102,45 +104,46 @@ export default function Welcome() {
         </Animated.View>
       )}
 
-      {error && <Text style={[type.meta, styles.error]}>{error}</Text>}
+      {error && <Text style={[type.small, styles.error]}>{error}</Text>}
       <View style={styles.cta}>
         <Button title={edit ? "Save" : "Start remembering"} onPress={() => void finish()}
           disabled={!persona || (persona === "student" && !school.trim())} loading={saving} />
       </View>
-    </Screen>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
   kicker: {
-    marginTop: spacing.lg,
+    marginTop: space.lg,
     fontSize: 13,
     letterSpacing: 1.6,
     textTransform: "uppercase",
     color: colors.accent,
   },
   title: {
-    marginTop: spacing.sm,
+    marginTop: space.xs,
   },
   sub: {
-    marginTop: spacing.xs,
-    fontFamily: fonts.serifItalic,
+    marginTop: space.xxs,
+    fontFamily: font.medium,
     fontSize: 19,
-    color: colors.muted,
+    color: colors.textSecondary,
   },
   options: {
-    marginTop: spacing.xl,
-    gap: spacing.sm,
+    marginTop: space.xl,
+    gap: space.xs,
   },
   option: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    padding: spacing.md,
+    gap: space.md,
+    padding: space.md,
     borderRadius: radius.lg,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.border,
   },
   optionSelected: {
     borderColor: colors.accent,
@@ -158,51 +161,52 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(242, 238, 232, 0.07)",
   },
   optionIconSelected: {
-    backgroundColor: colors.accentBright,
+    backgroundColor: colors.accentText,
   },
   optionText: {
     flex: 1,
     gap: 2,
   },
   optionTitle: {
-    fontFamily: fonts.serifBold,
+    fontFamily: font.headingBold,
     fontSize: 21,
     color: colors.text,
   },
   student: {
-    marginTop: spacing.xl,
-    gap: spacing.md,
+    marginTop: space.xl,
+    gap: space.md,
   },
   years: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: spacing.sm,
+    gap: space.xs,
   },
   year: {
     paddingVertical: 9,
     paddingHorizontal: 14,
     borderRadius: radius.pill,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
-    backgroundColor: colors.card,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
   },
   yearSelected: {
-    backgroundColor: colors.accentBright,
-    borderColor: colors.accentBright,
+    backgroundColor: colors.accentText,
+    borderColor: colors.accentText,
   },
   yearText: {
     fontSize: 14,
-    color: colors.textSoft,
+    color: colors.text,
   },
   yearTextSelected: {
-    color: colors.background,
+    color: colors.bg,
     fontWeight: "600",
   },
   error: {
-    marginTop: spacing.md,
+    marginTop: space.md,
     color: colors.danger,
   },
   cta: {
-    marginTop: spacing.xl,
+    marginTop: space.xl,
   },
-});
+}),
+);

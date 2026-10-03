@@ -4,19 +4,21 @@ import { StyleSheet, Text, TextInput } from "react-native";
 
 import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
-import { Screen } from "@/components/Screen";
+import { Page } from "@/components/Page";
 import { useProfile } from "@/hooks/useProfile";
 import { examples } from "@/lib/profile";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 
 // For moments when speaking out loud isn't possible: type the same kind of note.
 export default function Write() {
+  const styles = useStyles();
+  const { colors, type } = useTheme();
   const router = useRouter();
   const [text, setText] = useState("");
   const profile = useProfile();
 
   return (
-    <Screen>
+    <Page>
       <CloseButton />
       <Text style={[type.display, styles.title]}>Tell me about them.</Text>
       <TextInput
@@ -25,7 +27,7 @@ export default function Write() {
         multiline
         autoFocus
         placeholder={examples(profile).note}
-        placeholderTextColor={colors.faint}
+        placeholderTextColor={colors.textTertiary}
         selectionColor={colors.accent}
         accessibilityLabel="Your note"
         style={styles.input}
@@ -35,24 +37,26 @@ export default function Write() {
         disabled={!text.trim()}
         onPress={() => router.replace({ pathname: "/review", params: { transcript: text.trim() } })}
       />
-    </Screen>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
   title: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.lg,
+    marginTop: space.xl,
+    marginBottom: space.lg,
   },
   input: {
     minHeight: 200,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sunken,
     borderRadius: radius.md,
-    padding: spacing.md,
-    marginBottom: spacing.lg,
+    padding: space.md,
+    marginBottom: space.lg,
     fontSize: 17,
     lineHeight: 26,
     color: colors.text,
     textAlignVertical: "top",
   },
-});
+}),
+);

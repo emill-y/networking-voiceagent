@@ -1,574 +1,391 @@
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import { ActivityIndicator, Linking, Platform, Pressable, Share, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Linking, Platform, Pressable, Share, StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 
+import { Avatar } from "@/components/Avatar";
+import { Button, IconButton } from "@/components/Button";
 import { Card } from "@/components/Card";
+import { Chip, ChipRow, Tag } from "@/components/Chip";
+import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
-import { Monogram } from "@/components/Monogram";
-import { PageHeader, eyebrowStyle } from "@/components/PageHeader";
-import { PillButton } from "@/components/PillButton";
-import { Screen } from "@/components/Screen";
+import { Input } from "@/components/Input";
+import { OrbitLoader } from "@/components/OrbitLoader";
+import { Page } from "@/components/Page";
+import { Segmented } from "@/components/Segmented";
+import { Sheet } from "@/components/Sheet";
+import { useToast } from "@/components/Toast";
+import { Txt } from "@/components/Txt";
 import { useDesktop } from "@/hooks/useDesktop";
 import { useProfile } from "@/hooks/useProfile";
 import { ApiError } from "@/lib/api";
 import { eventDate } from "@/lib/calendar";
 import { dateToDueAt } from "@/lib/dates";
-import { goAction, inviteText, parseInterests, placeLine, planWhen } from "@/lib/plans";
+import { copyText } from "@/lib/files";
+import { goAction, inviteText, parseInterests, planWhen } from "@/lib/plans";
+import { isDemo } from "@/lib/demo";
 import { saveProfile } from "@/lib/profile";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { makeStyles, radius, space } from "@/lib/theme";
 import { addEventFeed, createFollowUp, getPlans, listEventFeeds, removeEventFeed } from "@/services/nomi";
 import type { EventFeed, Plan, PlanPerson, PlansResponse, RealEvent } from "@/types/api";
 
-// What a plan looks like before there are any (never a blank page).
-const SAMPLE: Plan = {
-  event: {
-    id: "sample", title: "Chemistry mixer", start: "2026-10-03", end: null, allDay: true,
-    city: "Latimer Hall", country: null, online: false, url: null, source: "feed",
-    sourceLabel: "Your club’s calendar", topics: [], where: "local", people: [],
-  },
-  people: [{ contactId: "sample", name: "Annie Park", why: null }],
-  shared: "chemistry",
-  why: "You’re both into chemistry, and Annie wants to meet grad students.",
-};
+type Days = "7" | "14" | "30" | "90";
+type Radius = "10" | "25" | "50";
+const DAY_OPTIONS: { value: Days; label: string }[] = [
+  { value: "7", label: "This week" },
+  { value: "14", label: "2 weeks" },
+  { value: "30", label: "Month" },
+  { value: "90", label: "3 months" },
+];
+const MILES: { value: Radius; label: string }[] = [
+  { value: "10", label: "10 mi" },
+  { value: "25", label: "25 mi" },
+  { value: "50", label: "50 mi" },
+];
 
-async function shareText(message: string): Promise<"shared" | "copied"> {
-  if (Platform.OS === "web") {
-    if (typeof navigator.share === "function") {
-      await navigator.share({ text: message });
-      return "shared";
-    }
-    await navigator.clipboard.writeText(message);
-    return "copied";
-  }
-  await Share.share({ message });
-  return "shared";
-}
+const canLocate = Platform.OS === "web" && typeof navigator !== "undefined" && !!navigator.geolocation;
 
-export default function GoTogether() {
-  const router = useRouter();
+export default function PlanEvents() {
+  const s = useStyles();
   const desktop = useDesktop();
+  const toast = useToast();
   const profile = useProfile();
-  const [city, setCity] = useState(profile?.city ?? "");
-  const [interests, setInterests] = useState(
-    (profile?.interests ?? [profile?.major].filter(Boolean) as string[]).join(", "),
-  );
+  const [city, setCity] = useState(profile?.city ?? (isDemo() ? "San Francisco, CA" : ""));
+  const [interests, setInterests] = useState((profile?.interests ?? [profile?.major].filter(Boolean) as string[]).join(", "));
+  const [near, setNear] = useState<{ lat: number; lon: number } | null>(null);
+  const [miles, setMiles] = useState<Radius>("25");
+  const [days, setDays] = useState<Days>("30");
+  const [categories, setCategories] = useState<string[]>([]);
   const [data, setData] = useState<PlansResponse | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<Record<string, string>>({});
-  const [feeds, setFeeds] = useState<EventFeed[]>([]);
-  const [feedUrl, setFeedUrl] = useState("");
-  const [feedNote, setFeedNote] = useState<string | null>(null);
-  const [addingFeed, setAddingFeed] = useState(false);
+  const [planned, setPlanned] = useState<Record<string, "saving" | "done">>({});
+  const [locating, setLocating] = useState(false);
+  const [feedsOpen, setFeedsOpen] = useState(false);
+  const request = useRef(0);
 
-  async function load(nextCity = city, nextInterests = interests) {
+  const hasPlace = !!near || !!city.trim();
+
+  async function load() {
+    const id = ++request.current;
     setLoading(true);
     setError(null);
     try {
-      setData(await getPlans(nextCity.trim(), parseInterests(nextInterests)));
+      const result = await getPlans({
+        city: city.trim(),
+        interests: parseInterests(interests),
+        days: Number(days),
+        categories,
+        near: near ? { ...near, radiusKm: Math.round(Number(miles) * 1.609) } : null,
+      });
+      if (id === request.current) setData(result);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Couldn’t find events right now.");
+      if (id === request.current) setError(e instanceof ApiError ? e.message : "Couldn’t find events right now.");
     } finally {
-      setLoading(false);
+      if (id === request.current) setLoading(false);
     }
   }
 
+  // Filters apply as soon as they change; typing waits for Enter or "Update".
   useEffect(() => {
-    void load();
-    listEventFeeds().then(setFeeds).catch(() => undefined);
-    // Only on open; "Update" reloads with new settings.
+    if (hasPlace || data) void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [days, categories.join(","), near?.lat, near?.lon, miles]);
 
-  async function update() {
+  function applyText() {
     const wanted = parseInterests(interests);
     void saveProfile({ ...(profile ?? { persona: "other" }), city: city.trim(), interests: wanted }).catch(() => undefined);
-    await load(city, wanted.join(", "));
+    void load();
+  }
+
+  function locate() {
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNear({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        toast.show("Location is off. Type your city instead.", "danger");
+      },
+      { timeout: 10000, maximumAge: 600000 },
+    );
   }
 
   async function plan(event: RealEvent, people: PlanPerson[]) {
     const key = `${event.id}:${people.map((p) => p.contactId).join(",")}`;
-    setDone((d) => ({ ...d, [key]: "saving" }));
+    setPlanned((p) => ({ ...p, [key]: "saving" }));
     try {
       const day = eventDate(event.start, event.allDay);
       for (const person of people) {
         await createFollowUp(person.contactId, goAction(person.name, event.title), day ? dateToDueAt(day) : null);
       }
-      setDone((d) => ({ ...d, [key]: "planned" }));
-    } catch {
-      setDone((d) => {
-        const next = { ...d };
+      setPlanned((p) => ({ ...p, [key]: "done" }));
+      toast.show("Added to Follow-ups", "success");
+    } catch (e) {
+      setPlanned((p) => {
+        const next = { ...p };
         delete next[key];
         return next;
       });
+      toast.show(e instanceof ApiError ? e.message : "Couldn’t plan that.", "danger");
     }
   }
 
   async function invite(event: RealEvent, person: PlanPerson, shared: string) {
-    const key = `invite:${event.id}:${person.contactId}`;
+    const message = inviteText(person.name, event, shared);
     try {
-      const how = await shareText(inviteText(person.name, event, shared));
-      setDone((d) => ({ ...d, [key]: how }));
+      if (Platform.OS === "web") {
+        if (typeof navigator.share === "function") await navigator.share({ text: message });
+        else if (await copyText(message)) toast.show("Invite copied", "success");
+      } else {
+        await Share.share({ message });
+      }
     } catch {
       // Closing the share sheet isn't an error.
     }
   }
 
-  async function addFeed() {
-    setAddingFeed(true);
-    setFeedNote(null);
-    try {
-      const { feed, upcoming } = await addEventFeed(feedUrl.trim());
-      setFeeds((current) => [...current, feed]);
-      setFeedUrl("");
-      setFeedNote(`Added ${feed.label}: ${upcoming} upcoming event${upcoming === 1 ? "" : "s"}.`);
-      void load();
-    } catch (e) {
-      setFeedNote(e instanceof ApiError ? e.message : "Couldn’t add that calendar.");
-    } finally {
-      setAddingFeed(false);
-    }
-  }
-
-  async function dropFeed(feed: EventFeed) {
-    setFeeds((current) => current.filter((f) => f.id !== feed.id));
-    await removeEventFeed(feed.id).catch(() => undefined);
-    void load();
-  }
-
   const plans = data?.plans ?? [];
-  const planned = new Set(plans.map((p) => p.event.id));
-  const more = (data?.events ?? []).filter((e) => !planned.has(e.id)).slice(0, 12);
-  const hasCalendar = data?.sources.some((s) => s.kind === "calendar");
+  const planIds = new Set(plans.map((p) => p.event.id));
+  const others = (data?.events ?? []).filter((e) => !planIds.has(e.id));
 
   return (
-    <Screen wide={desktop}>
-      <PageHeader eyebrow="Real events, real people" title="Go together"
-        subtitle="Real events coming up, and who from your notes to bring. Plan it and it lands in your follow-ups and calendar." />
-
-      <Card style={styles.settings}>
-        <View style={[styles.settingsRow, !desktop && styles.stack]}>
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>Your city</Text>
-            <TextInput value={city} onChangeText={setCity} placeholder="e.g. San Francisco, CA"
-              placeholderTextColor={colors.faint} selectionColor={colors.accent} style={styles.input}
-              accessibilityLabel="Your city" onSubmitEditing={() => void update()} />
-          </View>
-          <View style={[styles.field, styles.fieldWide]}>
-            <Text style={styles.fieldLabel}>You’re into</Text>
-            <TextInput value={interests} onChangeText={setInterests} placeholder="e.g. startups, chemistry, design"
-              placeholderTextColor={colors.faint} selectionColor={colors.accent} style={styles.input}
-              accessibilityLabel="Your interests, separated by commas" onSubmitEditing={() => void update()} />
-          </View>
-          <View style={styles.updateButton}>
-            <PillButton title="Find events" icon="search" variant="primary" loading={loading} onPress={() => void update()} />
-          </View>
-        </View>
-      </Card>
-
-      {error && <Text style={[type.body, styles.error]}>{error}</Text>}
-
-      <Text style={styles.sectionLabel}>Plans for you</Text>
-      {loading && !data ? (
-        <Card style={styles.loadingCard}>
-          <ActivityIndicator color={colors.accent} />
-          <Text style={type.meta}>Finding real events and matching them to your people…</Text>
-        </Card>
-      ) : (
-        <View style={[styles.grid, desktop && styles.gridDesktop]}>
-          {(plans.length ? plans : [SAMPLE]).map((p) => {
-            const sample = p.event.id === "sample";
-            const key = `${p.event.id}:${p.people.map((x) => x.contactId).join(",")}`;
-            const state = done[key];
-            const names = p.people.map((x) => x.name.split(" ")[0]).join(" & ");
-            return (
-              <Card key={key} style={[styles.planCard, desktop && styles.planCardDesktop]}>
-                <View style={styles.planTop}>
-                  <View style={styles.datePill}><Text style={styles.dateText}>{planWhen(p.event)}</Text></View>
-                  {sample ? (
-                    <View style={styles.sampleBadge}><Text style={styles.sampleText}>Example</Text></View>
-                  ) : (
-                    <Text style={styles.sourceText} numberOfLines={1}>{p.event.sourceLabel}</Text>
-                  )}
-                </View>
-                <Pressable disabled={!p.event.url} onPress={() => p.event.url && void Linking.openURL(p.event.url)}
-                  accessibilityRole="link">
-                  <Text style={styles.planTitle}>{p.event.title}</Text>
-                </Pressable>
-                {placeLine(p.event) ? <Text style={type.meta}>{placeLine(p.event)}</Text> : null}
-                <View style={styles.withRow}>
-                  <View style={styles.faces}>
-                    {p.people.map((x) => <Monogram key={x.contactId} name={x.name} size={34} />)}
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.withText}>Go with {names}</Text>
-                    {p.shared ? <Text style={styles.shared}>Both into {p.shared}</Text> : null}
-                  </View>
-                </View>
-                <Text style={styles.why}>{p.why}</Text>
-                {sample ? (
-                  <Text style={type.meta}>
-                    Remember people and add your city and interests: real plans show up here.
-                  </Text>
-                ) : (
-                  <View style={styles.actions}>
-                    <PillButton
-                      title={state === "planned" ? "Planned ✓" : "Plan it"}
-                      icon={state === "planned" ? undefined : "calendar"}
-                      variant="primary" loading={state === "saving"} disabled={state === "planned"}
-                      onPress={() => void plan(p.event, p.people)} />
-                    {p.people.map((x) => {
-                      const sent = done[`invite:${p.event.id}:${x.contactId}`];
-                      return (
-                        <PillButton key={x.contactId} icon="message"
-                          title={sent === "copied" ? "Invite copied" : `Invite ${x.name.split(" ")[0]}`}
-                          onPress={() => void invite(p.event, x, p.shared)} />
-                      );
-                    })}
-                  </View>
-                )}
-                {state === "planned" && (
-                  <Text style={[type.meta, styles.plannedNote]}>
-                    Added to your follow-ups{hasCalendar ? " and Google Calendar" : ""}.
-                  </Text>
-                )}
-              </Card>
-            );
-          })}
-        </View>
-      )}
-
-      {more.length > 0 && (
-        <>
-          <Text style={styles.sectionLabel}>More real events</Text>
-          <Card style={styles.listCard}>
-            {more.map((event) => {
-              const person = event.people[0];
-              const key = person ? `${event.id}:${person.contactId}` : event.id;
-              const state = done[key];
-              return (
-                <View key={event.id} style={styles.eventRow}>
-                  <View style={styles.eventDate}>
-                    <Text style={styles.eventDateText}>{planWhen(event)}</Text>
-                  </View>
-                  <View style={{ flex: 1, gap: 2 }}>
-                    <Pressable disabled={!event.url} onPress={() => event.url && void Linking.openURL(event.url)}
-                      accessibilityRole="link">
-                      <Text style={styles.eventTitle}>{event.title}</Text>
-                    </Pressable>
-                    <Text style={type.meta} numberOfLines={1}>
-                      {[placeLine(event), event.sourceLabel].filter(Boolean).join(" · ")}
-                    </Text>
-                    {person ? (
-                      <Text style={styles.eventPeople} numberOfLines={1}>
-                        Bring {event.people.map((x) => x.name.split(" ")[0]).join(", ")} · {person.why}
-                      </Text>
-                    ) : (
-                      <Text style={[type.meta, styles.nobody]}>No one from your notes matches yet</Text>
-                    )}
-                  </View>
-                  {person && (
-                    <Pressable onPress={() => state !== "planned" && void plan(event, [person])}
-                      disabled={state === "planned" || state === "saving"} accessibilityRole="button"
-                      accessibilityLabel={`Plan ${event.title} with ${person.name}`} hitSlop={6}
-                      style={[styles.addChip, state === "planned" && styles.addChipDone]}>
-                      <Text style={styles.addChipText}>{state === "planned" ? "Planned ✓" : "+ Plan"}</Text>
-                    </Pressable>
-                  )}
-                </View>
-              );
-            })}
-          </Card>
-        </>
-      )}
-
-      <Text style={styles.sectionLabel}>Where events come from</Text>
-      <Card style={styles.sourcesCard}>
-        {(data?.sources ?? []).filter((s) => s.kind !== "feed").map((s) => (
-          <View key={s.label} style={styles.sourceRow}>
-            <View style={styles.iconTile}>
-              <Icon name={s.kind === "calendar" ? "calendar" : "spark"} size={16} color={colors.accentBright} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sourceName}>{s.label}</Text>
-              <Text style={type.meta}>
-                {s.kind === "conferences"
-                  ? `${s.events} upcoming · free, community-maintained data on GitHub`
-                  : `${s.events} upcoming events you’re already going to`}
-              </Text>
-            </View>
-            {s.url && (
-              <Pressable onPress={() => void Linking.openURL(s.url!)} accessibilityRole="link" hitSlop={6}>
-                <Text style={styles.link}>Source ↗</Text>
-              </Pressable>
+    <Page title="Plan Events" actions={<Button title="Follow a calendar" icon="calendarAdd" variant="ghost" onPress={() => setFeedsOpen(true)} />}>
+      <Card style={s.filters}>
+        <View style={[s.filterRow, !desktop && s.filterStack]}>
+          <View style={s.where}>
+            {near ? (
+              <View style={s.nearRow}>
+                <Icon name="locate" size={16} color={s.accent.color} />
+                <Txt variant="label">Near you</Txt>
+                <Segmented<Radius> value={miles} onChange={setMiles} options={MILES} />
+                <IconButton icon="close" label="Use a city instead" onPress={() => setNear(null)} size={30} tone="plain" />
+              </View>
+            ) : (
+              <View style={s.nearRow}>
+                <Input icon="pin" value={city} onChangeText={setCity} placeholder="City, e.g. Berkeley, CA" accessibilityLabel="City"
+                  containerStyle={s.flex} onSubmitEditing={applyText} />
+                {canLocate && <Button title="Near me" icon="locate" loading={locating} onPress={locate} />}
+              </View>
             )}
           </View>
-        ))}
-        {data && !hasCalendar && (
-          <Pressable onPress={() => router.push("/you")} style={styles.sourceRow} accessibilityRole="link">
-            <View style={styles.iconTile}><Icon name="calendar" size={16} color={colors.faint} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sourceName}>Google Calendar</Text>
-              <Text style={type.meta}>Connect it on You to plan around events you’re already going to</Text>
-            </View>
-            <Icon name="chevron" size={16} color={colors.faint} />
-          </Pressable>
-        )}
-        {feeds.map((feed) => {
-          const count = data?.sources.find((s) => s.kind === "feed" && s.url === feed.url)?.events;
-          return (
-            <View key={feed.id} style={styles.sourceRow}>
-              <View style={styles.iconTile}><Icon name="calendar" size={16} color={colors.accentBright} /></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sourceName} numberOfLines={1}>{feed.label}</Text>
-                <Text style={type.meta} numberOfLines={1}>
-                  {count !== undefined ? `${count} upcoming · ` : ""}{feed.url}
-                </Text>
-              </View>
-              <Pressable onPress={() => void dropFeed(feed)} accessibilityRole="button"
-                accessibilityLabel={`Remove ${feed.label}`} hitSlop={8}>
-                <Icon name="close" size={16} color={colors.muted} />
-              </Pressable>
-            </View>
-          );
-        })}
-        <View style={styles.addFeed}>
-          <Text style={styles.fieldLabel}>Add a calendar of events</Text>
-          <Text style={type.meta}>
-            Paste an iCal link (webcal:// or .ics) from Luma, Meetup, Eventbrite, your school, or a club,
-            e.g. SF Tech Week on Luma, or your chemistry club’s calendar. On Luma: open the calendar,
-            choose Subscribe, then copy the iCal link.
-          </Text>
-          <View style={[styles.settingsRow, !desktop && styles.stack]}>
-            <TextInput value={feedUrl} onChangeText={setFeedUrl} placeholder="webcal://… or https://….ics"
-              placeholderTextColor={colors.faint} selectionColor={colors.accent} autoCapitalize="none"
-              autoCorrect={false} style={[styles.input, styles.fieldWide]} accessibilityLabel="Calendar link" />
-            <PillButton title="Add" icon="plus" loading={addingFeed} disabled={feedUrl.trim().length < 8}
-              onPress={() => void addFeed()} />
-          </View>
-          {feedNote && <Text style={[type.meta, styles.feedNote]}>{feedNote}</Text>}
+          <Input icon="spark" value={interests} onChangeText={setInterests} placeholder="Into: music, startups, pottery…"
+            accessibilityLabel="Your interests, separated by commas" containerStyle={s.interests} onSubmitEditing={applyText} />
+          <Button title="Update" variant="primary" loading={loading} disabled={!hasPlace} onPress={applyText} />
         </View>
+        <View style={[s.filterRow, s.wrap]}>
+          <Segmented<Days> value={days} onChange={setDays} options={DAY_OPTIONS} />
+        </View>
+        {data && data.categories.length > 0 && (
+          <ChipRow>
+            {data.categories.map((c) => (
+              <Chip key={c.key} label={c.label} count={c.count} selected={categories.includes(c.key)}
+                onPress={() => setCategories((cur) => (cur.includes(c.key) ? cur.filter((x) => x !== c.key) : [...cur, c.key]))} />
+            ))}
+            {categories.length > 0 && <Button title="All categories" size="sm" variant="ghost" onPress={() => setCategories([])} />}
+          </ChipRow>
+        )}
       </Card>
-    </Screen>
+
+      {!hasPlace && !data ? (
+        <Card padding="none">
+          <EmptyState icon="pin" title="Where are you?" body="Add your city or use your location to see what’s happening nearby."
+            action={canLocate ? <Button title="Use my location" icon="locate" variant="primary" loading={locating} onPress={locate} /> : undefined} />
+        </Card>
+      ) : loading && !data ? (
+        <View style={s.loading}><OrbitLoader label="Finding events near you" /></View>
+      ) : error ? (
+        <EmptyState icon="alert" title="Couldn’t load events" body={error} action={<Button title="Try again" onPress={() => void load()} />} />
+      ) : data && data.events.length === 0 ? (
+        <Card padding="none">
+          <EmptyState icon="ticket" title="No events found" body="Try more dates, a wider distance, or a nearby city." />
+        </Card>
+      ) : data ? (
+        <View style={[s.results, loading && s.dim]}>
+          {plans.length > 0 && (
+            <View style={s.section}>
+              <Txt variant="heading">Go with your people</Txt>
+              <View style={[s.grid, desktop && s.gridDesktop]}>
+                {plans.map((p) => (
+                  <PlanCard key={p.event.id} plan={p} desktop={desktop}
+                    state={planned[`${p.event.id}:${p.people.map((x) => x.contactId).join(",")}`]}
+                    onPlan={() => void plan(p.event, p.people)} onInvite={(person) => void invite(p.event, person, p.shared)} />
+                ))}
+              </View>
+            </View>
+          )}
+          {others.length > 0 && (
+            <View style={s.section}>
+              <Txt variant="heading">{plans.length ? "More events" : "Events"}</Txt>
+              <Card padding="none">
+                {others.map((event, i) => {
+                  const person = event.people[0];
+                  const key = person ? `${event.id}:${person.contactId}` : event.id;
+                  return (
+                    <EventRow key={event.id} event={event} first={i === 0} state={planned[key]}
+                      onPlan={person ? () => void plan(event, [person]) : undefined} />
+                  );
+                })}
+              </Card>
+            </View>
+          )}
+        </View>
+      ) : null}
+
+      <FeedsSheet visible={feedsOpen} onClose={() => setFeedsOpen(false)} onChanged={() => void load()} />
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
-  settings: {
-    gap: spacing.sm,
-  },
-  settingsRow: {
-    flexDirection: "row",
-    alignItems: "flex-end",
-    gap: spacing.md,
-  },
-  stack: {
-    flexDirection: "column",
-    alignItems: "stretch",
-  },
-  field: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  fieldWide: {
-    flex: 2,
-  },
-  updateButton: {
-    paddingBottom: 2,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.textSoft,
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 13,
-    fontSize: 16,
-    color: colors.text,
-  },
-  error: {
-    color: colors.danger,
-    marginTop: spacing.md,
-  },
-  sectionLabel: {
-    ...eyebrowStyle,
-    color: colors.textSoft,
-    marginTop: spacing.xl,
-    marginBottom: spacing.md,
-  },
-  loadingCard: {
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.xl,
-  },
-  grid: {
-    gap: spacing.md,
-  },
-  gridDesktop: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  planCard: {
-    gap: spacing.sm,
-  },
-  planCardDesktop: {
-    width: "48.8%",
-  },
-  planTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.sm,
-  },
-  datePill: {
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255, 122, 42, 0.14)",
-  },
-  dateText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.accentBright,
-    letterSpacing: 0.3,
-  },
-  sourceText: {
-    flexShrink: 1,
-    fontSize: 12,
-    color: colors.faint,
-  },
-  sampleBadge: {
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  sampleText: {
-    fontSize: 11,
-    color: colors.muted,
-  },
-  planTitle: {
-    fontSize: 21,
-    lineHeight: 26,
-    fontWeight: "700",
-    color: colors.text,
-  },
-  withRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginTop: spacing.xs,
-  },
-  faces: {
-    flexDirection: "row",
-    gap: -8,
-  },
-  withText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.textSoft,
-  },
-  shared: {
-    fontSize: 13,
-    color: colors.accent,
-    fontWeight: "600",
-  },
-  why: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-  },
-  actions: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  plannedNote: {
-    color: "#8FE3B0",
-  },
-  listCard: {
-    paddingVertical: spacing.xs,
-  },
-  eventRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.hairline,
-  },
-  eventDate: {
-    width: 86,
-  },
-  eventDateText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: colors.accent,
-  },
-  eventTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  eventPeople: {
-    fontSize: 13,
-    color: colors.accentBright,
-  },
-  nobody: {
-    fontStyle: "italic",
-  },
-  addChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255, 122, 42, 0.14)",
-  },
-  addChipDone: {
-    backgroundColor: "rgba(143, 227, 176, 0.14)",
-  },
-  addChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.accentBright,
-  },
-  sourcesCard: {
-    gap: spacing.md,
-  },
-  sourceRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  iconTile: {
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "rgba(255, 122, 42, 0.12)",
-  },
-  sourceName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.textSoft,
-  },
-  link: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.accent,
-  },
-  addFeed: {
-    gap: spacing.sm,
-    paddingTop: spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: colors.hairline,
-  },
-  feedNote: {
-    color: colors.accentBright,
-  },
-});
+function PlanCard({ plan, desktop, state, onPlan, onInvite }: {
+  plan: Plan;
+  desktop: boolean;
+  state?: "saving" | "done";
+  onPlan: () => void;
+  onInvite: (p: PlanPerson) => void;
+}) {
+  const s = useStyles();
+  const { event } = plan;
+  const names = plan.people.map((p) => p.name.split(" ")[0]).join(" & ");
+  return (
+    <Card padding="none" style={[s.planCard, desktop && s.planCardDesktop]}>
+      {event.imageUrl ? <Image source={{ uri: event.imageUrl }} style={s.image} contentFit="cover" /> : null}
+      <View style={s.planBody}>
+        <View style={s.planTop}>
+          <Txt variant="caption" tone="accent" weight="600">{planWhen(event)}</Txt>
+          <Tag label={categoryLabel(event.category)} />
+        </View>
+        <Pressable disabled={!event.url} onPress={() => event.url && void Linking.openURL(event.url)} accessibilityRole="link">
+          <Txt variant="heading" numberOfLines={2}>{event.title}</Txt>
+        </Pressable>
+        <Txt variant="caption" numberOfLines={1}>{[event.venue, event.city].filter(Boolean).join(" · ") || (event.online ? "Online" : "")}</Txt>
+        <View style={s.withRow}>
+          <View style={s.faces}>{plan.people.map((p) => <Avatar key={p.contactId} name={p.name} size={26} />)}</View>
+          <Txt variant="label" style={s.flex} numberOfLines={1}>Go with {names}</Txt>
+        </View>
+        <Txt variant="small" numberOfLines={3}>{plan.why}</Txt>
+        <View style={s.planActions}>
+          <Button title={state === "done" ? "Planned" : "Plan it"} icon={state === "done" ? "check" : "calendarAdd"} variant="primary" size="sm"
+            loading={state === "saving"} disabled={state === "done"} onPress={onPlan} />
+          {plan.people.slice(0, 1).map((p) => (
+            <Button key={p.contactId} title={`Invite ${p.name.split(" ")[0]}`} icon="send" size="sm" onPress={() => onInvite(p)} />
+          ))}
+        </View>
+      </View>
+    </Card>
+  );
+}
+
+function EventRow({ event, first, state, onPlan }: { event: RealEvent; first: boolean; state?: "saving" | "done"; onPlan?: () => void }) {
+  const s = useStyles();
+  const person = event.people[0];
+  return (
+    <View style={[s.row, !first && s.border]}>
+      <View style={s.dateCol}><Txt variant="caption" tone="accent" weight="600">{planWhen(event)}</Txt></View>
+      <View style={s.flex}>
+        <Pressable disabled={!event.url} onPress={() => event.url && void Linking.openURL(event.url)} accessibilityRole="link">
+          <Txt variant="label" numberOfLines={1}>{event.title}</Txt>
+        </Pressable>
+        <Txt variant="caption" numberOfLines={1}>
+          {[categoryLabel(event.category), event.venue, event.city].filter(Boolean).join(" · ")}
+        </Txt>
+        {person ? <Txt variant="caption" tone="secondary" numberOfLines={1}>Bring {event.people.map((p) => p.name.split(" ")[0]).join(", ")}</Txt> : null}
+      </View>
+      {onPlan && (
+        <Button title={state === "done" ? "Planned" : "Plan"} size="sm" icon={state === "done" ? "check" : "plus"}
+          loading={state === "saving"} disabled={state === "done"} onPress={onPlan}
+          accessibilityLabel={`Plan ${event.title} with ${person?.name}`} />
+      )}
+    </View>
+  );
+}
+
+const LABELS: Record<string, string> = {
+  music: "Music", arts: "Arts", food: "Food", sports: "Sports", outdoors: "Outdoors", learning: "Workshop",
+  networking: "Networking", tech: "Tech", community: "Community", social: "Social", students: "Student", other: "Event",
+};
+const categoryLabel = (key: string) => LABELS[key] ?? "Event";
+
+// Follow a public calendar (Luma, Meetup, a school or club): its events show up here.
+function FeedsSheet({ visible, onClose, onChanged }: { visible: boolean; onClose: () => void; onChanged: () => void }) {
+  const s = useStyles();
+  const [feeds, setFeeds] = useState<EventFeed[]>([]);
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  useEffect(() => {
+    if (visible) listEventFeeds().then(setFeeds).catch(() => undefined);
+  }, [visible]);
+
+  async function add() {
+    setBusy(true);
+    setNote(null);
+    try {
+      const { feed, upcoming } = await addEventFeed(url.trim());
+      setFeeds((f) => [...f, feed]);
+      setUrl("");
+      setNote(`Following ${feed.label}: ${upcoming} upcoming`);
+      onChanged();
+    } catch (e) {
+      setNote(e instanceof ApiError ? e.message : "Couldn’t add that calendar.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Sheet visible={visible} title="Follow a calendar" onClose={onClose}>
+      <Txt variant="small">Paste a public calendar link (webcal:// or .ics) from Luma, Meetup, your school or a club. Its events appear in Plan Events.</Txt>
+      <View style={s.nearRow}>
+        <Input value={url} onChangeText={setUrl} placeholder="webcal://…" autoCapitalize="none" autoCorrect={false}
+          accessibilityLabel="Calendar link" containerStyle={s.flex} />
+        <Button title="Follow" variant="primary" loading={busy} disabled={url.trim().length < 8} onPress={() => void add()} />
+      </View>
+      {note ? <Txt variant="small" tone="secondary">{note}</Txt> : null}
+      {feeds.map((feed) => (
+        <View key={feed.id} style={s.feedRow}>
+          <Icon name="calendar" size={16} color={s.accent.color} />
+          <View style={s.flex}>
+            <Txt variant="label" numberOfLines={1}>{feed.label}</Txt>
+            <Txt variant="caption" numberOfLines={1}>{feed.url}</Txt>
+          </View>
+          <IconButton icon="close" label={`Stop following ${feed.label}`} size={30} tone="plain"
+            onPress={() => void removeEventFeed(feed.id).then(() => { setFeeds((f) => f.filter((x) => x.id !== feed.id)); onChanged(); })} />
+        </View>
+      ))}
+    </Sheet>
+  );
+}
+
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    flex: { flex: 1, minWidth: 0 },
+    accent: { color: colors.accentText },
+    filters: { gap: space.sm },
+    filterRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
+    filterStack: { flexDirection: "column", alignItems: "stretch" },
+    wrap: { flexWrap: "wrap" },
+    where: { flex: 1.3, minWidth: 0 },
+    nearRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
+    interests: { flex: 1, minWidth: 0 },
+    loading: { paddingVertical: space.xxl, alignItems: "center" },
+    results: { gap: space.xl },
+    dim: { opacity: 0.55 },
+    section: { gap: space.sm },
+    grid: { gap: space.md },
+    gridDesktop: { flexDirection: "row", flexWrap: "wrap", justifyContent: "space-between", columnGap: 0 },
+    planCard: {},
+    planCardDesktop: { width: "49.2%" },
+    image: { width: "100%", height: 132 },
+    planBody: { padding: space.md, gap: space.xs, flex: 1 },
+    planTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.xs },
+    withRow: { flexDirection: "row", alignItems: "center", gap: space.xs, marginTop: space.xxs },
+    faces: { flexDirection: "row", gap: -6 },
+    planActions: { flexDirection: "row", gap: space.xs, flexWrap: "wrap", marginTop: "auto", paddingTop: space.xs },
+    row: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 60 },
+    border: { borderTopWidth: 1, borderTopColor: colors.border },
+    dateCol: { width: 92 },
+    feedRow: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingVertical: space.xxs, borderRadius: radius.sm },
+  }),
+);

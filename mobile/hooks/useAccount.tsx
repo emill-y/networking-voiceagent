@@ -3,7 +3,22 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { useSession } from "@/hooks/useSession";
 import { displayName } from "@/lib/account";
 import { isDemo } from "@/lib/demo";
-import { getMyProfile } from "@/services/nomi";
+import { getMyProfile, redeemInvite } from "@/services/nomi";
+
+const INVITE_KEY = "nomi.invite";
+
+// Joined through a friend's invite link (the website saves the code): tell
+// the server once, after the first sign-in.
+function redeemSavedInvite() {
+  try {
+    const code = globalThis.localStorage?.getItem(INVITE_KEY);
+    if (!code) return;
+    globalThis.localStorage?.removeItem(INVITE_KEY);
+    void redeemInvite(code).catch(() => undefined);
+  } catch {
+    // No storage: nothing to redeem.
+  }
+}
 
 type Account = {
   name: string;
@@ -27,6 +42,9 @@ export function AccountProvider({ children }: { children: ReactNode }) {
   }, [userId]);
 
   useEffect(refresh, [refresh]);
+  useEffect(() => {
+    if (userId && !isDemo()) redeemSavedInvite();
+  }, [userId]);
 
   const meta = session?.user.user_metadata ?? {};
   const value: Account = {

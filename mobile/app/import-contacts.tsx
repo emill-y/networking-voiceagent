@@ -23,7 +23,7 @@ import {
   loadAddressBook,
   type ContactsAccess,
 } from "@/lib/deviceContacts";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 import { importContacts, listContacts } from "@/services/nomi";
 
 type Phase = "checking" | "ask" | "denied" | "loading" | "ready" | "error";
@@ -31,6 +31,8 @@ type Phase = "checking" | "ask" | "denied" | "loading" | "ready" | "error";
 const ADD_LABELS = { phone: "phone", email: "email", company: "company", role: "role" } as const;
 
 export default function ImportContacts() {
+  const styles = useStyles();
+  const { colors, type } = useTheme();
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>(contactsSupported ? "checking" : "error");
   const [access, setAccess] = useState<ContactsAccess>("undetermined");
@@ -110,7 +112,7 @@ export default function ImportContacts() {
       for (let i = 0; i < chosen.length; i += 200) {
         await importContacts(chosen.slice(i, i + 200).map(toImportedPerson));
       }
-      router.replace("/people");
+      router.replace("/contacts");
     } catch (e) {
       setMessage(e instanceof ApiError ? e.message : "Import didn’t work.");
       setSaving(false);
@@ -129,7 +131,7 @@ export default function ImportContacts() {
       <View style={styles.header}>
         <CloseButton />
         <Text style={[type.title, styles.title]}>Bring in people you know.</Text>
-        <Text style={type.meta}>
+        <Text style={type.small}>
           Your address book stays on this phone. Only the people you choose are added to Nomi.
         </Text>
       </View>
@@ -143,12 +145,12 @@ export default function ImportContacts() {
       ) : phase === "denied" ? (
         <View style={styles.block}>
           <Text style={type.body}>Contacts access is turned off for Nomi.</Text>
-          <Button title="Open Settings" variant="quiet" onPress={() => void Linking.openSettings()} />
+          <Button title="Open Settings" variant="secondary" onPress={() => void Linking.openSettings()} />
         </View>
       ) : phase === "error" ? (
         <View style={styles.block}>
           <Text style={type.body}>{message}</Text>
-          {contactsSupported && <Button title="Try again" variant="quiet" onPress={() => void load(true)} />}
+          {contactsSupported && <Button title="Try again" variant="secondary" onPress={() => void load(true)} />}
         </View>
       ) : (
         <>
@@ -157,7 +159,7 @@ export default function ImportContacts() {
               value={query}
               onChangeText={setQuery}
               placeholder="Search contacts"
-              placeholderTextColor={colors.faint}
+              placeholderTextColor={colors.textTertiary}
               selectionColor={colors.accent}
               accessibilityLabel="Search contacts"
               style={styles.search}
@@ -168,13 +170,13 @@ export default function ImportContacts() {
                 accessibilityRole="button"
                 hitSlop={8}
               >
-                <Text style={[type.meta, styles.more]}>
+                <Text style={[type.small, styles.more]}>
                   Nomi can see only the contacts you allowed. Choose more →
                 </Text>
               </Pressable>
             )}
             {alreadyKnown > 0 && (
-              <Text style={type.meta}>
+              <Text style={type.small}>
                 {alreadyKnown} {alreadyKnown === 1 ? "contact is" : "contacts are"} already in Nomi.
               </Text>
             )}
@@ -187,10 +189,10 @@ export default function ImportContacts() {
             stickySectionHeadersEnabled={false}
             renderSectionHeader={({ section }) => (
               <View style={styles.sectionHeader}>
-                <Text style={type.label}>{section.title}</Text>
+                <Text style={type.overline}>{section.title}</Text>
                 {section.key === "updates" && (
                   <Pressable onPress={selectAllUpdates} accessibilityRole="button" hitSlop={8}>
-                    <Text style={type.meta}>Select all</Text>
+                    <Text style={type.small}>Select all</Text>
                   </Pressable>
                 )}
               </View>
@@ -205,7 +207,7 @@ export default function ImportContacts() {
             }
           />
           <View style={styles.footer}>
-            {message && <Text style={[type.meta, styles.error]}>{message}</Text>}
+            {message && <Text style={[type.small, styles.error]}>{message}</Text>}
             <Button
               title={summary ? summary.charAt(0).toUpperCase() + summary.slice(1) : "Choose people"}
               onPress={() => void save()}
@@ -220,6 +222,8 @@ export default function ImportContacts() {
 }
 
 function Row({ item, checked, onToggle }: { item: EntryMatch; checked: boolean; onToggle: () => void }) {
+  const styles = useStyles();
+  const { type } = useTheme();
   const { entry, match, adds } = item;
   const detail = match
     ? `Adds ${adds.map((a) => ADD_LABELS[a]).join(" & ")} to ${match.name}`
@@ -235,61 +239,62 @@ function Row({ item, checked, onToggle }: { item: EntryMatch; checked: boolean; 
       <View style={[styles.check, checked && styles.checked]} />
       <View style={styles.rowText}>
         <Text style={styles.name} numberOfLines={1}>{entry.name}</Text>
-        {detail ? <Text style={type.meta} numberOfLines={1}>{detail}</Text> : null}
+        {detail ? <Text style={type.small} numberOfLines={1}>{detail}</Text> : null}
       </View>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: colors.background,
+    backgroundColor: colors.bg,
   },
   header: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingHorizontal: space.lg,
+    paddingTop: space.lg,
   },
   title: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.sm,
+    marginTop: space.xl,
+    marginBottom: space.xs,
   },
   center: {
-    marginTop: spacing.xxl,
+    marginTop: space.xxl,
   },
   block: {
-    padding: spacing.lg,
-    gap: spacing.md,
+    padding: space.lg,
+    gap: space.md,
   },
   tools: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
-    gap: spacing.sm,
+    paddingHorizontal: space.lg,
+    paddingTop: space.lg,
+    gap: space.xs,
   },
   search: {
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sunken,
     borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: space.lg,
     paddingVertical: 12,
     fontSize: 16,
     color: colors.text,
   },
   list: {
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingHorizontal: space.lg,
+    paddingBottom: space.xl,
   },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: spacing.lg,
-    marginBottom: spacing.xs,
+    marginTop: space.lg,
+    marginBottom: space.xxs,
   },
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: spacing.sm + 2,
+    gap: space.md,
+    paddingVertical: space.xs + 2,
   },
   pressed: {
     opacity: 0.7,
@@ -313,16 +318,16 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   muted: {
-    color: colors.muted,
-    marginTop: spacing.lg,
+    color: colors.textSecondary,
+    marginTop: space.lg,
   },
   footer: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.md,
+    paddingHorizontal: space.lg,
+    paddingTop: space.md,
+    paddingBottom: space.md,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.hairline,
-    gap: spacing.sm,
+    borderTopColor: colors.border,
+    gap: space.xs,
   },
   error: {
     color: colors.danger,
@@ -330,4 +335,5 @@ const styles = StyleSheet.create({
   more: {
     color: colors.accent,
   },
-});
+}),
+);

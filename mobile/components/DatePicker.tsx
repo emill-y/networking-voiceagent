@@ -5,7 +5,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { Icon } from "@/components/Icon";
 import { addDays, friendly, monthGrid, monthTitle, nextMonday, parts } from "@/lib/calendar";
 import { isDateString, localToday } from "@/lib/dates";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 
 const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 
@@ -17,6 +17,8 @@ type Props = {
 
 // A tap-to-open calendar that works the same on iPhone, Android and the web.
 export function DatePicker({ label, value, onChange }: Props) {
+  const styles = useStyles();
+  const { colors, type } = useTheme();
   const today = localToday();
   const selected = isDateString(value) ? value : "";
   const [open, setOpen] = useState(false);
@@ -49,20 +51,20 @@ export function DatePicker({ label, value, onChange }: Props) {
 
   return (
     <View style={styles.wrapper}>
-      <Text style={type.label}>{label}</Text>
+      <Text style={type.overline}>{label}</Text>
       <Pressable
         onPress={toggle}
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${selected ? friendly(selected, today) : "no date"}. Choose a date`}
         style={[styles.field, open && styles.fieldOpen]}
       >
-        <Icon name="calendar" size={18} color={selected ? colors.accentBright : colors.faint} />
+        <Icon name="calendar" size={18} color={selected ? colors.accentText : colors.textTertiary} />
         <Text style={[styles.fieldText, !selected && styles.placeholder]}>
           {selected ? friendly(selected, today) : "Pick a date (optional)"}
         </Text>
         {selected ? (
           <Pressable onPress={() => onChange("")} hitSlop={10} accessibilityRole="button" accessibilityLabel="Clear date">
-            <Icon name="close" size={16} color={colors.muted} />
+            <Icon name="close" size={16} color={colors.textSecondary} />
           </Pressable>
         ) : null}
       </Pressable>
@@ -130,54 +132,56 @@ export function DatePicker({ label, value, onChange }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  wrapper: { gap: spacing.xs },
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+  wrapper: { gap: space.xxs },
   field: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
+    gap: space.xs,
+    paddingHorizontal: space.md,
     paddingVertical: 13,
     borderRadius: radius.md,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sunken,
     borderWidth: 1,
     borderColor: "transparent",
   },
   fieldOpen: { borderColor: colors.accent },
   fieldText: { flex: 1, fontSize: 16, color: colors.text },
-  placeholder: { color: colors.faint },
+  placeholder: { color: colors.textTertiary },
   panel: {
-    marginTop: spacing.xs,
-    padding: spacing.md,
+    marginTop: space.xxs,
+    padding: space.md,
     borderRadius: radius.lg,
-    backgroundColor: colors.surface,
+    backgroundColor: colors.sunken,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.border,
     gap: 4,
   },
-  quick: { flexDirection: "row", flexWrap: "wrap", gap: spacing.xs, marginBottom: spacing.sm },
+  quick: { flexDirection: "row", flexWrap: "wrap", gap: space.xxs, marginBottom: space.xs },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: radius.pill,
-    backgroundColor: colors.raised,
+    backgroundColor: colors.surfaceHover,
   },
   chipOn: { backgroundColor: colors.accent },
-  chipText: { fontSize: 13, color: colors.textSoft },
-  chipTextOn: { color: colors.background, fontWeight: "600" },
+  chipText: { fontSize: 13, color: colors.text },
+  chipTextOn: { color: colors.bg, fontWeight: "600" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
-  nav: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.raised },
+  nav: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceHover },
   flip: { transform: [{ scaleX: -1 }] },
   month: { fontSize: 16, fontWeight: "600", color: colors.text },
   row: { flexDirection: "row" },
   cell: { flex: 1, aspectRatio: 1, maxHeight: 44, alignItems: "center", justifyContent: "center" },
-  weekday: { fontSize: 12, color: colors.faint, textAlign: "center", textAlignVertical: "center" },
+  weekday: { fontSize: 12, color: colors.textTertiary, textAlign: "center", textAlignVertical: "center" },
   day: { borderRadius: 999 },
-  dayPressed: { backgroundColor: colors.raised },
-  daySelected: { backgroundColor: colors.accentBright },
+  dayPressed: { backgroundColor: colors.surfaceHover },
+  daySelected: { backgroundColor: colors.accentText },
   dayText: { fontSize: 15, color: colors.text },
-  dayPast: { color: colors.faint },
-  dayToday: { color: colors.accentBright, fontWeight: "700" },
-  daySelectedText: { color: colors.background, fontWeight: "700" },
-  todayDot: { position: "absolute", bottom: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accentBright },
-});
+  dayPast: { color: colors.textTertiary },
+  dayToday: { color: colors.accentText, fontWeight: "700" },
+  daySelectedText: { color: colors.bg, fontWeight: "700" },
+  todayDot: { position: "absolute", bottom: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accentText },
+}),
+);

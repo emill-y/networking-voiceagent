@@ -45,3 +45,12 @@
     window.NomiSample.forEach((p) => g.addPerson(p));
   });
 })();
+
+// Invite links (/?invite=CODE): remember the code so the app can credit the
+// friend who invited you after you sign up.
+(function () {
+  try {
+    var code = new URLSearchParams(location.search).get("invite");
+    if (code && /^[a-z0-9]{4,40}$/i.test(code)) localStorage.setItem("nomi.invite", code.toLowerCase());
+  } catch (e) {}
+})();

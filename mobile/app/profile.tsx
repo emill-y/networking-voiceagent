@@ -1,273 +1,257 @@
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { Platform, Share, StyleSheet, Switch, Text, View } from "react-native";
+import { useRouter } from "expo-router";
+import { useState, type ReactNode } from "react";
+import { Pressable, StyleSheet, Switch, View } from "react-native";
 
+import { Avatar } from "@/components/Avatar";
+import { Button } from "@/components/Button";
+import { CalendarBanner } from "@/components/CalendarBanner";
 import { Card } from "@/components/Card";
-import { Monogram } from "@/components/Monogram";
-import { PageHeader } from "@/components/PageHeader";
-import { PillButton } from "@/components/PillButton";
-import { Screen } from "@/components/Screen";
+import { Icon, type IconName } from "@/components/Icon";
+import { Input } from "@/components/Input";
+import { Page } from "@/components/Page";
+import { Segmented } from "@/components/Segmented";
+import { Tag } from "@/components/Chip";
+import { useToast } from "@/components/Toast";
+import { Txt } from "@/components/Txt";
+import { useAccount } from "@/hooks/useAccount";
+import { useCalendar } from "@/hooks/useCalendar";
 import { useProfile } from "@/hooks/useProfile";
-import { displayName, profileLine } from "@/lib/account";
+import { profileLine } from "@/lib/account";
 import { ApiError } from "@/lib/api";
+import { canPickPhoto, pickPhoto } from "@/lib/avatar";
 import { confirm } from "@/lib/confirm";
 import { localToday } from "@/lib/dates";
+import { exitDemo, isDemo } from "@/lib/demo";
 import { contactsSupported } from "@/lib/deviceContacts";
-import { colors, fonts, spacing, type } from "@/lib/theme";
-import { useSession } from "@/hooks/useSession";
+import { saveText } from "@/lib/files";
 import { supabase } from "@/lib/supabase";
-import { calendarNotice, connectGoogleCalendar } from "@/lib/calendarConnect";
-import {
-  calendarStatus,
-  deleteAccount,
-  deleteAllData,
-  disconnectCalendar,
-  exportData,
-  setCalendarPush,
-} from "@/services/nomi";
-import type { CalendarStatus } from "@/types/api";
+import { makeStyles, radius, space, useTheme, type ThemeMode } from "@/lib/theme";
+import { deleteAccount, deleteAllData, exportContacts, updateMyProfile } from "@/services/nomi";
 
-export default function You() {
+export default function Profile() {
+  const s = useStyles();
   const router = useRouter();
-  const { session } = useSession();
+  const toast = useToast();
+  const { colors, mode, setMode } = useTheme();
+  const account = useAccount();
   const profile = useProfile();
-  const [busy, setBusy] = useState<"export" | "delete" | "account" | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const params = useLocalSearchParams<{ calendar?: string }>();
-  const [calendar, setCalendar] = useState<CalendarStatus | null>(null);
-  useFocusEffect(
-    useCallback(() => {
-      calendarStatus().then(setCalendar).catch(() => undefined);
-    }, []),
-  );
+  const calendar = useCalendar("/profile");
+  const [name, setName] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
-  async function togglePush(value: boolean) {
-    setCalendar((c) => (c ? { ...c, pushFollowUps: value } : c));
+  async function run(key: string, action: () => Promise<void>, failure: string) {
+    setBusy(key);
     try {
-      setCalendar(await setCalendarPush(value));
-    } catch {
-      setMessage("Couldn’t change the calendar setting.");
-    }
-  }
-
-  async function disconnect() {
-    const ok = await confirm(
-      "Disconnect Google Calendar?",
-      "Nomi stops reading your calendar and adding follow-ups to it. Events it already added stay.",
-      "Disconnect",
-    );
-    if (!ok) return;
-    await disconnectCalendar();
-    setCalendar(await calendarStatus());
-  }
-
-  async function exportMemories() {
-    setBusy("export");
-    setMessage(null);
-    try {
-      const data = await exportData();
-      const json = JSON.stringify(data, null, 2);
-      if (Platform.OS === "web") {
-        const url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `nomi-export-${localToday()}.json`;
-        link.click();
-        URL.revokeObjectURL(url);
-      } else {
-        await Share.share({ title: "Nomi export", message: json });
-      }
-      setMessage(`Exported ${data.contacts.length} people.`);
+      await action();
     } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : "Export didn’t work.");
+      toast.show(e instanceof ApiError || e instanceof Error ? e.message : failure, "danger");
     } finally {
       setBusy(null);
     }
   }
 
-  async function deleteEverything() {
-    const ok = await confirm(
-      "Delete everything?",
-      "Every person, moment, transcript and follow-up will be permanently deleted.",
-      "Delete everything",
-    );
-    if (!ok) return;
-    setBusy("delete");
-    try {
+  const changePhoto = () =>
+    run("photo", async () => {
+      const avatar = await pickPhoto();
+      if (!avatar) return;
+      await updateMyProfile({ avatar });
+      account.refresh();
+      toast.show("Photo updated", "success");
+    }, "Couldn’t update your photo.");
+
+  const removePhoto = () =>
+    run("photo", async () => {
+      await updateMyProfile({ avatar: null });
+      account.refresh();
+    }, "Couldn’t remove your photo.");
+
+  const saveName = () =>
+    run("name", async () => {
+      await updateMyProfile({ displayName: (name ?? "").trim() || null });
+      account.refresh();
+      setName(null);
+      toast.show("Name saved", "success");
+    }, "Couldn’t save your name.");
+
+  const exportAll = () =>
+    run("export", async () => {
+      const csv = await exportContacts(null, "csv");
+      await saveText(`nomi-contacts-${localToday()}.csv`, csv, "text/csv");
+    }, "Export didn’t work.");
+
+  const disconnect = async () => {
+    const ok = await confirm("Disconnect Google Calendar?", "Nomi stops reading your calendar and adding follow-ups to it. Events already added stay.", "Disconnect");
+    if (ok) await calendar.disconnect();
+  };
+
+  const deleteEverything = async () => {
+    const ok = await confirm("Delete all your data?", "Every contact, note and follow-up will be permanently deleted.", "Delete everything");
+    if (ok) await run("delete", async () => {
       await deleteAllData();
       router.replace("/");
-    } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : "Couldn’t delete your data.");
-      setBusy(null);
-    }
-  }
+    }, "Couldn’t delete your data.");
+  };
 
-  async function removeAccount() {
-    const ok = await confirm(
-      "Delete your account?",
-      "Your account and every memory in it will be permanently deleted.",
-      "Delete account",
-    );
-    if (!ok) return;
-    setBusy("account");
-    try {
+  const removeAccount = async () => {
+    const ok = await confirm("Delete your account?", "Your account and everything in it will be permanently deleted.", "Delete account");
+    if (ok) await run("account", async () => {
       await deleteAccount();
       await supabase?.auth.signOut();
-    } catch (e) {
-      setMessage(e instanceof ApiError ? e.message : "Couldn’t delete your account.");
-      setBusy(null);
-    }
-  }
+    }, "Couldn’t delete your account.");
+  };
 
-  const name = displayName(session);
+  const calendarTag =
+    calendar.state === "connected" ? <Tag label="Connected" tone="success" />
+    : calendar.state === "needs_reauth" ? <Tag label="Needs reconnect" tone="warning" />
+    : calendar.state === "disconnected" ? <Tag label="Not connected" />
+    : calendar.state === "unavailable" ? <Tag label="Unavailable" />
+    : null;
 
   return (
-    <Screen>
-      <PageHeader eyebrow="Account" title="You" />
-
-      {session && (
-        <Card style={styles.card}>
-          <View style={styles.accountRow}>
-            <Monogram name={name} size={64} />
-            <View style={styles.accountText}>
-              <Text style={styles.accountName} numberOfLines={1}>{name}</Text>
-              <Text style={styles.accountLine}>{profileLine(profile)}</Text>
+    <Page title="Profile" width="narrow">
+      <Card padding="lg" style={s.identity}>
+        <Avatar name={account.name} uri={account.avatarUrl} size={72} />
+        <View style={s.identityText}>
+          {name === null ? (
+            <>
+              <Txt variant="title" numberOfLines={1}>{account.name}</Txt>
+              {account.email ? <Txt variant="small">{account.email}</Txt> : null}
+              <Txt variant="small" tone="tertiary">{profileLine(profile)}</Txt>
+            </>
+          ) : (
+            <View style={s.nameEdit}>
+              <Input value={name} onChangeText={setName} placeholder="Your name" accessibilityLabel="Your name"
+                containerStyle={s.flex} autoFocus onSubmitEditing={() => void saveName()} />
+              <Button title="Save" variant="primary" loading={busy === "name"} onPress={() => void saveName()} />
+              <Button title="Cancel" variant="ghost" onPress={() => setName(null)} />
             </View>
-          </View>
-          <PillButton title="Edit profile"
-            onPress={() => router.push({ pathname: "/edit-profile", params: { edit: "1" } })} />
-        </Card>
-      )}
-
-      <Card style={styles.card}>
-        <Text style={type.heading}>Your memories are yours</Text>
-        <Text style={styles.body}>
-          Export your saved people and notes whenever you like. Nomi only listens while you’re
-          recording, never looks people up behind your back, and never sells your data.
-        </Text>
-        <View style={styles.buttons}>
-          <PillButton title="Export my memories" icon="check" onPress={() => void exportMemories()}
-            loading={busy === "export"} />
-          {contactsSupported && (
-            <PillButton title="Import from contacts" icon="people" onPress={() => router.push("/import-contacts")} />
           )}
+          <View style={s.identityActions}>
+            {name === null && <Button title="Edit name" size="sm" onPress={() => setName(account.name)} />}
+            {canPickPhoto && <Button title={account.avatarUrl ? "Change photo" : "Add photo"} icon="camera" size="sm" loading={busy === "photo"} onPress={() => void changePhoto()} />}
+            {canPickPhoto && account.avatarUrl && <Button title="Remove photo" size="sm" variant="ghost" onPress={() => void removePhoto()} />}
+            <Button title="Edit details" size="sm" variant="ghost" onPress={() => router.push({ pathname: "/edit-profile", params: { edit: "1" } })} />
+          </View>
         </View>
       </Card>
 
-      {calendar?.available && (
-        <Card style={styles.card}>
-          <Text style={type.heading}>Google Calendar</Text>
-          {params.calendar && calendarNotice[params.calendar] ? (
-            <Text style={[type.meta, styles.message]}>{calendarNotice[params.calendar]}</Text>
-          ) : null}
-          {calendar.connected ? (
-            <>
-              <Text style={styles.body}>
-                Connected as {calendar.email ?? "your Google account"}. Nomi suggests who to talk to
-                before your events.
-              </Text>
-              <View style={styles.switchRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.switchTitle}>Add follow-ups to my calendar</Text>
-                  <Text style={type.meta}>Dated follow-ups appear as all-day events, kept in step when you tick them off.</Text>
-                </View>
-                <Switch value={calendar.pushFollowUps} onValueChange={(v) => void togglePush(v)}
-                  trackColor={{ true: colors.accent, false: colors.raised }} thumbColor={colors.text} accessibilityLabel="Add follow-ups to my calendar" />
-              </View>
-              <PillButton title="Disconnect" onPress={() => void disconnect()} />
-            </>
-          ) : (
-            <>
-              <Text style={styles.body}>
-                See who to talk to before each class, meeting or event, and put your follow-ups on
-                your calendar automatically. Nomi only reads and adds events; you can disconnect anytime.
-              </Text>
-              <PillButton title="Connect Google Calendar" icon="calendar" variant="primary"
-                onPress={() => void connectGoogleCalendar("/you").catch(() => setMessage("Couldn’t start Google sign-in."))} />
-            </>
-          )}
-        </Card>
-      )}
-
-      {session && (
-        <Card style={styles.card}>
-          <Text style={type.heading}>Account</Text>
-          <Text style={styles.body}>Signed in as {session.user.email ?? name}.</Text>
-          <PillButton title="Sign out" onPress={() => void supabase?.auth.signOut()} />
-          <View style={styles.divider} />
-          <Text style={styles.danger}>Danger zone</Text>
-          <Text style={styles.body}>
-            These permanently remove what you’ve saved. You’ll be asked to confirm, and told
-            exactly what will be deleted, first.
-          </Text>
-          <View style={styles.buttons}>
-            <PillButton title="Delete all memories" variant="danger" onPress={() => void deleteEverything()}
-              loading={busy === "delete"} />
-            <PillButton title="Delete my account" variant="danger" onPress={() => void removeAccount()}
-              loading={busy === "account"} />
+      <Group title="Integrations">
+        <Row icon="calendar" title="Google Calendar"
+          detail={calendar.status?.email && calendar.state !== "disconnected" ? calendar.status.email
+            : calendar.state === "unavailable" ? "Not set up on this server yet"
+            : "Add dated follow-ups to your calendar and see meetings on Home"}
+          trailing={calendarTag} />
+        {calendar.state === "needs_reauth" && (
+          <View style={s.inset}><CalendarBanner calendar={calendar} prompt="" /></View>
+        )}
+        {(calendar.state === "connected" || calendar.state === "needs_reauth" || calendar.state === "disconnected") && (
+          <View style={[s.inset, s.actionsRow]}>
+            {calendar.state === "disconnected" && (
+              <Button title="Connect Google Calendar" icon="calendar" variant="primary" size="sm" loading={calendar.busy === "connect"} onPress={() => void calendar.connect()} />
+            )}
+            {calendar.state === "needs_reauth" && (
+              <Button title="Reconnect" variant="primary" size="sm" loading={calendar.busy === "connect"} onPress={() => void calendar.connect()} />
+            )}
+            {calendar.state !== "disconnected" && (
+              <Button title="Disconnect" variant="secondary" size="sm" loading={calendar.busy === "disconnect"} onPress={() => void disconnect()} />
+            )}
           </View>
-        </Card>
-      )}
-      {message && <Text style={[type.meta, styles.message]}>{message}</Text>}
-    </Screen>
+        )}
+        {calendar.state === "connected" && (
+          <Row title="Add dated follow-ups automatically" detail="Off: add them one at a time from Follow-ups"
+            trailing={<Switch value={!!calendar.status?.pushFollowUps} onValueChange={(v) => void calendar.setPush(v)}
+              trackColor={{ true: colors.accent, false: colors.borderStrong }} thumbColor="#FFFFFF"
+              {...({ activeThumbColor: "#FFFFFF" } as object)} />} />
+        )}
+        {calendar.error ? <Txt variant="small" tone="danger" style={s.inset}>{calendar.error}</Txt> : null}
+      </Group>
+
+      <Group title="Appearance">
+        <Row icon={mode === "dark" ? "moon" : "sun"} title="Theme"
+          trailing={<Segmented<ThemeMode> value={mode} onChange={setMode}
+            options={[{ value: "dark", label: "Dark", icon: "moon" }, { value: "light", label: "Light", icon: "sun" }]} />} />
+      </Group>
+
+      <Group title="Invite friends">
+        <Row icon="gift" title="Share Nomi" detail="Send your invite link or card" onPress={() => router.push("/invite")} chevron />
+      </Group>
+
+      <Group title="Your data">
+        <Row icon="download" title="Export all contacts" detail="A spreadsheet (CSV) for Google Sheets or Excel"
+          trailing={<Button title="Export" size="sm" loading={busy === "export"} onPress={() => void exportAll()} />} />
+        {contactsSupported && (
+          <Row icon="userPlus" title="Import from your phone" onPress={() => router.push("/import-contacts")} chevron />
+        )}
+      </Group>
+
+      <Group title="Account">
+        {isDemo() ? (
+          <Row icon="logout" title="Exit demo" onPress={() => { exitDemo(); router.replace("/"); }} chevron />
+        ) : (
+          <Row icon="logout" title="Sign out" onPress={() => void supabase?.auth.signOut()} chevron />
+        )}
+        <Row icon="trash" title="Delete all data" danger onPress={() => void deleteEverything()} />
+        <Row icon="trash" title="Delete account" danger onPress={() => void removeAccount()} />
+      </Group>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
-  card: {
-    marginBottom: spacing.lg,
-    gap: spacing.md,
-  },
-  accountRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  accountText: {
-    flex: 1,
-    gap: 4,
-  },
-  accountName: {
-    fontFamily: fonts.serifBold,
-    fontSize: 24,
-    color: colors.text,
-  },
-  accountLine: {
-    fontSize: 16,
-    color: colors.muted,
-  },
-  body: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: colors.muted,
-  },
-  buttons: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.sm,
-  },
-  switchRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  switchTitle: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: colors.text,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.hairline,
-    marginVertical: spacing.sm,
-  },
-  danger: {
-    fontFamily: fonts.serifBold,
-    fontSize: 20,
-    color: "#FFB4A8",
-  },
-  message: {
-    marginTop: spacing.md,
-    color: colors.accent,
-  },
-});
+function Group({ title, children }: { title: string; children: ReactNode }) {
+  const s = useStyles();
+  return (
+    <View style={s.group}>
+      <Txt variant="overline" style={s.groupTitle}>{title}</Txt>
+      <Card padding="none" style={s.groupCard}>{children}</Card>
+    </View>
+  );
+}
+
+function Row({ icon, title, detail, trailing, onPress, chevron, danger }: {
+  icon?: IconName;
+  title: string;
+  detail?: string;
+  trailing?: ReactNode;
+  onPress?: () => void;
+  chevron?: boolean;
+  danger?: boolean;
+}) {
+  const s = useStyles();
+  const { colors } = useTheme();
+  const content = (
+    <>
+      {icon && <Icon name={icon} size={17} color={danger ? colors.danger : colors.textSecondary} />}
+      <View style={s.flex}>
+        <Txt variant="label" tone={danger ? "danger" : "default"}>{title}</Txt>
+        {detail ? <Txt variant="caption">{detail}</Txt> : null}
+      </View>
+      {trailing}
+      {chevron && <Icon name="chevron" size={16} color={colors.textTertiary} />}
+    </>
+  );
+  if (!onPress) return <View style={s.row}>{content}</View>;
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={title}
+      style={({ hovered }: { hovered?: boolean }) => [s.row, hovered && s.rowHover]}>
+      {content}
+    </Pressable>
+  );
+}
+
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    flex: { flex: 1, minWidth: 0 },
+    identity: { flexDirection: "row", alignItems: "center", gap: space.lg, flexWrap: "wrap" },
+    identityText: { flex: 1, minWidth: 220, gap: 2 },
+    identityActions: { flexDirection: "row", flexWrap: "wrap", gap: space.xs, marginTop: space.sm },
+    nameEdit: { flexDirection: "row", alignItems: "center", gap: space.xs },
+    group: { gap: space.xs },
+    groupTitle: { paddingHorizontal: space.xxs },
+    groupCard: { paddingVertical: space.xxs },
+    row: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 56, paddingHorizontal: space.md, paddingVertical: space.xs },
+    rowHover: { backgroundColor: colors.surfaceHover },
+    inset: { paddingHorizontal: space.md, paddingBottom: space.sm },
+    actionsRow: { flexDirection: "row", gap: space.xs, flexWrap: "wrap", paddingLeft: space.md + 17 + space.sm },
+    badge: { borderRadius: radius.pill },
+  }),
+);

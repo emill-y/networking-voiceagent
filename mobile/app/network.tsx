@@ -1,224 +1,204 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
-import Svg, { Line } from "react-native-svg";
+import { Pressable, ScrollView, StyleSheet, useWindowDimensions, View } from "react-native";
 
-import { Button } from "@/components/Button";
-import { GhostNetwork } from "@/components/GhostNetwork";
-import { EDGE_STYLES, EdgeLegend, NetworkMap } from "@/components/NetworkMap";
-import { Monogram } from "@/components/Monogram";
-import { PageHeader } from "@/components/PageHeader";
-import { Screen } from "@/components/Screen";
+import { Avatar } from "@/components/Avatar";
+import { Button, IconButton } from "@/components/Button";
+import { Card } from "@/components/Card";
+import { EmptyState } from "@/components/EmptyState";
+import { EdgeKey, EdgeLegend, edgeStyles, NetworkGraph } from "@/components/NetworkGraph";
+import { PageLoader } from "@/components/OrbitLoader";
+import { Page } from "@/components/Page";
+import { Segmented } from "@/components/Segmented";
+import { Txt } from "@/components/Txt";
 import { useDesktop } from "@/hooks/useDesktop";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
-import { layoutNetwork, neighbors, type MapEdge } from "@/lib/networkLayout";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { layoutNetwork, neighbors } from "@/lib/networkLayout";
+import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 import { getNetwork } from "@/services/nomi";
 import type { EdgeKind, NetworkResponse } from "@/types/api";
 
-type View_ = "map" | "list";
+type Mode = "map" | "list";
 
 export default function Network() {
+  const s = useStyles();
   const router = useRouter();
-  const { height: windowHeight } = useWindowDimensions();
   const desktop = useDesktop();
+  const { height } = useWindowDimensions();
   const [data, setData] = useState<NetworkResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [mode, setMode] = useState<View_>("map");
+  const [mode, setMode] = useState<Mode>("map");
 
   useFocusEffect(
     useCallback(() => {
       getNetwork()
-        .then(setData)
+        .then((d) => {
+          setData(d);
+          setError(null);
+        })
         .catch((e) => setError(e instanceof ApiError ? e.message : "Couldn’t load your network."));
     }, []),
   );
 
-  const layout = useMemo(() => (data ? layoutNetwork(data) : null), [data]);
+  const layout = useMemo(() => (data && data.people.length ? layoutNetwork(data) : null), [data]);
   const names = useMemo(() => {
     const map = new Map<string, string>();
     data?.people.forEach((p) => map.set(p.id, p.name));
     data?.groups.forEach((g) => map.set(g.id, g.label));
     return map;
   }, [data]);
+  const openPerson = (id: string) => router.push({ pathname: "/contacts/[id]", params: { id } });
+  const linkCount = data?.edges.length ?? 0;
 
-  const openPerson = (id: string) => router.push({ pathname: "/people/[id]", params: { id } });
-  const isPerson = (id: string) => !!data?.people.some((p) => p.id === id);
-  const links = data?.edges ?? [];
+  const toggle = (
+    <Segmented<Mode> value={mode} onChange={setMode}
+      options={[{ value: "map", label: "Map", icon: "map" }, { value: "list", label: "List", icon: "list" }]} />
+  );
+  const subtitle = data
+    ? `${data.people.length} ${data.people.length === 1 ? "contact" : "contacts"} · ${linkCount} ${linkCount === 1 ? "connection" : "connections"}`
+    : undefined;
+
+  if (!data) {
+    return (
+      <Page title="Map">
+        {error ? <EmptyState icon="alert" title="Couldn’t load your network" body={error} /> : <PageLoader label="Mapping your network" />}
+      </Page>
+    );
+  }
+
+  if (!layout) {
+    return (
+      <Page title="Map">
+        <Card padding="none">
+          <EmptyState icon="map" title="Your network starts here"
+            body="Everyone you remember appears on the map, linked by where you met and what you share."
+            action={<Button title="Remember someone" icon="mic" variant="primary" onPress={() => router.push("/record")} />} />
+        </Card>
+      </Page>
+    );
+  }
+
+  if (mode === "list") {
+    return (
+      <Page title="Map" subtitle={subtitle} actions={toggle}>
+        <ListView data={data} names={names} onOpen={openPerson} />
+      </Page>
+    );
+  }
+
+  const details = selectedId ? (
+    <Details id={selectedId} data={data} layout={layout} names={names} onSelect={setSelectedId} onOpen={openPerson}
+      onClose={() => setSelectedId(null)} />
+  ) : null;
+
+  if (desktop) {
+    return (
+      <Page title="Map" subtitle={subtitle} actions={toggle} scroll={false}>
+        <View style={s.desktopBody}>
+          <View style={s.graphColumn}>
+            <NetworkGraph layout={layout} selectedId={selectedId} onSelect={setSelectedId} style={s.fill} />
+            <EdgeLegend />
+          </View>
+          <Card style={s.panel} padding="none">
+            {details ?? <Overview data={data} onSelect={setSelectedId} />}
+          </Card>
+        </View>
+      </Page>
+    );
+  }
 
   return (
-    <Screen wide>
-      <PageHeader eyebrow="Map" title="Your network"
-        subtitle="Who you know and what connects them: companies, schools, events and interests." />
-
-      {!data || !layout ? (
-        <View style={styles.loading}>
-          {error ? <Text style={type.body}>{error}</Text> : <ActivityIndicator color={colors.accent} />}
-        </View>
-      ) : data.people.length === 0 ? (
-        <View style={styles.empty}>
-          <GhostNetwork height={desktop ? Math.max(500, windowHeight - 240) : Math.max(420, Math.min(600, windowHeight * 0.66))}>
-            <Text style={styles.waiting}>Waiting for your first connection…</Text>
-            <Text style={[type.body, styles.emptyText]}>
-              Everyone you remember lands here, linked by the companies, schools, events and
-              interests you share.
-            </Text>
-            <View style={styles.emptyAction}>
-              <Button title="Remember someone" icon="mic" onPress={() => router.push("/record")} />
-            </View>
-          </GhostNetwork>
-        </View>
-      ) : (
-        <>
-          <Text style={type.meta}>
-            {data.people.length} {data.people.length === 1 ? "person" : "people"} ·{" "}
-            {links.length} {links.length === 1 ? "link" : "links"} between them
-          </Text>
-
-          <View style={styles.toolbar}>
-            <Segmented value={mode} onChange={setMode} />
-          </View>
-
-          {mode === "map" ? (
-            <>
-              <EdgeLegend />
-              <View style={styles.mapWrap}>
-                <NetworkMap
-                  layout={layout}
-                  selectedId={selectedId}
-                  onSelect={setSelectedId}
-                  height={desktop ? Math.max(480, windowHeight - 320) : Math.max(320, Math.min(640, windowHeight * 0.55))}
-                />
-              </View>
-              {links.length === 0 && (
-                <Text style={[type.meta, styles.hint]}>
-                  No links between people yet. They appear when your notes mention a shared
-                  company, school, event or interest.
-                </Text>
-              )}
-              {selectedId ? (
-                <Details
-                  id={selectedId}
-                  data={data}
-                  connections={neighbors(layout, selectedId)}
-                  names={names}
-                  onSelect={setSelectedId}
-                  onOpen={openPerson}
-                  isPerson={isPerson}
-                />
-              ) : (
-                links.length > 0 && (
-                  <Text style={[type.meta, styles.hint]}>
-                    Tap a person to see how they connect. Pinch or use the buttons to zoom.
-                  </Text>
-                )
-              )}
-            </>
-          ) : (
-            <ListView edges={layout.edges} names={names} people={data.people}
-              onOpen={(id) => isPerson(id) && openPerson(id)} />
-          )}
-        </>
-      )}
-    </Screen>
+    <Page title="Map" subtitle={subtitle} actions={toggle} scroll={false}>
+      <View style={s.fill}>
+        <NetworkGraph layout={layout} selectedId={selectedId} onSelect={setSelectedId}
+          style={[s.fill, { minHeight: Math.max(320, height * 0.5) }]} />
+        {details && <View style={s.phoneSheet}><Card padding="none" style={s.phoneCard}>{details}</Card></View>}
+      </View>
+      {!details && <EdgeLegend />}
+    </Page>
   );
 }
 
-function Segmented({ value, onChange }: { value: View_; onChange: (v: View_) => void }) {
+// No one selected: who's most connected, and what the lines mean.
+function Overview({ data, onSelect }: { data: NetworkResponse; onSelect: (id: string) => void }) {
+  const s = useStyles();
+  const degree = new Map<string, number>();
+  for (const e of data.edges) {
+    degree.set(e.source, (degree.get(e.source) ?? 0) + 1);
+    degree.set(e.target, (degree.get(e.target) ?? 0) + 1);
+  }
+  const top = [...data.people].sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0)).slice(0, 8);
   return (
-    <View style={styles.segmented} accessibilityRole="tablist">
-      {(["map", "list"] as const).map((option) => (
-        <Pressable
-          key={option}
-          onPress={() => onChange(option)}
-          accessibilityRole="tab"
-          accessibilityState={{ selected: value === option }}
-          style={[styles.segment, value === option && styles.segmentSelected]}
-        >
-          <Text style={[styles.segmentText, value === option && styles.segmentTextSelected]}>
-            {option === "map" ? "Map" : "List"}
-          </Text>
+    <ScrollView contentContainerStyle={s.panelContent}>
+      <Txt variant="overline">Most connected</Txt>
+      {top.map((p) => (
+        <Pressable key={p.id} onPress={() => onSelect(p.id)} accessibilityRole="button" accessibilityLabel={p.name}
+          style={({ hovered }) => [s.personRow, hovered && s.hover]}>
+          <Avatar name={p.name} size={28} />
+          <View style={s.flex}>
+            <Txt variant="label" numberOfLines={1}>{p.name}</Txt>
+            {p.subtitle ? <Txt variant="caption" numberOfLines={1}>{p.subtitle}</Txt> : null}
+          </View>
+          <Txt variant="caption">{degree.get(p.id) ?? 0}</Txt>
         </Pressable>
       ))}
-    </View>
+      <Txt variant="caption" style={s.hint}>Select anyone on the map to see how they connect. Scroll or pinch to zoom, drag to move.</Txt>
+    </ScrollView>
   );
 }
 
-function KindKey({ kind }: { kind: EdgeKind }) {
-  const style = EDGE_STYLES[kind];
-  return (
-    <Svg width={22} height={8} accessibilityLabel={style.label}>
-      <Line x1={1} y1={4} x2={21} y2={4} stroke={style.color} strokeWidth={2.5}
-        strokeDasharray={style.dash} strokeLinecap="round" />
-    </Svg>
-  );
-}
-
-function Details({
-  id,
-  data,
-  connections,
-  names,
-  onSelect,
-  onOpen,
-  isPerson,
-}: {
+function Details({ id, data, layout, names, onSelect, onOpen, onClose }: {
   id: string;
   data: NetworkResponse;
-  connections: ReturnType<typeof neighbors>;
+  layout: ReturnType<typeof layoutNetwork>;
   names: Map<string, string>;
   onSelect: (id: string) => void;
   onOpen: (id: string) => void;
-  isPerson: (id: string) => boolean;
+  onClose: () => void;
 }) {
+  const s = useStyles();
   const person = data.people.find((p) => p.id === id);
   const group = data.groups.find((g) => g.id === id);
+  const connections = mergeByPerson(neighbors(layout, id));
   return (
-    <View style={styles.details}>
-      <Text style={type.heading}>{person?.name ?? group?.label}</Text>
-      {person?.subtitle ? <Text style={type.body}>{person.subtitle}</Text> : null}
-      {person ? (
-        <Text style={type.meta}>
-          {person.moments} {person.moments === 1 ? "moment" : "moments"}
-          {person.lastInteractionAt ? ` · last seen ${formatRelative(person.lastInteractionAt)}` : ""}
-          {person.openFollowUps ? ` · ${person.openFollowUps} to follow up` : ""}
-        </Text>
-      ) : (
-        <Text style={type.meta}>
-          {group?.members} people · {group ? EDGE_STYLES[group.edgeKind].label.toLowerCase() : ""}
-        </Text>
-      )}
-
-      {connections.length > 0 ? (
-        <View style={styles.connections}>
-          <Text style={type.label}>Connected to</Text>
-          {mergeByPerson(connections).map((c) => (
-            <Pressable key={c.id} onPress={() => onSelect(c.id)} accessibilityRole="button"
-              style={styles.connection}>
-              <View style={styles.keys}>
-                {c.kinds.map((kind) => <KindKey key={kind} kind={kind} />)}
-              </View>
-              <View style={styles.connectionText}>
-                <Text style={styles.connectionName}>{names.get(c.id) ?? "Someone"}</Text>
-                <Text style={type.meta}>{c.reasons.join(" · ")}</Text>
-              </View>
-            </Pressable>
-          ))}
+    <ScrollView contentContainerStyle={s.panelContent}>
+      <View style={s.detailsHeader}>
+        {person ? <Avatar name={person.name} size={40} /> : null}
+        <View style={s.flex}>
+          <Txt variant="heading" numberOfLines={2}>{person?.name ?? group?.label}</Txt>
+          {person?.subtitle ? <Txt variant="small" numberOfLines={2}>{person.subtitle}</Txt> : null}
+          {group ? <Txt variant="small">{group.members} people</Txt> : null}
         </View>
-      ) : (
-        <Text style={[type.meta, styles.hint]}>No shared company, event or interests noted yet.</Text>
+        <IconButton icon="close" label="Close" onPress={onClose} size={30} tone="plain" />
+      </View>
+      {person && (
+        <Txt variant="caption">
+          {person.moments} {person.moments === 1 ? "conversation" : "conversations"}
+          {person.lastInteractionAt ? ` · last ${formatRelative(person.lastInteractionAt)}` : ""}
+          {person.openFollowUps ? ` · ${person.openFollowUps} to follow up` : ""}
+        </Txt>
       )}
-
-      {person && isPerson(id) && (
-        <Button title={`Open ${person.name.split(" ")[0]}’s profile`} variant="quiet" onPress={() => onOpen(id)} />
+      {person && <Button title="Open contact" iconRight="arrow" size="sm" onPress={() => onOpen(id)} />}
+      <Txt variant="overline" style={s.connectedLabel}>{connections.length ? `Connected to ${connections.length}` : "No connections yet"}</Txt>
+      {connections.length === 0 && (
+        <Txt variant="caption">Links appear when your notes mention a shared company, school, event or interest.</Txt>
       )}
-    </View>
+      {connections.map((c) => (
+        <Pressable key={c.id} onPress={() => onSelect(c.id)} accessibilityRole="button" accessibilityLabel={names.get(c.id)}
+          style={({ hovered }) => [s.connection, hovered && s.hover]}>
+          <View style={s.keys}>{c.kinds.map((kind) => <EdgeKey key={kind} kind={kind} />)}</View>
+          <View style={s.flex}>
+            <Txt variant="label" numberOfLines={1}>{names.get(c.id) ?? "Someone"}</Txt>
+            <Txt variant="caption" numberOfLines={2}>{c.reasons.join(" · ")}</Txt>
+          </View>
+        </Pressable>
+      ))}
+    </ScrollView>
   );
 }
 
-// One row per person, even when they're linked in several ways.
 function mergeByPerson(connections: ReturnType<typeof neighbors>) {
   const merged = new Map<string, { id: string; kinds: EdgeKind[]; reasons: string[] }>();
   for (const c of connections) {
@@ -231,226 +211,79 @@ function mergeByPerson(connections: ReturnType<typeof neighbors>) {
   return [...merged.values()];
 }
 
-// The same information as the map, as text: every link, grouped by kind.
-function ListView({
-  edges,
-  names,
-  people,
-  onOpen,
-}: {
-  edges: MapEdge[];
-  names: Map<string, string>;
-  people: NetworkResponse["people"];
-  onOpen: (id: string) => void;
-}) {
-  const kinds = Object.keys(EDGE_STYLES) as EdgeKind[];
+// The same information as the map, as text: every connection, grouped by why.
+function ListView({ data, names, onOpen }: { data: NetworkResponse; names: Map<string, string>; onOpen: (id: string) => void }) {
+  const s = useStyles();
+  const { colors } = useTheme();
+  const styles = edgeStyles(colors);
+  const kinds = Object.keys(styles) as EdgeKind[];
+  const isPerson = (id: string) => data.people.some((p) => p.id === id);
+  if (!data.edges.length) {
+    return (
+      <Card padding="none">
+        <EmptyState icon="link" title="No connections between your contacts yet"
+          body="They appear when your notes mention a shared company, school, event or interest." />
+      </Card>
+    );
+  }
   return (
-    <View style={styles.list}>
+    <View style={s.listGroups}>
       {kinds.map((kind) => {
-        const all = edges.filter((e) => e.kind === kind);
-        if (all.length === 0) return null;
-        // Links to a hub ("Cal Hacks") become one row listing its members.
-        const hubMembers = new Map<string, string[]>();
-        const rows = all.filter((e) => {
-          if (!isGroupId(e.target)) return true;
-          hubMembers.set(e.target, [...(hubMembers.get(e.target) ?? []), e.source]);
-          return false;
-        });
+        const edges = data.edges.filter((e) => e.kind === kind);
+        if (!edges.length) return null;
         return (
-          <View key={kind} style={styles.listGroup}>
-            <View style={styles.listHeader}>
-              <KindKey kind={kind} />
-              <Text style={type.label}>{EDGE_STYLES[kind].label}</Text>
+          <View key={kind} style={s.listGroup}>
+            <View style={s.listHeader}>
+              <EdgeKey kind={kind} />
+              <Txt variant="overline">{styles[kind].label}</Txt>
+              <Txt variant="caption">{edges.length}</Txt>
             </View>
-            {[...hubMembers.entries()].map(([hub, members]) => (
-              <View key={hub} style={styles.listRow}>
-                <Text style={styles.connectionName}>{names.get(hub)}</Text>
-                <Text style={type.meta}>
-                  {members.map((id) => names.get(id)).filter(Boolean).join(", ")}
-                </Text>
-              </View>
-            ))}
-            {rows.map((e, i) => (
-              <View key={i} style={styles.listRow}>
-                <Text style={styles.connectionName}>
-                  <Text onPress={() => onOpen(e.source)}>{names.get(e.source)}</Text>
-                  {"  ·  "}
-                  <Text onPress={() => onOpen(e.target)}>{names.get(e.target)}</Text>
-                </Text>
-                <Text style={type.meta}>{e.reasons.join(" · ")}</Text>
-              </View>
-            ))}
+            <Card padding="none">
+              {edges.map((e, i) => (
+                <View key={i} style={[s.listRow, i > 0 && s.border]}>
+                  <View style={s.pair}>
+                    {[e.source, e.target].map((id, j) => (
+                      <Pressable key={id} onPress={() => isPerson(id) && onOpen(id)} accessibilityRole="link" style={s.pairPerson}>
+                        {j === 1 && <Txt variant="caption"> + </Txt>}
+                        <Txt variant="label">{names.get(id)}</Txt>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <Txt variant="caption" style={s.listReason}>{e.reasons.join(" · ")}</Txt>
+                </View>
+              ))}
+            </Card>
           </View>
         );
       })}
-      {edges.every((e) => e.kind === "you") && (
-        <View style={styles.noLinks}>
-          <Text style={type.heading}>No links between your people yet</Text>
-          <Text style={[type.body, styles.noLinksBody]}>
-            Links appear when two people share a company, school, event or interest in your notes.
-            Mention where you met or what they do, and the list fills in.
-          </Text>
-          {people.map((p) => (
-            <Pressable key={p.id} onPress={() => onOpen(p.id)} accessibilityRole="button" style={styles.noLinkRow}>
-              <Monogram name={p.name} size={34} />
-              <View style={styles.connectionText}>
-                <Text style={styles.connectionName}>{p.name}</Text>
-                <Text style={type.meta}>
-                  {p.subtitle ? `${p.subtitle} · ` : ""}No shared company, event or interest yet
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-          <Text style={[type.label, styles.exampleLabel]}>What links look like</Text>
-          {[
-            ["event", "Jason Chen  ·  Sam Park", "Met at the same event: Cal Hacks"],
-            ["organization", "Maya Singh  ·  Noah Kim", "Both work at Stripe"],
-          ].map(([kind, pair, why]) => (
-            <View key={pair} style={[styles.listRow, styles.exampleRow]}>
-              <View style={styles.listHeader}>
-                <KindKey kind={kind as EdgeKind} />
-                <Text style={styles.connectionName}>{pair}</Text>
-              </View>
-              <Text style={type.meta}>Example · {why}</Text>
-            </View>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
 
-// Hub ids look like "event:cal hacks"; people ids are UUIDs.
-function isGroupId(id: string): boolean {
-  return id.includes(":");
-}
-
-const styles = StyleSheet.create({
-  keys: {
-    width: 22,
-    gap: 6,
-  },
-  title: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.xs,
-  },
-  loading: {
-    paddingVertical: spacing.xxl,
-    alignItems: "center",
-  },
-  empty: {
-    marginTop: spacing.lg,
-  },
-  waiting: {
-    ...type.title,
-    fontSize: 24,
-    textAlign: "center",
-  },
-  emptyText: {
-    textAlign: "center",
-    color: colors.muted,
-    maxWidth: 420,
-  },
-  emptyAction: {
-    marginTop: spacing.md,
-    minWidth: 240,
-  },
-  toolbar: {
-    marginTop: spacing.lg,
-    marginBottom: spacing.md,
-  },
-  segmented: {
-    flexDirection: "row",
-    alignSelf: "flex-start",
-    padding: 4,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surface,
-  },
-  segment: {
-    paddingVertical: 8,
-    paddingHorizontal: spacing.lg,
-    borderRadius: radius.pill,
-  },
-  segmentSelected: {
-    backgroundColor: colors.raised,
-  },
-  segmentText: {
-    fontSize: 14,
-    color: colors.muted,
-  },
-  segmentTextSelected: {
-    color: colors.text,
-  },
-  mapWrap: {
-    marginTop: spacing.md,
-  },
-  hint: {
-    marginTop: spacing.md,
-  },
-  details: {
-    marginTop: spacing.lg,
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.surface,
-    gap: spacing.xs,
-  },
-  connections: {
-    marginTop: spacing.md,
-    marginBottom: spacing.md,
-    gap: spacing.sm,
-  },
-  connection: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: 4,
-  },
-  connectionText: {
-    flex: 1,
-    gap: 2,
-  },
-  connectionName: {
-    fontSize: 16,
-    color: colors.text,
-  },
-  list: {
-    gap: spacing.xl,
-  },
-  listGroup: {
-    gap: spacing.sm,
-  },
-  listHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    marginBottom: spacing.xs,
-  },
-  noLinks: {
-    padding: spacing.lg,
-    borderRadius: radius.lg,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    gap: spacing.sm,
-  },
-  noLinksBody: {
-    color: colors.muted,
-    marginBottom: spacing.sm,
-  },
-  noLinkRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: 6,
-  },
-  exampleLabel: {
-    marginTop: spacing.md,
-  },
-  exampleRow: {
-    opacity: 0.55,
-  },
-  listRow: {
-    gap: 2,
-    paddingVertical: 4,
-  },
-});
+const useStyles = makeStyles(({ colors, shadow }) =>
+  StyleSheet.create({
+    flex: { flex: 1, minWidth: 0 },
+    fill: { flex: 1 },
+    desktopBody: { flex: 1, flexDirection: "row", gap: space.md, minHeight: 0 },
+    graphColumn: { flex: 1, gap: space.sm, minWidth: 0 },
+    panel: { width: 300 },
+    panelContent: { padding: space.md, gap: space.xs },
+    detailsHeader: { flexDirection: "row", alignItems: "center", gap: space.sm },
+    connectedLabel: { marginTop: space.sm },
+    personRow: { flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.xs, borderRadius: radius.md },
+    hover: { backgroundColor: colors.surfaceHover },
+    hint: { marginTop: space.sm },
+    connection: { flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.xs, borderRadius: radius.md },
+    keys: { width: 22, gap: 6 },
+    phoneSheet: { position: "absolute", left: space.xs, right: space.xs, bottom: space.xs, maxHeight: "60%" },
+    phoneCard: { maxHeight: "100%", ...shadow.raised },
+    listGroups: { gap: space.lg },
+    listGroup: { gap: space.xs },
+    listHeader: { flexDirection: "row", alignItems: "center", gap: space.xs, paddingHorizontal: space.xxs },
+    listRow: { paddingHorizontal: space.md, paddingVertical: space.sm, gap: 2 },
+    listReason: {},
+    border: { borderTopWidth: 1, borderTopColor: colors.border },
+    pair: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
+    pairPerson: { flexDirection: "row", alignItems: "center" },
+  }),
+);

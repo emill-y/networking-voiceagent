@@ -1,61 +1,317 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import { Linking, Pressable, StyleSheet, View } from "react-native";
 
-import { Button } from "@/components/Button";
+import { Avatar } from "@/components/Avatar";
+import { Button, IconButton } from "@/components/Button";
+import { CalendarBanner } from "@/components/CalendarBanner";
 import { Card } from "@/components/Card";
-import { ComingUp } from "@/components/ComingUp";
 import { DatePicker } from "@/components/DatePicker";
-import { Divider } from "@/components/Divider";
-import { Monogram } from "@/components/Monogram";
-import { PageHeader, eyebrowStyle } from "@/components/PageHeader";
-import { PillButton } from "@/components/PillButton";
-import { Screen } from "@/components/Screen";
-import { addDays } from "@/lib/calendar";
+import { EmptyState } from "@/components/EmptyState";
+import { Icon } from "@/components/Icon";
+import { Input } from "@/components/Input";
+import { Page } from "@/components/Page";
+import { Sheet } from "@/components/Sheet";
+import { SkeletonRows } from "@/components/Skeleton";
+import { useToast } from "@/components/Toast";
+import { Txt } from "@/components/Txt";
+import { useCalendar } from "@/hooks/useCalendar";
+import { useDesktop } from "@/hooks/useDesktop";
 import { ApiError } from "@/lib/api";
-import { dateToDueAt, dueGroup, localToday, type DueGroup } from "@/lib/dates";
-import { firstName, followUpSuggestions, type FollowUpSuggestion } from "@/lib/suggest";
-import { formatRelative, formatShortDate } from "@/lib/format";
-import { colors, radius, spacing, type } from "@/lib/theme";
-import { createFollowUp, listContacts, listFollowUps, updateFollowUp } from "@/services/nomi";
+import { addDays } from "@/lib/calendar";
+import { dateToDueAt, localToday } from "@/lib/dates";
+import { BUCKET_LABELS, bucketCounts, bucketOf, dueLabel, type Bucket } from "@/lib/followUps";
+import { followUpSuggestions } from "@/lib/suggest";
+import { makeStyles, radius, space, useTheme } from "@/lib/theme";
+import {
+  addFollowUpToCalendar,
+  createFollowUp,
+  listContacts,
+  listFollowUps,
+  removeFollowUpFromCalendar,
+  updateFollowUp,
+} from "@/services/nomi";
 import type { ContactSummary, FollowUp, FollowUpStatus } from "@/types/api";
 
-const GROUPS: { key: DueGroup; label: string }[] = [
-  { key: "overdue", label: "Overdue" },
-  { key: "today", label: "Today" },
-  { key: "week", label: "This week" },
-  { key: "later", label: "Later" },
-  { key: "none", label: "Anytime" },
-];
+const OPEN_BUCKETS: Bucket[] = ["overdue", "week", "later"];
 
 export default function FollowUps() {
+  const s = useStyles();
   const router = useRouter();
-  const params = useLocalSearchParams<{ add?: string }>();
+  const desktop = useDesktop();
+  const toast = useToast();
+  const params = useLocalSearchParams<{ add?: string; contact?: string }>();
+  const calendar = useCalendar("/follow-ups");
   const [items, setItems] = useState<FollowUp[] | null>(null);
   const [people, setPeople] = useState<ContactSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
-  // The "Add a follow-up" form, open from Home's button or a suggestion's "Edit".
-  const [draft, setDraft] = useState<{ contactId: string | null; action: string; due: string } | null>(
-    params.add ? { contactId: null, action: "", due: addDays(localToday(), 3) } : null,
-  );
-  const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState<Bucket | "open">("open");
+  const [adding, setAdding] = useState(!!params.add);
+  const [calendarBusy, setCalendarBusy] = useState<string | null>(null);
 
   const load = useCallback(() => {
     listFollowUps()
-      .then(setItems)
+      .then((list) => {
+        setItems(list.filter((f) => f.status !== "dismissed"));
+        setError(null);
+      })
       .catch((e) => setError(e instanceof ApiError ? e.message : "Couldn’t load follow-ups."));
     listContacts().then(setPeople).catch(() => undefined);
   }, []);
   useFocusEffect(load);
 
-  const suggestions = followUpSuggestions(people, new Date(), 4);
+  const counts = useMemo(() => bucketCounts(items ?? []), [items]);
+  const suggestions = followUpSuggestions(people, new Date(), 3);
 
-  async function add(contactId: string, action: string, due: string) {
-    setSaving(true);
+  async function setStatus(item: FollowUp, status: FollowUpStatus) {
+    setItems((current) => current?.map((f) => (f.id === item.id ? { ...f, status } : f)) ?? null);
     try {
-      await createFollowUp(contactId, action.trim(), due ? dateToDueAt(due) : null);
-      setDraft(null);
+      await updateFollowUp(item.id, { status });
+      if (status === "done") toast.show("Marked done", "success");
+    } catch {
       load();
+    }
+  }
+
+  async function toggleCalendar(item: FollowUp) {
+    setCalendarBusy(item.id);
+    try {
+      const updated = item.onCalendar ? await removeFollowUpFromCalendar(item.id) : await addFollowUpToCalendar(item.id);
+      setItems((current) => current?.map((f) => (f.id === item.id ? updated : f)) ?? null);
+      toast.show(item.onCalendar ? "Removed from Google Calendar" : "Added to Google Calendar", "success");
+    } catch (e) {
+      toast.show(e instanceof ApiError ? e.message : "Google Calendar didn’t respond.", "danger");
+      calendar.refresh();
+    } finally {
+      setCalendarBusy(null);
+    }
+  }
+
+  const visible = (items ?? []).filter((f) => (filter === "open" ? f.status === "open" : bucketOf(f) === filter));
+  const groups: Bucket[] = filter === "open" ? OPEN_BUCKETS : [filter];
+  const calendarReady = calendar.state === "connected";
+
+  return (
+    <Page
+      title="Follow-ups"
+      actions={<Button title="New follow-up" icon="plus" variant="primary" onPress={() => setAdding(true)} />}
+    >
+      <View style={[s.tiles, !desktop && s.tilesPhone]}>
+        {(["overdue", "week", "later", "done"] as Bucket[]).map((b) => {
+          const on = filter === b;
+          return (
+            <Pressable key={b} onPress={() => setFilter(on ? "open" : b)} accessibilityRole="button"
+              accessibilityState={{ selected: on }} accessibilityLabel={`${BUCKET_LABELS[b]}: ${counts[b]}`}
+              style={({ hovered }: { hovered?: boolean }) => [s.tile, !desktop && s.tilePhone, on && s.tileOn, hovered && !on && s.tileHover]}>
+              <Txt variant="stat" style={b === "overdue" && counts.overdue > 0 ? s.overdueNumber : undefined}>{counts[b]}</Txt>
+              <Txt variant="small" weight="500" tone={on ? "default" : "secondary"}>{BUCKET_LABELS[b]}</Txt>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <CalendarBanner calendar={calendar} prompt="Connect Google Calendar to put follow-ups on it." />
+
+      {!items ? (
+        <Card><SkeletonRows rows={5} avatar={false} /></Card>
+      ) : error ? (
+        <EmptyState icon="alert" title="Couldn’t load follow-ups" body={error} action={<Button title="Try again" onPress={load} />} />
+      ) : visible.length === 0 ? (
+        <Card padding="none">
+          <EmptyState
+            icon="checkCircle"
+            title={filter === "done" ? "Nothing done yet" : filter === "open" ? "You’re all caught up" : `Nothing ${BUCKET_LABELS[filter].toLowerCase()}`}
+            body={filter === "open" && people.length === 0 ? "Follow-ups come from your notes, like “send her my resume Friday”." : undefined}
+            action={filter === "open" ? <Button title="New follow-up" icon="plus" size="sm" onPress={() => setAdding(true)} /> : undefined}
+          />
+        </Card>
+      ) : (
+        groups.map((group) => {
+          const rows = visible
+            .filter((f) => bucketOf(f) === group)
+            .sort((a, b) => (group === "done" ? (b.completedAt ?? "").localeCompare(a.completedAt ?? "") : (a.dueAt ?? "9").localeCompare(b.dueAt ?? "9")));
+          if (!rows.length) return null;
+          return (
+            <View key={group} style={s.group}>
+              <View style={s.groupHeader}>
+                <Txt variant="overline" style={group === "overdue" ? s.overdueText : undefined}>{BUCKET_LABELS[group]}</Txt>
+                <Txt variant="caption">{rows.length}</Txt>
+              </View>
+              <Card padding="none">
+                {rows.map((item, i) => (
+                  <FollowUpRow
+                    key={item.id}
+                    item={item}
+                    first={i === 0}
+                    desktop={desktop}
+                    calendarReady={calendarReady}
+                    calendarBusy={calendarBusy === item.id}
+                    onToggle={() => void setStatus(item, item.status === "done" ? "open" : "done")}
+                    onDismiss={() => void setStatus(item, "dismissed")}
+                    onCalendar={() => void toggleCalendar(item)}
+                    onOpenCalendar={() => item.calendarLink && void Linking.openURL(item.calendarLink)}
+                    onPerson={() => router.push({ pathname: "/contacts/[id]", params: { id: item.contactId } })}
+                  />
+                ))}
+              </Card>
+            </View>
+          );
+        })
+      )}
+
+      {filter === "open" && suggestions.length > 0 && items && (
+        <View style={s.group}>
+          <View style={s.groupHeader}><Txt variant="overline">Suggestions</Txt></View>
+          <Card padding="none">
+            {suggestions.map((sug, i) => (
+              <View key={sug.contactId} style={[s.row, i > 0 && s.rowBorder]}>
+                <Icon name="spark" size={16} color={s.sparkColor.color} />
+                <View style={s.flex}>
+                  <Txt variant="label">{sug.action}</Txt>
+                  <Txt variant="caption">{sug.why}</Txt>
+                </View>
+                <Button title="Add" size="sm" icon="plus"
+                  onPress={() => void createFollowUp(sug.contactId, sug.action, dateToDueAt(addDays(localToday(), sug.dueInDays))).then(load)} />
+              </View>
+            ))}
+          </Card>
+        </View>
+      )}
+
+      <NewFollowUp
+        visible={adding}
+        people={people}
+        initialContact={params.contact ?? null}
+        calendarReady={calendarReady}
+        onClose={() => setAdding(false)}
+        onSaved={(item) => {
+          setAdding(false);
+          setItems((current) => [...(current ?? []), item]);
+          toast.show(item.onCalendar ? "Added, and on your Google Calendar" : "Follow-up added", "success");
+        }}
+      />
+    </Page>
+  );
+}
+
+function FollowUpRow({
+  item,
+  first,
+  desktop,
+  calendarReady,
+  calendarBusy,
+  onToggle,
+  onDismiss,
+  onCalendar,
+  onOpenCalendar,
+  onPerson,
+}: {
+  item: FollowUp;
+  first: boolean;
+  desktop: boolean;
+  calendarReady: boolean;
+  calendarBusy: boolean;
+  onToggle: () => void;
+  onDismiss: () => void;
+  onCalendar: () => void;
+  onOpenCalendar: () => void;
+  onPerson: () => void;
+}) {
+  const s = useStyles();
+  const { colors } = useTheme();
+  const done = item.status === "done";
+  const label = dueLabel(item.dueAt);
+  const late = !done && (label.includes("late") || label === "Yesterday");
+  const person = (
+    <Pressable onPress={onPerson} accessibilityRole="link" accessibilityLabel={item.contactName}
+      style={({ hovered }: { hovered?: boolean }) => [s.person, hovered && s.personHover]}>
+      <Avatar name={item.contactName} size={20} />
+      <Txt variant="small" weight="500" numberOfLines={1} style={s.personName}>{item.contactName}</Txt>
+    </Pressable>
+  );
+  return (
+    <View style={[s.row, !first && s.rowBorder]}>
+      <Pressable onPress={onToggle} accessibilityRole="checkbox" accessibilityState={{ checked: done }}
+        accessibilityLabel={done ? `Mark not done: ${item.action}` : `Mark done: ${item.action}`} hitSlop={8}
+        style={({ hovered }: { hovered?: boolean }) => [s.check, done && s.checkDone, hovered && !done && { borderColor: colors.accent }]}>
+        {done && <Icon name="check" size={12} color={colors.onAccent} strokeWidth={3} />}
+      </Pressable>
+      <View style={s.flex}>
+        <Txt variant="label" style={done ? s.doneText : undefined}>{item.action}</Txt>
+        {item.context ? <Txt variant="caption" numberOfLines={2}>{item.context}</Txt> : null}
+        {!desktop && (
+          <View style={s.metaPhone}>
+            {person}
+            <Txt variant="caption" style={late ? s.overdueText : undefined}>{label}</Txt>
+          </View>
+        )}
+      </View>
+      {desktop && <View style={s.personCol}>{person}</View>}
+      {desktop && <Txt variant="small" style={[s.dueCol, late && s.overdueText]}>{label}</Txt>}
+      <View style={desktop ? s.calendarCol : undefined}>
+        {!done && item.dueAt && (calendarReady || item.onCalendar) ? (
+          item.onCalendar ? (
+            <View style={s.calendarActions}>
+              {item.calendarLink && <IconButton icon="calendarCheck" label="Open in Google Calendar" onPress={onOpenCalendar} size={30} tone="plain" />}
+              <IconButton icon="close" label="Remove from Google Calendar" onPress={onCalendar} size={30} tone="plain" disabled={calendarBusy} />
+            </View>
+          ) : (
+            desktop ? (
+              <Button title="Add to Calendar" icon="calendarAdd" size="sm" variant="ghost"
+                loading={calendarBusy} onPress={onCalendar} accessibilityLabel={`Add to Google Calendar: ${item.action}`} />
+            ) : (
+              <IconButton icon="calendarAdd" label={`Add to Google Calendar: ${item.action}`} onPress={onCalendar} size={30} tone="plain" disabled={calendarBusy} />
+            )
+          )
+        ) : null}
+      </View>
+      <View style={s.trashCol}>{!done && <IconButton icon="trash" label={`Dismiss: ${item.action}`} onPress={onDismiss} size={30} tone="plain" />}</View>
+    </View>
+  );
+}
+
+function NewFollowUp({
+  visible,
+  people,
+  initialContact,
+  calendarReady,
+  onClose,
+  onSaved,
+}: {
+  visible: boolean;
+  people: ContactSummary[];
+  initialContact: string | null;
+  calendarReady: boolean;
+  onClose: () => void;
+  onSaved: (item: FollowUp) => void;
+}) {
+  const s = useStyles();
+  const [contactId, setContactId] = useState<string | null>(initialContact);
+  const [query, setQuery] = useState("");
+  const [action, setAction] = useState("");
+  const [due, setDue] = useState(addDays(localToday(), 3));
+  const [toCalendar, setToCalendar] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const picked = people.find((p) => p.id === contactId);
+  const matches = people.filter((p) => !query.trim() || p.name.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 6);
+
+  async function save() {
+    if (!contactId || !action.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      let item = await createFollowUp(contactId, action.trim(), due ? dateToDueAt(due) : null);
+      if (calendarReady && toCalendar && due && !item.onCalendar) {
+        try {
+          item = await addFollowUpToCalendar(item.id);
+        } catch {
+          // Saved either way; the row offers "Add to Calendar" again.
+        }
+      }
+      setAction("");
+      setQuery("");
+      onSaved(item);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn’t add that follow-up.");
     } finally {
@@ -63,396 +319,109 @@ export default function FollowUps() {
     }
   }
 
-  const addSuggestion = (s: FollowUpSuggestion) => void add(s.contactId, s.action, addDays(localToday(), s.dueInDays));
-
-  async function setStatus(item: FollowUp, status: FollowUpStatus) {
-    // Optimistic update: reflect the tap immediately, then sync.
-    setItems((current) => current?.map((f) => (f.id === item.id ? { ...f, status } : f)) ?? null);
-    try {
-      await updateFollowUp(item.id, { status });
-    } finally {
-      load();
-    }
-  }
-
-  const open = items?.filter((f) => f.status === "open") ?? [];
-  const done = items?.filter((f) => f.status === "done").slice(0, 10) ?? [];
-
   return (
-    <Screen>
-      <PageHeader eyebrow="Keep your promises" title="Follow-ups"
-        subtitle="What you said you’d do, with the dates you mentioned. Tick them off as you go." />
-
-      {!draft && people.length > 0 && (
-        <PillButton title="Add a follow-up" icon="plus" variant="primary"
-          onPress={() => setDraft({ contactId: null, action: "", due: addDays(localToday(), 3) })} />
-      )}
-
-      {draft && (
-        <Card style={styles.form}>
-          <Text style={type.heading}>Add a follow-up</Text>
-          {people.length === 0 ? (
-            <>
-              <Text style={[type.body, styles.muted]}>
-                Follow-ups belong to a person. Remember someone first, then add what you’ll do next.
-              </Text>
-              <PillButton title="Remember someone" icon="mic" variant="primary" onPress={() => router.push("/record")} />
-            </>
-          ) : (
-            <>
-              <Text style={styles.fieldLabel}>Who is it with?</Text>
-              <View style={styles.peoplePicker}>
-                {people.slice(0, 12).map((p) => {
-                  const on = draft.contactId === p.id;
-                  return (
-                    <Pressable key={p.id} onPress={() => setDraft({ ...draft, contactId: p.id })}
-                      accessibilityRole="radio" accessibilityState={{ selected: on }}
-                      style={[styles.personChip, on && styles.personChipOn]}>
-                      <Monogram name={p.name} size={24} />
-                      <Text style={[styles.personChipText, on && styles.personChipTextOn]}>{p.name}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text style={styles.fieldLabel}>What will you do?</Text>
-              <TextInput
-                value={draft.action}
-                onChangeText={(action) => setDraft({ ...draft, action })}
-                placeholder={draft.contactId
-                  ? `e.g. Send ${firstName(people.find((p) => p.id === draft.contactId)?.name ?? "")} the deck`
-                  : "e.g. Send my resume"}
-                placeholderTextColor={colors.faint}
-                selectionColor={colors.accent}
-                accessibilityLabel="What will you do?"
-                style={styles.input}
-              />
-              <DatePicker label="When" value={draft.due} onChange={(due) => setDraft({ ...draft, due })} />
-              <View style={styles.formButtons}>
-                <PillButton title="Save follow-up" variant="primary" loading={saving}
-                  disabled={!draft.contactId || !draft.action.trim()}
-                  onPress={() => draft.contactId && void add(draft.contactId, draft.action, draft.due)} />
-                <PillButton title="Cancel" onPress={() => setDraft(null)} />
-              </View>
-            </>
-          )}
-        </Card>
-      )}
-
-      <View style={styles.comingUp}>
-        <ComingUp returnPath="/follow-ups" limit={6} onAdded={load} />
-      </View>
-
-      {suggestions.length > 0 && (
-        <Card style={styles.suggestCard}>
-          <Text style={styles.sectionEyebrow}>Suggested for your people</Text>
-          {suggestions.map((s) => (
-            <View key={s.contactId} style={styles.suggestion}>
-              <Monogram name={s.name} size={36} />
-              <View style={styles.rowText}>
-                <Text style={styles.suggestAction}>{s.action}</Text>
-                <Text style={type.meta}>{s.why}</Text>
-              </View>
-              <Pressable onPress={() => setDraft({ contactId: s.contactId, action: s.action, due: addDays(localToday(), s.dueInDays) })}
-                accessibilityRole="button" accessibilityLabel={`Edit before adding: ${s.action}`} hitSlop={6}>
-                <Text style={type.meta}>Edit</Text>
-              </Pressable>
-              <Pressable onPress={() => addSuggestion(s)} accessibilityRole="button"
-                accessibilityLabel={`Add follow-up: ${s.action}`} hitSlop={6} style={styles.addChip}>
-                <Text style={styles.addChipText}>+ Add</Text>
-              </Pressable>
-            </View>
-          ))}
-        </Card>
-      )}
-
-      {!items ? (
-        <View style={styles.loading}>
-          {error ? <Text style={type.body}>{error}</Text> : <ActivityIndicator color={colors.accent} />}
-        </View>
+    <Sheet visible={visible} title="New follow-up" onClose={onClose}
+      footer={
+        <>
+          <Button title="Cancel" variant="ghost" onPress={onClose} />
+          <Button title="Save" variant="primary" loading={saving} disabled={!contactId || !action.trim()} onPress={() => void save()} />
+        </>
+      }>
+      {people.length === 0 ? (
+        <Txt variant="small">Follow-ups belong to a contact. Add someone first.</Txt>
       ) : (
         <>
-          <View style={styles.tiles}>
-            <Tile value={open.filter((f) => dueGroup(f.dueAt) === "overdue").length} label="overdue" hot />
-            <Tile value={open.filter((f) => ["today", "week"].includes(dueGroup(f.dueAt))).length} label="this week" />
-            <Tile value={open.filter((f) => ["later", "none"].includes(dueGroup(f.dueAt))).length} label="later" />
-            <Tile value={done.length} label="done" />
+          <View style={s.fieldGap}>
+            <Txt variant="label">With</Txt>
+            {picked ? (
+              <View style={s.pickedRow}>
+                <Avatar name={picked.name} size={28} />
+                <Txt variant="label" style={s.flex}>{picked.name}</Txt>
+                <Button title="Change" size="sm" variant="ghost" onPress={() => setContactId(null)} />
+              </View>
+            ) : (
+              <>
+                <Input icon="search" value={query} onChangeText={setQuery} placeholder="Find a contact" accessibilityLabel="Find a contact" />
+                <View style={s.pickList}>
+                  {matches.map((p) => (
+                    <Pressable key={p.id} onPress={() => setContactId(p.id)} accessibilityRole="button"
+                      style={({ hovered }: { hovered?: boolean }) => [s.pickRow, hovered && s.personHover]}>
+                      <Avatar name={p.name} size={26} />
+                      <Txt variant="label" style={s.flex} numberOfLines={1}>{p.name}</Txt>
+                      <Txt variant="caption" numberOfLines={1}>{p.company ?? p.school ?? ""}</Txt>
+                    </Pressable>
+                  ))}
+                </View>
+              </>
+            )}
           </View>
-          {open.length === 0 && suggestions.length === 0 && (
-            <Card style={styles.emptyCard}>
-              <Text style={type.heading}>
-                {done.length ? "Nothing waiting on you. Nicely done." : "No follow-ups yet"}
-              </Text>
-              <Text style={[type.body, styles.muted]}>
-                When a note says what you’ll do next, like “send her my resume Friday”, it shows up
-                here with a date so you actually do it.
-              </Text>
-              <View style={styles.examples}>
-                {[
-                  ["Send Priya my resume", "Priya Shah · due Fri"],
-                  ["Intro Jason to Sam", "Jason Chen · this week"],
-                  ["Ask Maya about the Stripe role", "Maya Singh · anytime"],
-                ].map(([action, meta]) => (
-                  <View key={action} style={styles.exampleRow}>
-                    <View style={[styles.check, styles.exampleCheck]} />
-                    <View style={styles.rowText}>
-                      <Text style={[type.body, styles.exampleAction]}>{action}</Text>
-                      <Text style={type.meta}>Example · {meta}</Text>
-                    </View>
-                  </View>
-                ))}
+          <Input label="What will you do?" value={action} onChangeText={setAction}
+            placeholder={picked ? `e.g. Send ${picked.name.split(" ")[0]} the deck` : "e.g. Send my resume"} />
+          <DatePicker label="When" value={due} onChange={setDue} />
+          {calendarReady && (
+            <Pressable onPress={() => setToCalendar(!toCalendar)} accessibilityRole="checkbox" accessibilityState={{ checked: toCalendar }} style={s.pickedRow}>
+              <View style={[s.check, toCalendar && s.checkDone]}>
+                {toCalendar && <Icon name="check" size={12} color={s.onAccent.color} strokeWidth={3} />}
               </View>
-              <Button title="Record a note" icon="mic" onPress={() => router.push("/record")} />
-            </Card>
+              <Txt variant="small" tone="default">Add to Google Calendar</Txt>
+            </Pressable>
           )}
-          {GROUPS.map(({ key, label }) => {
-            const inGroup = open.filter((item) => dueGroup(item.dueAt) === key);
-            if (inGroup.length === 0) return null;
-            return (
-              <View key={key} style={styles.group}>
-                <Text style={[type.label, key === "overdue" && styles.overdue]}>{label}</Text>
-                {inGroup.map((item) => (
-                  <Row key={item.id} item={item} onToggle={() => void setStatus(item, "done")}
-                    onDismiss={() => void setStatus(item, "dismissed")}
-                    onOpenPerson={() => router.push({ pathname: "/people/[id]", params: { id: item.contactId } })} />
-                ))}
-              </View>
-            );
-          })}
-          {done.length > 0 && (
-            <>
-              <Divider />
-              <Text style={type.label}>Done</Text>
-              {done.map((item) => (
-                <Row key={item.id} item={item} onToggle={() => void setStatus(item, "open")}
-                  onOpenPerson={() => router.push({ pathname: "/people/[id]", params: { id: item.contactId } })} />
-              ))}
-            </>
-          )}
+          {error ? <Txt variant="small" tone="danger">{error}</Txt> : null}
         </>
       )}
-    </Screen>
+    </Sheet>
   );
 }
 
-function Tile({ value, label, hot }: { value: number; label: string; hot?: boolean }) {
-  return (
-    <View style={styles.tile}>
-      <Text style={[styles.tileValue, hot && value > 0 && styles.overdue]}>{value}</Text>
-      <Text style={type.meta}>{label}</Text>
-    </View>
-  );
-}
-
-function Row({
-  item,
-  onToggle,
-  onDismiss,
-  onOpenPerson,
-}: {
-  item: FollowUp;
-  onToggle: () => void;
-  onDismiss?: () => void;
-  onOpenPerson: () => void;
-}) {
-  const isDone = item.status === "done";
-  return (
-    <View style={styles.row}>
-      <Pressable
-        onPress={onToggle}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: isDone }}
-        accessibilityLabel={item.action}
-        hitSlop={10}
-        style={[styles.check, isDone && styles.checkDone]}
-      />
-      <View style={styles.rowText}>
-        <Text style={[type.body, styles.action, isDone && styles.doneText]}>{item.action}</Text>
-        <Pressable onPress={onOpenPerson} accessibilityRole="link">
-          <Text style={type.meta}>
-            {item.contactName}
-            {item.dueAt ? ` · due ${formatShortDate(item.dueAt)}` : ` · noted ${formatRelative(item.createdAt)}`}
-          </Text>
-        </Pressable>
-      </View>
-      {onDismiss && (
-        <Pressable onPress={onDismiss} accessibilityRole="button" accessibilityLabel="Dismiss" hitSlop={10}>
-          <Text style={[type.meta, styles.dismiss]}>Dismiss</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  form: {
-    marginTop: spacing.md,
-    gap: spacing.sm,
-  },
-  fieldLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: colors.textSoft,
-    marginTop: spacing.sm,
-  },
-  peoplePicker: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-  },
-  personChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingVertical: 5,
-    paddingLeft: 5,
-    paddingRight: 12,
-    borderRadius: radius.pill,
-    backgroundColor: colors.raised,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  personChipOn: {
-    borderColor: colors.accent,
-    backgroundColor: "rgba(255, 122, 42, 0.14)",
-  },
-  personChipText: {
-    fontSize: 14,
-    color: colors.textSoft,
-  },
-  personChipTextOn: {
-    color: colors.text,
-    fontWeight: "600",
-  },
-  input: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 13,
-    fontSize: 16,
-    color: colors.text,
-  },
-  formButtons: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  comingUp: {
-    marginTop: spacing.lg,
-  },
-  suggestCard: {
-    marginTop: spacing.lg,
-    gap: spacing.md,
-  },
-  sectionEyebrow: {
-    ...eyebrowStyle,
-    color: colors.textSoft,
-  },
-  suggestion: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  suggestAction: {
-    fontSize: 15,
-    color: colors.text,
-  },
-  addChip: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255, 122, 42, 0.14)",
-  },
-  addChipText: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: colors.accentBright,
-  },
-  tiles: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.lg,
-  },
-  tile: {
-    flex: 1,
-    padding: spacing.md,
-    borderRadius: radius.md,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-  },
-  tileValue: {
-    fontSize: 26,
-    fontWeight: "600",
-    color: colors.text,
-    fontVariant: ["tabular-nums"],
-  },
-  emptyCard: {
-    marginTop: spacing.lg,
-    gap: spacing.sm,
-  },
-  examples: {
-    marginVertical: spacing.sm,
-    gap: spacing.sm,
-    opacity: 0.6,
-  },
-  exampleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  exampleCheck: {
-    borderStyle: "dashed",
-  },
-  exampleAction: {
-    color: colors.textSoft,
-  },
-  title: {
-    marginTop: spacing.xl,
-    marginBottom: spacing.lg,
-  },
-  loading: {
-    paddingVertical: spacing.xxl,
-    alignItems: "center",
-  },
-  muted: {
-    color: colors.muted,
-  },
-  group: {
-    marginBottom: spacing.lg,
-  },
-  overdue: {
-    color: colors.danger,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: spacing.md,
-    paddingVertical: spacing.sm + 2,
-  },
-  check: {
-    width: 20,
-    height: 20,
-    marginTop: 3,
-    borderRadius: 10,
-    borderWidth: 1.5,
-    borderColor: colors.accent,
-  },
-  checkDone: {
-    backgroundColor: colors.accent,
-  },
-  rowText: {
-    flex: 1,
-    gap: 2,
-  },
-  action: {
-    color: colors.text,
-  },
-  doneText: {
-    color: colors.faint,
-    textDecorationLine: "line-through",
-  },
-  dismiss: {
-    color: colors.faint,
-    marginTop: 3,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    flex: { flex: 1, minWidth: 0, gap: 2 },
+    tiles: { flexDirection: "row", gap: space.sm },
+    tilesPhone: { flexWrap: "wrap" },
+    tile: {
+      flex: 1,
+      gap: 2,
+      paddingVertical: space.sm,
+      paddingHorizontal: space.md,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    tilePhone: { flexBasis: "45%" },
+    tileOn: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+    tileHover: { backgroundColor: colors.surfaceHover },
+    overdueNumber: { color: colors.danger },
+    overdueText: { color: colors.danger },
+    group: { gap: space.xs },
+    groupHeader: { flexDirection: "row", alignItems: "center", gap: space.xs, paddingHorizontal: space.xxs },
+    row: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 56 },
+    rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+    check: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 1.5,
+      borderColor: colors.borderStrong,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    checkDone: { backgroundColor: colors.success, borderColor: colors.success },
+    doneText: { color: colors.textTertiary, textDecorationLine: "line-through" },
+    personCol: { width: 170 },
+    dueCol: { width: 92, textAlign: "right" },
+    person: { flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start", paddingVertical: 2, paddingRight: 6, borderRadius: radius.pill },
+    personHover: { backgroundColor: colors.surfaceHover },
+    personName: { flexShrink: 1, color: colors.text },
+    metaPhone: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: 4 },
+    calendarActions: { flexDirection: "row", alignItems: "center" },
+    trashCol: { width: 30 },
+    calendarCol: { width: 140, alignItems: "flex-start" },
+    sparkColor: { color: colors.accentText },
+    onAccent: { color: colors.onAccent },
+    fieldGap: { gap: space.xs },
+    pickedRow: { flexDirection: "row", alignItems: "center", gap: space.sm },
+    pickList: { gap: 2 },
+    pickRow: { flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.xs, borderRadius: radius.md },
+  }),
+);

@@ -18,10 +18,10 @@ export async function connectGoogleCalendar(returnPath: string): Promise<void> {
   await WebBrowser.openAuthSessionAsync(url, back);
 }
 
-export const calendarNotice: Record<string, string> = {
-  connected: "Google Calendar connected. Your follow-ups with dates will show up there.",
-  denied: "Google Calendar wasn’t connected. You can try again anytime.",
-  failed: "Google didn’t finish connecting. Please try again.",
-  expired: "That sign-in link expired. Please try connecting again.",
-  scope: "Google didn’t give Nomi calendar access. Connect again and tick “See and edit events”.",
+export const calendarNotice: Record<string, { text: string; ok: boolean }> = {
+  connected: { text: "Google Calendar connected", ok: true },
+  denied: { text: "Google Calendar wasn’t connected", ok: false },
+  failed: { text: "Google didn’t finish connecting. Try again.", ok: false },
+  expired: { text: "That sign-in took too long. Try again.", ok: false },
+  scope: { text: "Calendar access wasn’t granted. Reconnect and allow “See and edit events”.", ok: false },
 };

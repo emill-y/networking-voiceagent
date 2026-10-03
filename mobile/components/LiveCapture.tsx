@@ -5,10 +5,10 @@ import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from
 import { CloseButton } from "@/components/CloseButton";
 import { Button } from "@/components/Button";
 import { MicButton } from "@/components/MicButton";
-import { Screen } from "@/components/Screen";
+import { Page } from "@/components/Page";
 import { formatDuration } from "@/lib/format";
 import { requestSpeechPermission, startListening } from "@/lib/speech";
-import { colors, fonts, spacing, type } from "@/lib/theme";
+import { font, makeStyles, space, useTheme } from "@/lib/theme";
 import { listContacts } from "@/services/nomi";
 
 const MAX_MS = 3 * 60 * 1000;
@@ -19,6 +19,8 @@ type Phase = "idle" | "listening" | "blocked" | "error";
 // transcript is ready the moment you stop. Audio never leaves the phone
 // on devices that support on-device recognition.
 export function LiveCapture() {
+  const styles = useStyles();
+  const { type } = useTheme();
   const router = useRouter();
   const [phase, setPhase] = useState<Phase>("idle");
   const [text, setText] = useState("");
@@ -127,7 +129,7 @@ export function LiveCapture() {
   const listening = phase === "listening";
 
   return (
-    <Screen scroll={false}>
+    <Page scroll={false}>
       <CloseButton
         onPress={() => {
           stopRef.current?.();
@@ -146,7 +148,7 @@ export function LiveCapture() {
         {text ? (
           <Text style={styles.transcript}>{text}</Text>
         ) : listening ? (
-          <Text style={[type.meta, styles.placeholder]}>Listening…</Text>
+          <Text style={[type.small, styles.placeholder]}>Listening…</Text>
         ) : null}
       </ScrollView>
 
@@ -158,9 +160,9 @@ export function LiveCapture() {
               : "Microphone or speech recognition is turned off for Nomi."}
           </Text>
           {Platform.OS === "web" ? (
-            <Button title="Try again" variant="quiet" onPress={() => { setPhase("idle"); void start(); }} />
+            <Button title="Try again" variant="secondary" onPress={() => { setPhase("idle"); void start(); }} />
           ) : (
-            <Button title="Open Settings" variant="quiet" onPress={() => void Linking.openSettings()} />
+            <Button title="Open Settings" variant="secondary" onPress={() => void Linking.openSettings()} />
           )}
         </View>
       ) : (
@@ -171,70 +173,72 @@ export function LiveCapture() {
             accessibilityLabel={listening ? "Stop and remember" : "Start listening"}
           />
           <Text style={[styles.timer, !listening && styles.hidden]}>{formatDuration(elapsed)}</Text>
-          <Text style={type.meta}>{listening ? "Tap when you’re done" : "Tap to start"}</Text>
+          <Text style={type.small}>{listening ? "Tap when you’re done" : "Tap to start"}</Text>
           {!listening && (
             <Pressable onPress={() => router.replace("/write")} accessibilityRole="button" hitSlop={8}
               style={styles.typeInstead}>
-              <Text style={type.meta}>or type instead</Text>
+              <Text style={type.small}>or type instead</Text>
             </Pressable>
           )}
-          {message && <Text style={[type.meta, styles.message]}>{message}</Text>}
+          {message && <Text style={[type.small, styles.message]}>{message}</Text>}
         </View>
       )}
-    </Screen>
+    </Page>
   );
 }
 
-const styles = StyleSheet.create({
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
   top: {
-    marginTop: spacing.xl,
+    marginTop: space.xl,
   },
   title: {
     textAlign: "center",
   },
   transcriptBox: {
     flex: 1,
-    marginVertical: spacing.lg,
+    marginVertical: space.lg,
   },
   transcriptContent: {
     flexGrow: 1,
     justifyContent: "flex-end",
   },
   transcript: {
-    fontFamily: fonts.serifItalic,
+    fontFamily: font.medium,
     fontSize: 24,
     lineHeight: 32,
-    color: colors.textSoft,
+    color: colors.text,
   },
   placeholder: {
     textAlign: "center",
   },
   controls: {
     alignItems: "center",
-    paddingBottom: spacing.xl,
+    paddingBottom: space.xl,
   },
   timer: {
     fontSize: 20,
     color: colors.text,
     fontVariant: ["tabular-nums"],
-    marginBottom: spacing.xs,
+    marginBottom: space.xxs,
   },
   hidden: {
     opacity: 0,
   },
   typeInstead: {
-    marginTop: spacing.lg,
+    marginTop: space.lg,
   },
   message: {
-    marginTop: spacing.md,
+    marginTop: space.md,
     color: colors.accent,
     textAlign: "center",
   },
   block: {
-    gap: spacing.md,
-    paddingBottom: spacing.xl,
+    gap: space.md,
+    paddingBottom: space.xl,
   },
   center: {
     textAlign: "center",
   },
-});
+}),
+);

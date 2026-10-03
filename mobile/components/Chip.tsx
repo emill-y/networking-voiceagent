@@ -84,6 +84,6 @@ const useStyles = makeStyles(({ colors }) =>
     hover: { backgroundColor: colors.surfaceHover, borderColor: colors.borderStrong },
     row: { flexDirection: "row", gap: space.xs },
     wrap: { flexWrap: "wrap" },
-    tag: { alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm },
+    tag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: radius.sm },
   }),
 );

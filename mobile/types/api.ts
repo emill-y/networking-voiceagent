@@ -74,11 +74,18 @@ export type ContactSummary = {
   company: string | null;
   role: string | null;
   school: string | null;
+  major?: string | null;
+  location?: string | null;
   email: string | null;
   phone: string | null;
   lastInteractionAt: string | null;
+  createdAt?: string | null;
+  firstMetAt?: string | null;
   lastEvent: string | null;
   openFollowUps: number;
+  moments?: number;
+  interests?: string[];
+  events?: string[];
 };
 
 export type Interaction = {
@@ -109,6 +116,10 @@ export type FollowUp = {
   status: FollowUpStatus;
   createdAt: string;
   completedAt: string | null;
+  // "Founder at Lumen · Met at Cal Hacks · Looking for designers" (stored facts only)
+  context?: string | null;
+  onCalendar?: boolean;
+  calendarLink?: string | null;
 };
 
 export type ContactDetail = {
@@ -190,8 +201,11 @@ export type NetworkResponse = {
   edges: NetworkEdge[];
 };
 
+export type CalendarState = "connected" | "disconnected" | "needs_reauth" | "unavailable";
+
 export type CalendarStatus = {
   available: boolean;
+  state: CalendarState;
   connected: boolean;
   email: string | null;
   pushFollowUps: boolean;
@@ -223,7 +237,10 @@ export type RealEvent = {
   country: string | null;
   online: boolean;
   url: string | null;
-  source: "conferences" | "feed" | "calendar";
+  venue: string | null;
+  imageUrl: string | null;
+  category: string;
+  source: string;
   sourceLabel: string;
   topics: string[];
   where: EventWhere;
@@ -234,6 +251,29 @@ export type Plan = { event: RealEvent; people: PlanPerson[]; shared: string; why
 
 export type EventSource = { label: string; kind: string; url: string | null; events: number };
 
-export type PlansResponse = { plans: Plan[]; events: RealEvent[]; sources: EventSource[] };
+export type EventCategory = { key: string; label: string; count: number };
+
+export type PlansResponse = { plans: Plan[]; events: RealEvent[]; categories: EventCategory[]; sources: EventSource[] };
+
+// ---------- Profile, invites, sharing ----------
+
+export type MyProfile = {
+  displayName: string | null;
+  avatarUrl: string | null;
+  inviteCode: string;
+  inviteLink: string;
+  invitedCount: number;
+};
+
+export type ShareCreated = { id: string; link: string; emailed: boolean; count: number };
+
+export type IncomingShare = {
+  id: string;
+  senderName: string;
+  message: string | null;
+  count: number;
+  names: string[];
+  createdAt: string;
+};
 
 export type EventFeed = { id: string; url: string; label: string; createdAt: string };

@@ -11,7 +11,7 @@ import Animated, {
 import Svg, { Circle, Defs, RadialGradient, Stop } from "react-native-svg";
 
 import { Icon } from "@/components/Icon";
-import { colors, orb } from "@/lib/theme";
+import { orb } from "@/lib/theme";
 
 type Props = {
   onPress: () => void;
@@ -59,7 +59,7 @@ export function MicButton({ onPress, recording = false, disabled, size = 112, ac
           <Defs>
             <RadialGradient id="orbGlow" cx="50%" cy="50%" r="50%">
               <Stop offset="0.35" stopColor={orb.glow} stopOpacity={recording ? 0.75 : 0.55} />
-              <Stop offset="1" stopColor={colors.glowWarm} stopOpacity={0} />
+              <Stop offset="1" stopColor={orb.glow} stopOpacity={0} />
             </RadialGradient>
           </Defs>
           <Circle cx={box / 2} cy={box / 2} r={box / 2} fill="url(#orbGlow)" />
@@ -140,6 +140,6 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: colors.background,
+    backgroundColor: "#FFFFFF",
   },
 });

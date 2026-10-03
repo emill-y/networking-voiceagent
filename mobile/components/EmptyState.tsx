@@ -31,7 +31,7 @@ export function EmptyState({
         <Txt variant="heading" align="center">{title}</Txt>
         {body ? <Txt variant="small" tone="secondary" align="center">{body}</Txt> : null}
       </View>
-      {action}
+      {action ? <View style={s.action}>{action}</View> : null}
     </View>
   );
 }
@@ -57,5 +57,6 @@ const useStyles = makeStyles(({ colors }) =>
       borderColor: colors.orbit,
     },
     text: { gap: space.xxs, maxWidth: 360, alignItems: "center" },
+    action: { alignSelf: "center" },
   }),
 );

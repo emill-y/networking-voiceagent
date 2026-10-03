@@ -1,13 +1,14 @@
 import * as AppleAuthentication from "expo-apple-authentication";
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-import Animated, { FadeInDown } from "react-native-reanimated";
-
+import { Backdrop } from "@/components/Backdrop";
 import { Button } from "@/components/Button";
-import { Constellation } from "@/components/Constellation";
-import { Field } from "@/components/Field";
-import { Screen } from "@/components/Screen";
+import { Card } from "@/components/Card";
+import { Input } from "@/components/Input";
+import { LogoMark } from "@/components/Logo";
+import { Txt } from "@/components/Txt";
 import {
   appleSignInSupported,
   authRedirectUrl,
@@ -16,11 +17,12 @@ import {
   signInWithGoogle,
   verifyEmailCode,
 } from "@/lib/auth";
-import { colors, radius, spacing, type } from "@/lib/theme";
+import { makeStyles, radius, space } from "@/lib/theme";
 
 // Apple (iPhone), Google, or a link sent to your email. No passwords.
 // After sign-in, the session listener in _layout shows the app.
 export default function SignIn() {
+  const s = useStyles();
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -47,134 +49,84 @@ export default function SignIn() {
   }
 
   return (
-    <Screen>
-      <Animated.View entering={FadeInDown.duration(700)} style={styles.art}>
-        <Constellation size={260} />
-      </Animated.View>
-      <Animated.View entering={FadeInDown.delay(120).duration(700)}>
-        <Text style={styles.wordmark}>Nomi</Text>
-        <Text style={[type.display, styles.title]}>Never forget a person again.</Text>
-        <Text style={styles.intro}>
-          Say who you met in a sentence. Nomi remembers their name, what you talked
-          about, and what you promised to do next. Private to you.
-        </Text>
-      </Animated.View>
-
-      {sentTo ? (
-        <View style={styles.form}>
-          <Text style={[type.heading, styles.sentTitle]}>Check your email.</Text>
-          <Text style={type.body}>
-            We sent a sign-in link to {sentTo}. Open it on this device.
-          </Text>
-          <Field label="Or enter the code from the email" value={code} onChangeText={setCode}
-            keyboardType="number-pad" autoCapitalize="none" autoCorrect={false}
-            textContentType="oneTimeCode" />
-          <Button title="Sign in with code" onPress={() => void run("code", () => verifyEmailCode(sentTo, code))}
-            loading={busy === "code"} disabled={code.trim().length < 6} />
-          <Pressable onPress={() => { setSentTo(null); setCode(""); setError(null); }}
-            accessibilityRole="button" hitSlop={8}>
-            <Text style={[type.meta, styles.center]}>Use a different email</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <View style={styles.form}>
-          {appleAvailable && (
-            <AppleAuthentication.AppleAuthenticationButton
-              buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-              cornerRadius={radius.pill}
-              style={styles.appleButton}
-              onPress={() => void run("apple", signInWithApple)}
-            />
-          )}
-          <Button title="Continue with Google" variant="quiet"
-            onPress={() => void run("google", signInWithGoogle)} loading={busy === "google"} />
-
-          <View style={styles.or}>
-            <View style={styles.rule} />
-            <Text style={type.meta}>or</Text>
-            <View style={styles.rule} />
+    <SafeAreaView style={s.safe}>
+      <Backdrop />
+      <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+        <View style={s.column}>
+          <View style={s.brand}>
+            <LogoMark size={44} />
+            <Txt variant="display" align="center">Welcome to Nomi</Txt>
+            <Txt variant="bodySecondary" align="center">Your second brain for the people you meet.</Txt>
           </View>
 
-          <Field label="Email" value={email} onChangeText={setEmail} keyboardType="email-address"
-            autoCapitalize="none" autoCorrect={false} textContentType="emailAddress" />
-          <Button title="Email me a sign-in link"
-            onPress={() => void run("email", async () => {
-              await sendMagicLink(email);
-              setSentTo(email.trim());
-            })}
-            loading={busy === "email"} disabled={!/^\S+@\S+\.\S+$/.test(email.trim())} />
+          <Card padding="lg" style={s.card}>
+            {sentTo ? (
+              <>
+                <Txt variant="heading">Check your email</Txt>
+                <Txt variant="small">We sent a sign-in link to {sentTo}. Open it on this device, or enter the code.</Txt>
+                <Input label="Code" value={code} onChangeText={setCode} keyboardType="number-pad" autoCapitalize="none"
+                  autoCorrect={false} textContentType="oneTimeCode" placeholder="123456" />
+                <Button title="Sign in" variant="primary" fullWidth loading={busy === "code"}
+                  disabled={code.trim().length < 6} onPress={() => void run("code", () => verifyEmailCode(sentTo, code))} />
+                <Pressable onPress={() => { setSentTo(null); setCode(""); setError(null); }} accessibilityRole="button" hitSlop={8}>
+                  <Txt variant="small" tone="secondary" align="center">Use a different email</Txt>
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {appleAvailable && (
+                  <AppleAuthentication.AppleAuthenticationButton
+                    buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                    cornerRadius={radius.md}
+                    style={s.apple}
+                    onPress={() => void run("apple", signInWithApple)}
+                  />
+                )}
+                <Button title="Continue with Google" fullWidth size="lg" loading={busy === "google"}
+                  onPress={() => void run("google", signInWithGoogle)} />
+                <View style={s.or}>
+                  <View style={s.rule} />
+                  <Txt variant="caption">or</Txt>
+                  <View style={s.rule} />
+                </View>
+                <Input label="Email" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none"
+                  autoCorrect={false} textContentType="emailAddress" placeholder="you@school.edu"
+                  onSubmitEditing={() => /^\S+@\S+\.\S+$/.test(email.trim()) && void run("email", async () => {
+                    await sendMagicLink(email);
+                    setSentTo(email.trim());
+                  })} />
+                <Button title="Email me a sign-in link" variant="primary" fullWidth size="lg" loading={busy === "email"}
+                  disabled={!/^\S+@\S+\.\S+$/.test(email.trim())}
+                  onPress={() => void run("email", async () => {
+                    await sendMagicLink(email);
+                    setSentTo(email.trim());
+                  })} />
+              </>
+            )}
+            {error ? <Txt variant="small" tone="danger" accessibilityLiveRegion="polite">{error}</Txt> : null}
+          </Card>
+
+          <Txt variant="caption" align="center">Private to you. Read our privacy policy at nomi-connect.vercel.app/privacy.</Txt>
+          {__DEV__ && (
+            // Supabase must list this exact address under Redirect URLs.
+            <Txt variant="caption" align="center" selectable>Dev: sign-in returns to {authRedirectUrl()}</Txt>
+          )}
         </View>
-      )}
-
-      {error && <Text style={[type.meta, styles.error]} accessibilityLiveRegion="polite">{error}</Text>}
-
-      {__DEV__ && (
-        // Development only: Supabase must list this exact address under
-        // Authentication -> URL Configuration -> Redirect URLs, or sign-in
-        // links fall back to the Site URL (often http://localhost:3000).
-        <Text style={[type.meta, styles.devHint]} selectable>
-          Dev: sign-in returns to {authRedirectUrl()}
-        </Text>
-      )}
-    </Screen>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  art: {
-    alignItems: "center",
-    marginTop: spacing.sm,
-  },
-  wordmark: {
-    ...type.heading,
-    color: colors.accent,
-    letterSpacing: 2,
-    textTransform: "uppercase",
-    fontSize: 16,
-  },
-  title: {
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    fontSize: 40,
-    lineHeight: 44,
-  },
-  intro: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: colors.muted,
-    marginBottom: spacing.xl,
-  },
-  form: {
-    gap: spacing.md,
-  },
-  sentTitle: {
-    marginBottom: -spacing.xs,
-  },
-  appleButton: {
-    height: 48,
-  },
-  or: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-    marginVertical: spacing.xs,
-  },
-  rule: {
-    flex: 1,
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: colors.hairline,
-  },
-  center: {
-    textAlign: "center",
-    marginTop: spacing.sm,
-  },
-  error: {
-    marginTop: spacing.lg,
-    color: colors.danger,
-  },
-  devHint: {
-    marginTop: spacing.xl,
-    color: colors.faint,
-  },
-});
+const useStyles = makeStyles(({ colors }) =>
+  StyleSheet.create({
+    safe: { flex: 1, backgroundColor: colors.bg },
+    scroll: { flexGrow: 1, justifyContent: "center", padding: space.md },
+    column: { width: "100%", maxWidth: 400, alignSelf: "center", gap: space.lg },
+    brand: { alignItems: "center", gap: space.xs },
+    card: { gap: space.sm },
+    apple: { height: 48 },
+    or: { flexDirection: "row", alignItems: "center", gap: space.sm, marginVertical: space.xxs },
+    rule: { flex: 1, height: StyleSheet.hairlineWidth, backgroundColor: colors.borderStrong },
+  }),
+);
