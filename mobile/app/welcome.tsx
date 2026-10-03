@@ -106,7 +106,7 @@ export default function Welcome() {
 
       {error && <Text style={[type.small, styles.error]}>{error}</Text>}
       <View style={styles.cta}>
-        <Button title={edit ? "Save" : "Start remembering"} onPress={() => void finish()}
+        <Button variant="primary" size="lg" title={edit ? "Save" : "Start remembering"} onPress={() => void finish()}
           disabled={!persona || (persona === "student" && !school.trim())} loading={saving} />
       </View>
     </Page>

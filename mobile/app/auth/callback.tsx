@@ -57,7 +57,7 @@ export default function AuthCallback() {
               Links work once, in the same browser that asked for them, for about an hour.
             </Text>
             <View style={styles.action}>
-              <Button title="Back to sign in" onPress={() => router.replace("/sign-in")} />
+              <Button variant="primary" size="lg" title="Back to sign in" onPress={() => router.replace("/sign-in")} />
             </View>
           </>
         ) : (

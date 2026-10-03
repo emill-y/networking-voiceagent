@@ -99,7 +99,7 @@ export default function EditPerson() {
             />
           ))}
           {error && <Text style={[type.small, styles.error]}>{error}</Text>}
-          <Button
+          <Button variant="primary" size="lg"
             title="Save"
             onPress={() => void save()}
             loading={saving}

@@ -51,14 +51,14 @@ export function DatePicker({ label, value, onChange }: Props) {
 
   return (
     <View style={styles.wrapper}>
-      <Text style={type.overline}>{label}</Text>
+      <Text style={type.label}>{label}</Text>
       <Pressable
         onPress={toggle}
         accessibilityRole="button"
         accessibilityLabel={`${label}: ${selected ? friendly(selected, today) : "no date"}. Choose a date`}
         style={[styles.field, open && styles.fieldOpen]}
       >
-        <Icon name="calendar" size={18} color={selected ? colors.accentText : colors.textTertiary} />
+        <Icon name="calendar" size={16} color={selected ? colors.accentText : colors.textTertiary} />
         <Text style={[styles.fieldText, !selected && styles.placeholder]}>
           {selected ? friendly(selected, today) : "Pick a date (optional)"}
         </Text>
@@ -134,20 +134,20 @@ export function DatePicker({ label, value, onChange }: Props) {
 
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
-  wrapper: { gap: space.xxs },
+  wrapper: { gap: space.xs },
   field: {
     flexDirection: "row",
     alignItems: "center",
     gap: space.xs,
-    paddingHorizontal: space.md,
-    paddingVertical: 13,
+    paddingHorizontal: space.sm,
+    minHeight: 40,
     borderRadius: radius.md,
     backgroundColor: colors.sunken,
     borderWidth: 1,
     borderColor: "transparent",
   },
   fieldOpen: { borderColor: colors.accent },
-  fieldText: { flex: 1, fontSize: 16, color: colors.text },
+  fieldText: { flex: 1, fontSize: 15, color: colors.text },
   placeholder: { color: colors.textTertiary },
   panel: {
     marginTop: space.xxs,

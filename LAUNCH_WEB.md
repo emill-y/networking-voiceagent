@@ -107,25 +107,55 @@ Without the Google settings the calendar features simply stay hidden.
 | Connected, but disconnected again a week later | Apps in *Testing* get 7-day tokens. Publish the app (**Audience → Publish app**) to keep people connected. |
 | Signed out after coming back from Google | Fixed: Nomi now returns to the domain you started on. Keep `PUBLIC_URL` set to the domain in the redirect URI. |
 
-## Go together: real events (free, no setup)
+## Database update for this version (once)
 
-**Go together** suggests real events and who from your notes to bring ("Go to
-the chemistry mixer with Annie: you're both into chemistry"). **Plan it** adds
-a dated follow-up for each person, which also lands on Google Calendar when it's
-connected. **Invite** shares a ready-to-send message.
+New tables for profile photos, contact sharing, invites and the calendar
+"reconnect" state. Run once against production, then redeploy:
 
-Where events come from, all free:
+```bash
+cd ~/networking-voiceagent/backend && source .venv/bin/activate
+DATABASE_URL="$(grep '^DATABASE_URL:' prod.env.yaml | cut -d'"' -f2)" python -m scripts.migrate
+```
 
-- **Tech conferences**: the open-source
-  [tech-conferences/conference-data](https://github.com/tech-conferences/conference-data)
-  repo (the data behind confs.tech): community-maintained JSON by topic, read
-  live from GitHub and cached for 6 hours. No key.
-- **Any public calendar feed (iCal)** a user adds: Luma calendars (e.g. SF Tech
-  Week), Meetup groups, Eventbrite organizers, school and club calendars.
-- **Their Google Calendar**, when connected (events they're already going to).
+## Plan Events: event sources (free)
 
-The only setup is the new table: run the same migrate command as in step 3
-above once (`python -m scripts.migrate`), then redeploy.
+Plan Events suggests real events near you and who from your notes to bring.
+**Plan it** adds a dated follow-up for each person (and puts it on Google
+Calendar when connected). **Invite** shares a ready-to-send message.
+
+| Source | What it adds | Setup |
+|---|---|---|
+| Open conference data ([tech-conferences/conference-data](https://github.com/tech-conferences/conference-data)) | Tech conferences | None |
+| [Ticketmaster Discovery API](https://developer.ticketmaster.com) | Concerts, sports, arts & theatre, comedy, family | Free key → `TICKETMASTER_API_KEY` |
+| [SeatGeek Platform API](https://seatgeek.com/account/develop) | Concerts, sports, theater, comedy | Free client id → `SEATGEEK_CLIENT_ID` |
+| Calendars people follow (iCal: Luma, Meetup, school or club calendars) | Workshops, mixers, student and community events | In the app: Plan Events → Follow a calendar |
+
+Without the two keys, Plan Events still works with conferences and followed
+calendars; add them for concerts, sports, arts and more. Add each key in
+Vercel → Settings → Environment Variables (Production) and redeploy.
+
+## Sharing contacts and invites
+
+Select contacts (or a filtered view) in Contacts → **Share**, enter an email.
+The recipient sees them after signing in to Nomi with that email (or from the
+link) and chooses to add them; nothing is imported silently.
+
+To send these as real emails, add a free [Resend](https://resend.com) key:
+`RESEND_API_KEY`, and `EMAIL_FROM` with a sender on a domain you verified there
+(e.g. `Nomi <hello@yourdomain.com>`). Without it, Nomi gives the sender a link
+to send themselves and never claims an email was sent.
+
+**Invite friends** (sidebar) has a share card with a QR code and a personal
+link (`/?invite=CODE`). Sign-ups through it are counted per user, ready for
+"invite 3 friends" rewards later; nothing is gated today.
+
+## Demo mode (for screen recordings)
+
+Open `https://nomi-connect.vercel.app/app/demo`. It loads a made-up network
+(people, follow-ups, a connected calendar, events) kept only in the browser
+tab. Nothing is read from or written to real accounts. **Profile → Exit demo**
+leaves it. A good recording order: Home → Map → Contacts → Search ("Who do I
+know at Berkeley interested in AI?") → Follow-ups → Plan Events → Profile.
 
 ## Your own domain (optional, 10 min)
 
@@ -138,7 +168,7 @@ follow the DNS instructions. Then add
 After any change: `git pull && npx vercel --prod`. Settings changes:
 re-run `scripts/vercel-env.sh`, then redeploy.
 
-## Good to know
+## FAQ
 
 - **Cost:** Vercel's Hobby plan is free, but its terms limit it to personal,
   non-commercial use; a commercial launch belongs on Pro. Groq and Supabase

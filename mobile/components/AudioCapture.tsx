@@ -167,7 +167,7 @@ export function AudioCapture() {
                 {formatDuration((playback.currentTime || 0) * 1000)} / {formatDuration(durationMs)}
               </Text>
             </Pressable>
-            <Button title="Remember this" onPress={remember} />
+            <Button variant="primary" size="lg" title="Remember this" onPress={remember} />
             <Button title="Record again" variant="secondary" onPress={discard} />
           </View>
         ) : (

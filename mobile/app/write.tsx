@@ -32,7 +32,7 @@ export default function Write() {
         accessibilityLabel="Your note"
         style={styles.input}
       />
-      <Button
+      <Button variant="primary" size="lg"
         title="Remember this"
         disabled={!text.trim()}
         onPress={() => router.replace({ pathname: "/review", params: { transcript: text.trim() } })}
@@ -50,13 +50,16 @@ const useStyles = makeStyles(({ colors }) =>
   input: {
     minHeight: 200,
     backgroundColor: colors.sunken,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
     padding: space.md,
     marginBottom: space.lg,
     fontSize: 17,
     lineHeight: 26,
     color: colors.text,
     textAlignVertical: "top",
-  },
+    outlineStyle: "none",
+  } as object,
 }),
 );

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Linking, Platform, Pressable, Share, StyleSheet, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, Share, StyleSheet, View } from "react-native";
 import { Image } from "expo-image";
 
 import { Avatar } from "@/components/Avatar";
@@ -170,21 +170,26 @@ export default function PlanEvents() {
               </View>
             )}
           </View>
-          <Input icon="spark" value={interests} onChangeText={setInterests} placeholder="Into: music, startups, pottery…"
-            accessibilityLabel="Your interests, separated by commas" containerStyle={s.interests} onSubmitEditing={applyText} />
-          <Button title="Update" variant="primary" loading={loading} disabled={!hasPlace} onPress={applyText} />
+          <View style={[s.nearRow, s.interestsRow]}>
+            <Input icon="spark" value={interests} onChangeText={setInterests} placeholder="Into: music, startups, pottery…"
+              accessibilityLabel="Your interests, separated by commas" containerStyle={s.flex} onSubmitEditing={applyText} />
+            <Button title="Update" variant="primary" loading={loading} disabled={!hasPlace} onPress={applyText} />
+          </View>
         </View>
         <View style={[s.filterRow, s.wrap]}>
           <Segmented<Days> value={days} onChange={setDays} options={DAY_OPTIONS} />
         </View>
         {data && data.categories.length > 0 && (
-          <ChipRow>
+          <ScrollView horizontal={!desktop} showsHorizontalScrollIndicator={false} contentContainerStyle={!desktop && s.chipScroll}
+            style={!desktop && s.chipScrollFrame}>
+          <ChipRow wrap={desktop}>
             {data.categories.map((c) => (
               <Chip key={c.key} label={c.label} count={c.count} selected={categories.includes(c.key)}
                 onPress={() => setCategories((cur) => (cur.includes(c.key) ? cur.filter((x) => x !== c.key) : [...cur, c.key]))} />
             ))}
             {categories.length > 0 && <Button title="All categories" size="sm" variant="ghost" onPress={() => setCategories([])} />}
           </ChipRow>
+          </ScrollView>
         )}
       </Card>
 
@@ -259,7 +264,7 @@ function PlanCard({ plan, desktop, state, onPlan, onInvite }: {
         <Pressable disabled={!event.url} onPress={() => event.url && void Linking.openURL(event.url)} accessibilityRole="link">
           <Txt variant="heading" numberOfLines={2}>{event.title}</Txt>
         </Pressable>
-        <Txt variant="caption" numberOfLines={1}>{[event.venue, event.city].filter(Boolean).join(" · ") || (event.online ? "Online" : "")}</Txt>
+        <Txt variant="caption" numberOfLines={1}>{placeText(event)}</Txt>
         <View style={s.withRow}>
           <View style={s.faces}>{plan.people.map((p) => <Avatar key={p.contactId} name={p.name} size={26} />)}</View>
           <Txt variant="label" style={s.flex} numberOfLines={1}>Go with {names}</Txt>
@@ -288,7 +293,7 @@ function EventRow({ event, first, state, onPlan }: { event: RealEvent; first: bo
           <Txt variant="label" numberOfLines={1}>{event.title}</Txt>
         </Pressable>
         <Txt variant="caption" numberOfLines={1}>
-          {[categoryLabel(event.category), event.venue, event.city].filter(Boolean).join(" · ")}
+          {[categoryLabel(event.category), placeText(event)].filter(Boolean).join(" · ")}
         </Txt>
         {person ? <Txt variant="caption" tone="secondary" numberOfLines={1}>Bring {event.people.map((p) => p.name.split(" ")[0]).join(", ")}</Txt> : null}
       </View>
@@ -306,6 +311,16 @@ const LABELS: Record<string, string> = {
   networking: "Networking", tech: "Tech", community: "Community", social: "Social", students: "Student", other: "Event",
 };
 const categoryLabel = (key: string) => LABELS[key] ?? "Event";
+
+// "Greek Theatre · Berkeley, CA", without repeating a venue that is the city,
+// and saying when it's a trip or online.
+function placeText(event: RealEvent): string {
+  const parts = [event.venue, event.city].filter((x): x is string => !!x);
+  const unique = parts.filter((x, i) => parts.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i);
+  if (event.where === "travel") unique.push("Worth the trip");
+  if (event.online && !unique.length) unique.push("Online");
+  return unique.join(" · ");
+}
 
 // Follow a public calendar (Luma, Meetup, a school or club): its events show up here.
 function FeedsSheet({ visible, onClose, onChanged }: { visible: boolean; onClose: () => void; onChanged: () => void }) {
@@ -368,7 +383,9 @@ const useStyles = makeStyles(({ colors }) =>
     wrap: { flexWrap: "wrap" },
     where: { flex: 1.3, minWidth: 0 },
     nearRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
-    interests: { flex: 1, minWidth: 0 },
+    interestsRow: { flex: 1, minWidth: 0 },
+    chipScroll: { paddingRight: space.md },
+    chipScrollFrame: { marginHorizontal: -space.md - 4, paddingLeft: space.md + 4 },
     loading: { paddingVertical: space.xxl, alignItems: "center" },
     results: { gap: space.xl },
     dim: { opacity: 0.55 },

@@ -252,7 +252,11 @@ function FollowUpRow({
         {!done && item.dueAt && (calendarReady || item.onCalendar) ? (
           item.onCalendar ? (
             <View style={s.calendarActions}>
-              {item.calendarLink && <IconButton icon="calendarCheck" label="Open in Google Calendar" onPress={onOpenCalendar} size={30} tone="plain" />}
+              {item.calendarLink ? (
+                <IconButton icon="calendarCheck" label="Open in Google Calendar" onPress={onOpenCalendar} size={30} tone="plain" />
+              ) : (
+                <View style={s.onCalendar} accessibilityLabel="On Google Calendar"><Icon name="calendarCheck" size={15} color={colors.success} /></View>
+              )}
               <IconButton icon="close" label="Remove from Google Calendar" onPress={onCalendar} size={30} tone="plain" disabled={calendarBusy} />
             </View>
           ) : (
@@ -414,6 +418,7 @@ const useStyles = makeStyles(({ colors }) =>
     personHover: { backgroundColor: colors.surfaceHover },
     personName: { flexShrink: 1, color: colors.text },
     metaPhone: { flexDirection: "row", alignItems: "center", gap: space.sm, marginTop: 4 },
+    onCalendar: { width: 30, height: 30, alignItems: "center", justifyContent: "center" },
     calendarActions: { flexDirection: "row", alignItems: "center" },
     trashCol: { width: 30 },
     calendarCol: { width: 140, alignItems: "flex-start" },

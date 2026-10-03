@@ -229,7 +229,7 @@ export default function Review() {
       {(problem || error) && (
         <Text style={[type.small, styles.problem]}>{error ?? problem}</Text>
       )}
-      <Button
+      <Button variant="primary" size="lg"
         title={included.length > 1 ? `Remember ${included.length} people` : "Remember"}
         onPress={() => void save()}
         disabled={!!problem || included.length === 0}

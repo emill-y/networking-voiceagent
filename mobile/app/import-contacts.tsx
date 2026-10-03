@@ -140,7 +140,7 @@ export default function ImportContacts() {
         <ActivityIndicator color={colors.accent} style={styles.center} />
       ) : phase === "ask" ? (
         <View style={styles.block}>
-          <Button title="Choose from contacts" onPress={() => void load(true)} />
+          <Button variant="primary" size="lg" title="Choose from contacts" onPress={() => void load(true)} />
         </View>
       ) : phase === "denied" ? (
         <View style={styles.block}>
@@ -208,7 +208,7 @@ export default function ImportContacts() {
           />
           <View style={styles.footer}>
             {message && <Text style={[type.small, styles.error]}>{message}</Text>}
-            <Button
+            <Button variant="primary" size="lg"
               title={summary ? summary.charAt(0).toUpperCase() + summary.slice(1) : "Choose people"}
               onPress={() => void save()}
               disabled={chosen.length === 0}
