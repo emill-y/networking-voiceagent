@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, View } from "react-native";
+import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
 
 import { Avatar } from "@/components/Avatar";
 import { Button, IconButton } from "@/components/Button";
@@ -12,6 +13,7 @@ import { Logo } from "@/components/Logo";
 import { NetworkGraph } from "@/components/NetworkGraph";
 import { Page } from "@/components/Page";
 import { Section } from "@/components/Section";
+import { SessionOrbit } from "@/components/SessionOrbit";
 import { SkeletonRows } from "@/components/Skeleton";
 import { Txt } from "@/components/Txt";
 import { useAccount } from "@/hooks/useAccount";
@@ -86,7 +88,9 @@ export default function Home() {
   }
 
   const layout = useMemo(() => (network && network.people.length ? layoutNetwork(network) : null), [network]);
-  const recent = (people ?? []).slice(0, 5);
+  const recent = (people ?? []).slice(0, 8);
+  // Brand new account: nothing to show yet, so show one clear way in.
+  const firstRun = people?.length === 0 && followUps?.length === 0 && events.length === 0;
   const openPerson = (id: string) => router.push({ pathname: "/contacts/[id]", params: { id } });
   const first = account.name.includes("@") ? "" : firstName(account.name);
   const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
@@ -136,6 +140,29 @@ export default function Home() {
     </Section>
   );
 
+  // Phones: one direction per section. Upcoming stacks down; recently met
+  // scrolls sideways as cards, so the page never grows in two directions.
+  const recentStrip = (
+    <Section title="Recently met" action={{ label: "All", onPress: () => router.push("/contacts") }}>
+      {!people ? (
+        <SkeletonRows rows={2} />
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.stripScroll} contentContainerStyle={s.strip}>
+          {recent.map((p) => (
+            <Card key={p.id} onPress={() => openPerson(p.id)} accessibilityLabel={p.name} style={s.personCard}>
+              <Avatar name={p.name} size={44} />
+              <View style={s.personCardText}>
+                <Txt variant="label" numberOfLines={1}>{p.name}</Txt>
+                <Txt variant="caption" numberOfLines={2}>{p.role && p.company ? `${p.role}, ${p.company}` : p.role || p.company || p.school || "Contact"}</Txt>
+              </View>
+              <Txt variant="caption" tone="tertiary">{formatRelative(p.lastInteractionAt)}</Txt>
+            </Card>
+          ))}
+        </ScrollView>
+      )}
+    </Section>
+  );
+
   const recentPanel = (
     <Section title="Recently met" action={{ label: "Contacts", onPress: () => router.push("/contacts") }}>
       <Card padding="none">
@@ -147,7 +174,7 @@ export default function Home() {
             action={<Button title="Remember someone" icon="mic" size="sm" variant="primary" onPress={() => router.push("/record")} />} />
         ) : (
           <View style={s.listPad}>
-            {recent.map((p) => (
+            {recent.slice(0, 5).map((p) => (
               <Pressable key={p.id} onPress={() => openPerson(p.id)} accessibilityRole="button" accessibilityLabel={p.name}
                 style={({ hovered }: { hovered?: boolean }) => [s.personRow, hovered && s.hover]}>
                 <Avatar name={p.name} size={32} />
@@ -189,10 +216,9 @@ export default function Home() {
         <View style={s.phoneHeader}>
           <Logo size={24} />
           <View style={s.phoneActions}>
-            <IconButton icon="search" label="Search" onPress={() => router.push("/search")} />
-            <IconButton icon="map" label="Map" onPress={() => router.push("/network")} />
+            <IconButton icon="search" label="Search" onPress={() => router.push("/search")} tone="plain" />
             <Pressable onPress={() => router.push("/profile")} accessibilityRole="button" accessibilityLabel="Profile">
-              <Avatar name={account.name} uri={account.avatarUrl} size={34} />
+              <Avatar name={account.name} uri={account.avatarUrl} size={40} />
             </Pressable>
           </View>
         </View>
@@ -214,9 +240,12 @@ export default function Home() {
         </Card>
       )}
 
-      {capture}
+      {/* On phones the main action lives in the floating + button. */}
+      {desktop && capture}
 
-      {desktop ? (
+      {firstRun && !desktop ? (
+        <FirstRun />
+      ) : desktop ? (
         <View style={s.columns}>
           <View style={s.main}>{upcomingPanel}</View>
           <View style={s.side}>
@@ -225,13 +254,40 @@ export default function Home() {
           </View>
         </View>
       ) : (
-        <>
+        <View style={s.phoneSections}>
           {upcomingPanel}
-          {recentPanel}
+          {recent.length > 0 && recentStrip}
           {networkPanel}
-        </>
+        </View>
       )}
     </Page>
+  );
+}
+
+// A brand new account on a phone: one calm screen and a pointer to the +
+// button, the one thing to do first.
+function FirstRun() {
+  const s = useStyles();
+  const bob = useSharedValue(0);
+  useEffect(() => {
+    bob.value = withRepeat(withSequence(withTiming(-6, { duration: 700, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 700, easing: Easing.inOut(Easing.sin) })), -1);
+  }, [bob]);
+  const bobStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.value }] }));
+  return (
+    <View style={s.firstRun}>
+      <View style={s.firstRunHero}>
+        <SessionOrbit size={220} listening={false} people={[]} />
+        <Txt variant="display" align="center">Your network starts here</Txt>
+        <Txt variant="bodySecondary" align="center" style={s.firstRunBody}>
+          Everyone you meet becomes part of your orbit, with what you talked about and when to follow up.
+        </Txt>
+      </View>
+      <Animated.View style={[s.tip, bobStyle]} accessibilityRole="text">
+        <Txt variant="label">Tap + after you meet someone</Txt>
+        <Txt variant="small">Say who they are in a sentence. Nomi fills in the rest.</Txt>
+        <View style={s.tipArrow} />
+      </Animated.View>
+    </View>
   );
 }
 
@@ -298,6 +354,38 @@ const useStyles = makeStyles(({ colors }) =>
     columns: { flexDirection: "row", alignItems: "flex-start", gap: space.lg },
     main: { flex: 1.5, minWidth: 0 },
     side: { flex: 1, minWidth: 0, gap: space.lg },
+    phoneSections: { gap: space.xl },
+    stripScroll: { marginHorizontal: -space.md },
+    strip: { gap: space.sm, paddingHorizontal: space.md },
+    personCard: { width: 156, gap: space.sm },
+    personCardText: { gap: 2, minHeight: 56 },
+    firstRun: { flex: 1, justifyContent: "space-between", gap: space.xl, minHeight: 520 },
+    firstRunHero: { alignItems: "center", gap: space.md, paddingTop: space.lg },
+    firstRunBody: { maxWidth: 320 },
+    tip: {
+      alignSelf: "flex-end",
+      maxWidth: 270,
+      gap: 2,
+      padding: space.md,
+      borderRadius: radius.lg,
+      backgroundColor: colors.surface,
+      borderWidth: 1,
+      borderColor: colors.support,
+      marginRight: 0,
+    },
+    // Points down at the + button (64pt wide, flush with the page edge).
+    tipArrow: {
+      position: "absolute",
+      bottom: -7,
+      right: 25,
+      width: 14,
+      height: 14,
+      backgroundColor: colors.surface,
+      borderRightWidth: 1,
+      borderBottomWidth: 1,
+      borderColor: colors.support,
+      transform: [{ rotate: "45deg" }],
+    },
     dayHeading: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xxs },
     row: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 52 },
     check: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: colors.borderStrong },

@@ -13,6 +13,7 @@ import { Segmented } from "@/components/Segmented";
 import { Tag } from "@/components/Chip";
 import { useToast } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
+import { useDesktop } from "@/hooks/useDesktop";
 import { useAccount } from "@/hooks/useAccount";
 import { useCalendar } from "@/hooks/useCalendar";
 import { useProfile } from "@/hooks/useProfile";
@@ -29,6 +30,7 @@ import { makeStyles, radius, space, useTheme, type ThemeMode } from "@/lib/theme
 import { deleteAccount, deleteAllData, exportContacts, updateMyProfile } from "@/services/nomi";
 
 export default function Profile() {
+  const desktop = useDesktop();
   const s = useStyles();
   const router = useRouter();
   const toast = useToast();
@@ -108,7 +110,7 @@ export default function Profile() {
     : null;
 
   return (
-    <Page title="Profile" width="narrow">
+    <Page title="Profile" width="narrow" back={desktop ? undefined : { label: "Home", href: "/" }}>
       <Card padding="lg" style={s.identity}>
         <Avatar name={account.name} uri={account.avatarUrl} size={72} />
         <View style={s.identityText}>

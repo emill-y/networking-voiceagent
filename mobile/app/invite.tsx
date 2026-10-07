@@ -30,7 +30,7 @@ export default function Invite() {
     getMyProfile().then(setProfile).catch(() => undefined);
   }, []);
 
-  if (!profile) return <Page title="Invite friends" width="narrow"><PageLoader /></Page>;
+  if (!profile) return <Page title="Invite friends" width="narrow" back={desktop ? undefined : { label: "Profile", href: "/profile" }}><PageLoader /></Page>;
 
   const name = account.name.includes("@") ? "" : firstName(account.name);
   const message = `${name ? `${name} invited you to Nomi` : "Join me on Nomi"}: a second brain for the people you meet. ${profile.inviteLink}`;
@@ -52,7 +52,7 @@ export default function Invite() {
   }
 
   return (
-    <Page title="Invite friends" width="narrow">
+    <Page title="Invite friends" width="narrow" back={desktop ? undefined : { label: "Profile", href: "/profile" }}>
       <View style={[s.layout, desktop && s.layoutWide]}>
         <View style={s.cardWrap}>
           <InviteCard name={name} link={profile.inviteLink} />

@@ -1,6 +1,7 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { Icon, type IconName } from "@/components/Icon";
+import { useDesktop } from "@/hooks/useDesktop";
 import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -39,6 +40,8 @@ export function Button({
 }: Props) {
   const s = useStyles();
   const { colors } = useTheme();
+  // Phones: every button is at least a 44pt target with 16-17pt text.
+  const phone = !useDesktop();
   const inactive = disabled || loading;
   const fg =
     variant === "primary" ? colors.onAccent : variant === "danger" ? colors.danger : variant === "ghost" ? colors.textSecondary : colors.text;
@@ -53,6 +56,7 @@ export function Button({
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         s.base,
         s[size],
+        phone && s[`${size}Phone`],
         s[variant],
         (hovered || pressed) && !inactive && s[`${variant}Hover`],
         pressed && !inactive && s.pressed,
@@ -63,7 +67,7 @@ export function Button({
     >
       <View style={[s.row, loading && s.hidden]}>
         {icon && <Icon name={icon} size={iconSize} color={fg} />}
-        <Text style={[s.text, size === "sm" && s.textSm, size === "lg" && s.textLg, { color: fg }]} numberOfLines={1}>
+        <Text style={[s.text, size === "sm" && s.textSm, size === "lg" && s.textLg, phone && s.textPhone, { color: fg }]} numberOfLines={1}>
           {title}
         </Text>
         {iconRight && <Icon name={iconRight} size={iconSize} color={fg} />}
@@ -91,6 +95,8 @@ export function IconButton({
 }) {
   const s = useStyles();
   const { colors } = useTheme();
+  const phone = !useDesktop();
+  const box = phone ? Math.max(size, 44) : size;
   return (
     <Pressable
       onPress={onPress}
@@ -101,12 +107,12 @@ export function IconButton({
       style={({ pressed, hovered }: { pressed: boolean; hovered?: boolean }) => [
         s.iconButton,
         tone === "plain" && s.iconButtonPlain,
-        { width: size, height: size },
+        { width: box, height: box },
         (hovered || pressed) && s.iconButtonHover,
         disabled && s.disabled,
       ]}
     >
-      <Icon name={icon} size={Math.round(size * 0.47)} color={colors.textSecondary} />
+      <Icon name={icon} size={Math.round(Math.min(box, 48) * 0.47)} color={colors.textSecondary} />
     </Pressable>
   );
 }
@@ -124,6 +130,9 @@ const useStyles = makeStyles(({ colors }) =>
     sm: { height: 32, paddingHorizontal: space.sm },
     md: { height: 40, paddingHorizontal: space.md },
     lg: { height: 48, paddingHorizontal: space.lg },
+    smPhone: { height: 40, paddingHorizontal: space.md, borderRadius: radius.md },
+    mdPhone: { height: 46, paddingHorizontal: space.md, borderRadius: radius.lg },
+    lgPhone: { height: 54, borderRadius: radius.lg },
     fullWidth: { alignSelf: "stretch" },
     primary: { backgroundColor: colors.accent },
     primaryHover: { backgroundColor: colors.accentHover },
@@ -140,6 +149,7 @@ const useStyles = makeStyles(({ colors }) =>
     text: { fontSize: 14, fontWeight: "600", letterSpacing: 0.1 },
     textSm: { fontSize: 13 },
     textLg: { fontSize: 15 },
+    textPhone: { fontSize: 16 },
     iconButton: {
       borderRadius: radius.md,
       alignItems: "center",

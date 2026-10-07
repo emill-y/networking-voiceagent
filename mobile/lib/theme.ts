@@ -10,7 +10,7 @@
 //                 button, "you", and the active place you are in.
 // Reach for `support` before `accent`; if a screen looks orange, it's wrong.
 import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Platform } from "react-native";
+import { Platform, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type ThemeMode = "dark" | "light";
@@ -170,19 +170,24 @@ export const font = {
   medium: "InterTight_500Medium",
 } as const;
 
-function typeScale(c: Palette) {
+// Phones read type larger than desktops (iOS body is 17pt, macOS 13pt), so
+// the phone layout gets its own, bigger scale with the same names.
+function typeScale(c: Palette, phone = false) {
+  const z = phone
+    ? { display: [32, 38], title: [24, 30], heading: [19, 24], body: [17, 24], label: [16, 22], small: [15, 20], caption: [13, 18], overline: [12, 16] }
+    : { display: [30, 36], title: [22, 28], heading: [17, 22], body: [15, 22], label: [14, 20], small: [13, 18], caption: [12, 16], overline: [11, 14] };
   return {
-    display: { fontFamily: font.heading, fontSize: 30, lineHeight: 36, letterSpacing: -0.7, color: c.text },
-    title: { fontFamily: font.heading, fontSize: 22, lineHeight: 28, letterSpacing: -0.4, color: c.text },
-    heading: { fontFamily: font.heading, fontSize: 17, lineHeight: 22, letterSpacing: -0.2, color: c.text },
-    body: { fontSize: 15, lineHeight: 22, color: c.text },
-    bodySecondary: { fontSize: 15, lineHeight: 22, color: c.textSecondary },
-    label: { fontSize: 14, lineHeight: 20, fontWeight: "500" as const, color: c.text },
-    small: { fontSize: 13, lineHeight: 18, color: c.textSecondary },
-    caption: { fontSize: 12, lineHeight: 16, color: c.textTertiary },
+    display: { fontFamily: font.heading, fontSize: z.display[0], lineHeight: z.display[1], letterSpacing: -0.7, color: c.text },
+    title: { fontFamily: font.heading, fontSize: z.title[0], lineHeight: z.title[1], letterSpacing: -0.4, color: c.text },
+    heading: { fontFamily: font.heading, fontSize: z.heading[0], lineHeight: z.heading[1], letterSpacing: -0.2, color: c.text },
+    body: { fontSize: z.body[0], lineHeight: z.body[1], color: c.text },
+    bodySecondary: { fontSize: z.body[0], lineHeight: z.body[1], color: c.textSecondary },
+    label: { fontSize: z.label[0], lineHeight: z.label[1], fontWeight: "500" as const, color: c.text },
+    small: { fontSize: z.small[0], lineHeight: z.small[1], color: c.textSecondary },
+    caption: { fontSize: z.caption[0], lineHeight: z.caption[1], color: c.textTertiary },
     overline: {
-      fontSize: 11,
-      lineHeight: 14,
+      fontSize: z.overline[0],
+      lineHeight: z.overline[1],
       fontWeight: "600" as const,
       letterSpacing: 0.8,
       textTransform: "uppercase" as const,
@@ -191,6 +196,8 @@ function typeScale(c: Palette) {
     stat: { fontFamily: font.heading, fontSize: 26, lineHeight: 30, letterSpacing: -0.6, color: c.text },
   };
 }
+
+const phoneType = { dark: typeScale(dark, true), light: typeScale(light, true) };
 
 const shadows = {
   dark: {
@@ -253,15 +260,20 @@ export function ThemeProvider({ children, initial }: { children: ReactNode; init
     document.documentElement.style.colorScheme = mode;
   }, [mode]);
 
+  // Phones (and narrow windows) get the larger phone type scale.
+  const { width } = useWindowDimensions();
+  const phone = Platform.OS !== "web" || width < 900;
+
   const value = useMemo<ThemeContextValue>(
     () => ({
       ...themes[mode],
+      type: phone ? phoneType[mode] : themes[mode].type,
       setMode: (next: ThemeMode) => {
         setModeState(next);
         void AsyncStorage.setItem(STORAGE_KEY, next).catch(() => undefined);
       },
     }),
-    [mode],
+    [mode, phone],
   );
   return createElement(ThemeContext.Provider, { value }, children);
 }

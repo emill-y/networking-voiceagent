@@ -3,6 +3,7 @@ import { StyleSheet, TextInput, View, type TextInputProps, type StyleProp, type 
 
 import { Icon, type IconName } from "@/components/Icon";
 import { Txt } from "@/components/Txt";
+import { useDesktop } from "@/hooks/useDesktop";
 import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 
 type Props = TextInputProps & {
@@ -20,10 +21,11 @@ export const Input = forwardRef<TextInput, Props>(function Input(
 ) {
   const s = useStyles();
   const { colors } = useTheme();
+  const phone = !useDesktop();
   return (
     <View style={[s.wrap, containerStyle]}>
       {label ? <Txt variant="label">{label}</Txt> : null}
-      <View style={[s.field, multiline && s.multilineField, !!error && s.fieldError]}>
+      <View style={[s.field, phone && s.fieldPhone, multiline && s.multilineField, !!error && s.fieldError]}>
         {icon && <Icon name={icon} size={16} color={colors.textTertiary} />}
         <TextInput
           ref={ref}
@@ -31,7 +33,7 @@ export const Input = forwardRef<TextInput, Props>(function Input(
           selectionColor={colors.accent}
           accessibilityLabel={rest.accessibilityLabel ?? label}
           multiline={multiline}
-          style={[s.input, multiline && s.multiline, style]}
+          style={[s.input, phone && s.inputPhone, multiline && s.multiline, style]}
           {...rest}
         />
       </View>
@@ -54,6 +56,9 @@ const useStyles = makeStyles(({ colors }) =>
       borderWidth: 1,
       borderColor: colors.border,
     },
+    // 17pt keeps iOS Safari from zooming into the field.
+    fieldPhone: { minHeight: 48, borderRadius: radius.lg, paddingHorizontal: space.md },
+    inputPhone: { fontSize: 17 },
     multilineField: { alignItems: "flex-start", paddingVertical: space.xs },
     fieldError: { borderColor: colors.danger },
     input: {

@@ -7,8 +7,9 @@ import {
 import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore, type ReactNode } from "react";
 import { View } from "react-native";
+import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { EmptyState } from "@/components/EmptyState";
@@ -19,6 +20,7 @@ import { AccountProvider } from "@/hooks/useAccount";
 import { useDesktop } from "@/hooks/useDesktop";
 import { SessionProvider, useSession } from "@/hooks/useSession";
 import { isDemo, subscribeDemo } from "@/lib/demo";
+import { openSheets, subscribeSheets } from "@/lib/sheetStack";
 import { profileFrom } from "@/lib/profile";
 import { openWithoutSignIn, signInMissing } from "@/lib/supabase";
 import { ThemeProvider, useTheme } from "@/lib/theme";
@@ -126,11 +128,25 @@ function RootNavigator() {
           <View style={{ flex: 1 }}>{stack}</View>
         </View>
       ) : (
-        <View style={{ flex: 1, backgroundColor: colors.bg }}>
-          {stack}
-          {inApp && showsTabBar(pathname) && <TabBar />}
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
+          <StepBack>
+            {stack}
+            {inApp && showsTabBar(pathname) && <TabBar />}
+          </StepBack>
         </View>
       )}
     </>
   );
+}
+
+// Phones: while a bottom sheet is up, the app behind it steps back a little
+// (scales down with rounded corners), so it's clear the sheet sits on top.
+function StepBack({ children }: { children: ReactNode }) {
+  const { colors } = useTheme();
+  const sheets = useSyncExternalStore(subscribeSheets, openSheets, openSheets);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: withTiming(sheets > 0 ? 0.94 : 1, { duration: 260 }) }],
+    borderRadius: withTiming(sheets > 0 ? 18 : 0, { duration: 260 }),
+  }));
+  return <Animated.View style={[{ flex: 1, overflow: "hidden", backgroundColor: colors.bg }, style]}>{children}</Animated.View>;
 }

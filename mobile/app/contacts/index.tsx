@@ -3,13 +3,14 @@ import { useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
-import { Button } from "@/components/Button";
+import { Button, IconButton } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Chip, ChipRow, Tag } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
-import { Icon } from "@/components/Icon";
+import { Icon, type IconName } from "@/components/Icon";
 import { Input } from "@/components/Input";
 import { Page } from "@/components/Page";
+import { PeekMenu } from "@/components/PeekMenu";
 import { Sheet } from "@/components/Sheet";
 import { ShareContactsSheet } from "@/components/ShareContactsSheet";
 import { SkeletonRows } from "@/components/Skeleton";
@@ -55,6 +56,9 @@ export default function Contacts() {
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sharing, setSharing] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [peek, setPeek] = useState<ContactSummary | null>(null);
+  const [shareOne, setShareOne] = useState<ContactSummary | null>(null);
   const [shares, setShares] = useState<IncomingShare[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -132,10 +136,15 @@ export default function Contacts() {
       title="Contacts"
       subtitle={people ? `${people.length} ${people.length === 1 ? "contact" : "contacts"}` : undefined}
       actions={
-        <>
-          {contactsSupported && <Button title="Import" icon="download" onPress={() => router.push("/import-contacts")} />}
-          <Button title="Add contact" icon="plus" variant="primary" onPress={() => router.push("/write")} />
-        </>
+        desktop ? (
+          <>
+            {contactsSupported && <Button title="Import" icon="download" onPress={() => router.push("/import-contacts")} />}
+            <Button title="Add contact" icon="plus" variant="primary" onPress={() => router.push("/write")} />
+          </>
+        ) : (
+          // Phones: adding lives in the + button; everything else in one menu.
+          <IconButton icon="more" label="More actions" onPress={() => setMoreOpen(true)} tone="plain" />
+        )
       }
     >
       {shares.map((share) => (
@@ -150,22 +159,24 @@ export default function Contacts() {
         </Card>
       ))}
 
-      {!desktop && (
-        <Input icon="search" value={filters.query} onChangeText={(query) => setFilters({ ...filters, query })}
-          placeholder="Search contacts" accessibilityLabel="Search contacts" autoCorrect={false} />
-      )}
-      <View style={s.toolbar}>
-        {desktop ? (
+      {desktop ? (
+        <View style={s.toolbar}>
           <Input icon="search" value={filters.query} onChangeText={(query) => setFilters({ ...filters, query })}
             placeholder="Search name, company, school, interest…" accessibilityLabel="Search contacts"
             containerStyle={s.flex} autoCorrect={false} />
-        ) : <View style={s.flex} />}
-        {!desktop && (
-          <Button title={filterCount ? `Filters · ${filterCount}` : "Filters"} icon="filter" onPress={() => setFiltersOpen(true)} />
-        )}
-        <Button title={desktop ? SORT_LABELS[filters.sort] : "Sort"} iconRight="chevronDown" variant="secondary" onPress={() => setSortOpen(true)}
-          accessibilityLabel={`Sort: ${SORT_LABELS[filters.sort]}`} />
-      </View>
+          <Button title={SORT_LABELS[filters.sort]} iconRight="chevronDown" variant="secondary" onPress={() => setSortOpen(true)}
+            accessibilityLabel={`Sort: ${SORT_LABELS[filters.sort]}`} />
+        </View>
+      ) : (
+        <View style={s.toolbar}>
+          <Input icon="search" value={filters.query} onChangeText={(query) => setFilters({ ...filters, query })}
+            placeholder="Search contacts" accessibilityLabel="Search contacts" autoCorrect={false} containerStyle={s.flex} />
+          <View>
+            <IconButton icon="filter" label={filterCount ? `Filters, ${filterCount} on` : "Filters"} onPress={() => setFiltersOpen(true)} size={48} />
+            {filterCount > 0 && <View style={s.filterDot} />}
+          </View>
+        </View>
+      )}
 
       <View style={s.body}>
         {desktop && <View style={s.sidebar}>{filterPanel}</View>}
@@ -183,7 +194,7 @@ export default function Contacts() {
             </ChipRow>
           )}
 
-          <View style={s.resultsBar}>
+          {(desktop || selecting) && <View style={s.resultsBar}>
             <Txt variant="small">
               {visible ? (visible.length === (people?.length ?? 0) ? `${visible.length} contacts` : `${visible.length} of ${people?.length}`) : " "}
             </Txt>
@@ -194,13 +205,13 @@ export default function Contacts() {
                     onPress={() => setSelected(selected.size === inView.length ? new Set() : new Set(inView.map((p) => p.id)))} />
                   <Button title="Done" size="sm" variant="ghost" onPress={() => { setSelecting(false); setSelected(new Set()); }} />
                 </>
-              ) : (
+              ) : desktop && (
                 <Button title="Select" size="sm" variant="ghost" icon="checkCircle" disabled={!inView.length} onPress={() => setSelecting(true)} />
               )}
               <Button title="Share" size="sm" icon="share" disabled={!targetIds.length} onPress={() => setSharing(true)} />
               <Button title="Export" size="sm" icon="download" disabled={!targetIds.length} onPress={() => setExportOpen(true)} />
             </View>
-          </View>
+          </View>}
 
           <Card padding="none">
             {!visible ? (
@@ -229,7 +240,8 @@ export default function Contacts() {
               visible.map((person, i) => (
                 <ContactRow key={person.id} person={person} first={i === 0} desktop={desktop} selecting={selecting}
                   selected={selected.has(person.id)}
-                  onPress={() => (selecting ? toggleSelect(person.id) : router.push({ pathname: "/contacts/[id]", params: { id: person.id } }))} />
+                  onPress={() => (selecting ? toggleSelect(person.id) : router.push({ pathname: "/contacts/[id]", params: { id: person.id } }))}
+                  onLongPress={selecting ? undefined : () => setPeek(person)} />
               ))
             )}
           </Card>
@@ -262,17 +274,47 @@ export default function Contacts() {
       </Sheet>
 
       <ShareContactsSheet visible={sharing} contactIds={targetIds} label={scopeLabel} onClose={() => setSharing(false)} />
+      <ShareContactsSheet visible={!!shareOne} contactIds={shareOne ? [shareOne.id] : []} label={shareOne?.name ?? ""} onClose={() => setShareOne(null)} />
+
+      <Sheet visible={moreOpen} title="Contacts" onClose={() => setMoreOpen(false)} width={380}>
+        {([
+          { icon: "list", label: `Sort: ${SORT_LABELS[filters.sort]}`, run: () => setSortOpen(true) },
+          { icon: "checkCircle", label: "Select contacts", run: () => setSelecting(true) },
+          { icon: "share", label: everyone ? "Share all" : `Share these ${inView.length}`, run: () => setSharing(true) },
+          { icon: "download", label: everyone ? "Export all" : `Export these ${inView.length}`, run: () => setExportOpen(true) },
+          ...(contactsSupported ? [{ icon: "userPlus", label: "Import from phone", run: () => router.push("/import-contacts") }] : []),
+        ] as { icon: IconName; label: string; run: () => void }[]).map((a) => (
+          <Pressable key={a.label} accessibilityRole="button" onPress={() => { setMoreOpen(false); setTimeout(a.run, 220); }}
+            style={({ pressed }) => [s.moreRow, pressed && s.rowHover]}>
+            <Icon name={a.icon} size={20} color={s.accent.color} />
+            <Txt variant="body" style={s.flex}>{a.label}</Txt>
+          </Pressable>
+        ))}
+      </Sheet>
+
+      {/* Hold a contact for its quick actions. */}
+      <PeekMenu
+        person={peek && { name: peek.name, detail: [peek.role && peek.company ? `${peek.role}, ${peek.company}` : peek.role || peek.company, peek.school].filter(Boolean).join(" · ") }}
+        onClose={() => setPeek(null)}
+        actions={peek ? [
+          { icon: "user", label: "Open", onPress: () => router.push({ pathname: "/contacts/[id]", params: { id: peek.id } }) },
+          { icon: "calendarAdd", label: "Add a follow-up", onPress: () => router.push({ pathname: "/follow-ups", params: { add: "1", contact: peek.id } }) },
+          { icon: "share", label: "Share", onPress: () => setShareOne(peek) },
+          { icon: "checkCircle", label: "Select", onPress: () => { setSelecting(true); setSelected(new Set([peek.id])); } },
+        ] : []}
+      />
     </Page>
   );
 }
 
-function ContactRow({ person, first, desktop, selecting, selected, onPress }: {
+function ContactRow({ person, first, desktop, selecting, selected, onPress, onLongPress }: {
   person: ContactSummary;
   first: boolean;
   desktop: boolean;
   selecting: boolean;
   selected: boolean;
   onPress: () => void;
+  onLongPress?: () => void;
 }) {
   const s = useStyles();
   const { colors } = useTheme();
@@ -280,7 +322,7 @@ function ContactRow({ person, first, desktop, selecting, selected, onPress }: {
     .filter(Boolean)
     .join(" · ");
   return (
-    <Pressable onPress={onPress} accessibilityRole={selecting ? "checkbox" : "button"} accessibilityState={selecting ? { checked: selected } : undefined}
+    <Pressable onPress={onPress} onLongPress={onLongPress} delayLongPress={380} accessibilityRole={selecting ? "checkbox" : "button"} accessibilityState={selecting ? { checked: selected } : undefined}
       accessibilityLabel={person.name}
       style={({ hovered }: { hovered?: boolean }) => [s.row, !first && s.rowBorder, (hovered || selected) && s.rowHover]}>
       {selecting && (
@@ -370,6 +412,8 @@ const useStyles = makeStyles(({ colors }) =>
     results: { flex: 1, minWidth: 0, gap: space.sm },
     resultsBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.xs, flexWrap: "wrap" },
     bulk: { flexDirection: "row", alignItems: "center", gap: space.xxs, flexWrap: "wrap" },
+    filterDot: { position: "absolute", top: 8, right: 8, width: 9, height: 9, borderRadius: 5, backgroundColor: colors.support },
+    moreRow: { flexDirection: "row", alignItems: "center", gap: space.md, minHeight: 52, paddingHorizontal: space.sm, marginHorizontal: -space.sm, borderRadius: radius.md },
     row: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 60, paddingHorizontal: space.md, paddingVertical: space.xs },
     rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
     rowHover: { backgroundColor: colors.surfaceHover },

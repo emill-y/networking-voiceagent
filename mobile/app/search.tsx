@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { OrbitLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
+import { SessionOrbit } from "@/components/SessionOrbit";
 import { Txt } from "@/components/Txt";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
@@ -97,10 +98,8 @@ export default function Search() {
         <EmptyState icon="alert" title="Search didn’t work" body={error} action={<Button title="Try again" onPress={() => void run(query)} />} />
       ) : results ? (
         results.length === 0 ? (
-          <Card padding="none">
-            <EmptyState icon="search" title="No one fits that yet" body={`Nothing in your notes matches “${asked}”. Try other words, or browse Contacts.`}
-              action={<Button title="Browse contacts" onPress={() => router.push("/contacts")} />} />
-          </Card>
+          <NoResults asked={asked} tries={broaderTries(asked, suggestions)} onTry={(q) => void run(q)}
+            onClear={() => { setResults(null); setQuery(""); setAsked(""); }} onBrowse={() => router.push("/contacts")} />
         ) : (
           <View style={s.results}>
             <Txt variant="small">{results.length} {results.length === 1 ? "person" : "people"}{smart ? "" : " · matched by keywords"}</Txt>
@@ -143,6 +142,49 @@ export default function Search() {
   );
 }
 
+// When nothing matches: a shorter version of the question (one word can
+// sink a search), then the usual suggestions.
+function broaderTries(asked: string, suggestions: string[]): string[] {
+  const words = asked.replace(/[?“”"]/g, "").split(/\s+/).filter((w) => w.length > 3 && !/^(who|what|know|with|from|that|into|about|met)$/i.test(w));
+  const broader = words.length > 1 ? [...words].sort((a, b) => b.length - a.length)[0] : null;
+  return [...(broader ? [broader] : []), ...suggestions.filter((q) => q !== asked)].slice(0, 3);
+}
+
+// Say plainly that nothing matched these words, offer a way to recover
+// from a typo, and a way out.
+function NoResults({ asked, tries, onTry, onClear, onBrowse }: {
+  asked: string;
+  tries: string[];
+  onTry: (q: string) => void;
+  onClear: () => void;
+  onBrowse: () => void;
+}) {
+  const s = useStyles();
+  const { colors } = useTheme();
+  return (
+    <View style={s.none}>
+      <SessionOrbit size={150} listening={false} people={[]} />
+      <View style={s.noneText}>
+        <Txt variant="title" align="center">No one matches “{asked}”</Txt>
+        <Txt variant="small" align="center">Check the spelling, or try a broader question.</Txt>
+      </View>
+      <View style={s.tries}>
+        {tries.map((q) => (
+          <Pressable key={q} onPress={() => onTry(q)} accessibilityRole="button"
+            style={({ hovered, pressed }) => [s.try, (hovered || pressed) && s.hover]}>
+            <Icon name="search" size={15} color={colors.supportText} />
+            <Txt variant="small" tone="default" numberOfLines={1} style={s.flexShrink}>{q}</Txt>
+          </Pressable>
+        ))}
+      </View>
+      <View style={s.noneActions}>
+        <Button title="Clear search" icon="close" onPress={onClear} />
+        <Button title="Browse contacts" variant="ghost" onPress={onBrowse} />
+      </View>
+    </View>
+  );
+}
+
 const useStyles = makeStyles(({ colors, shadow }) =>
   StyleSheet.create({
     flex: { flex: 1, minWidth: 0 },
@@ -169,6 +211,21 @@ const useStyles = makeStyles(({ colors, shadow }) =>
     nameRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: space.xs },
     reason: { marginTop: 4 },
     suggestions: { gap: space.xxs },
+    none: { alignItems: "center", gap: space.md, paddingVertical: space.lg },
+    noneText: { gap: space.xxs, maxWidth: 420 },
+    tries: { alignSelf: "stretch", gap: space.xs },
+    try: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: space.sm,
+      minHeight: 48,
+      paddingHorizontal: space.md,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surface,
+    },
+    noneActions: { flexDirection: "row", gap: space.xs, flexWrap: "wrap", justifyContent: "center" },
     suggestion: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.sm, minHeight: 44, borderRadius: radius.md },
   }),
 );
