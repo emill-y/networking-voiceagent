@@ -23,6 +23,7 @@ export function SessionOrbit({ size = 300, listening, people }: { size?: number;
   const { colors, mode } = useTheme();
   const spin = useSharedValue(0);
   const breath = useSharedValue(1);
+  const ripple = useSharedValue(0);
 
   useEffect(() => {
     spin.value = withRepeat(withTiming(360, { duration: 60_000, easing: Easing.linear }), -1);
@@ -38,6 +39,17 @@ export function SessionOrbit({ size = 300, listening, people }: { size?: number;
     }
   }, [listening, breath]);
 
+  // A shockwave each time someone new is found.
+  useEffect(() => {
+    if (!people.length) return;
+    ripple.value = 0;
+    ripple.value = withTiming(1, { duration: 1400, easing: Easing.out(Easing.cubic) });
+  }, [people.length, ripple]);
+
+  const wave = useAnimatedStyle(() => ({
+    opacity: ripple.value === 0 || ripple.value === 1 ? 0 : (1 - ripple.value) * 0.8,
+    transform: [{ scale: 0.35 + ripple.value * 0.75 }],
+  }));
   const rotate = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
   const counter = useAnimatedStyle(() => ({ transform: [{ rotate: `${-spin.value}deg` }] }));
   const pulse = useAnimatedStyle(() => ({ transform: [{ scale: breath.value }] }));
@@ -59,6 +71,8 @@ export function SessionOrbit({ size = 300, listening, people }: { size?: number;
             strokeWidth={1} strokeDasharray="2 6" />
         ))}
       </Svg>
+
+      <Animated.View style={[StyleSheet.absoluteFill, wave, { borderRadius: size / 2, borderWidth: 1.5, borderColor: orb.mid }]} pointerEvents="none" />
 
       <Animated.View style={[StyleSheet.absoluteFill, styles.center, pulse]}>
         <Svg width={planet} height={planet}>

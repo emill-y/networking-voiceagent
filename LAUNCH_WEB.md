@@ -109,13 +109,41 @@ Without the Google settings the calendar features simply stay hidden.
 
 ## Database update for this version (once)
 
-New tables for profile photos, contact sharing, invites and the calendar
-"reconnect" state. Run once against production, then redeploy:
+New tables for ambient sessions (this version), profile photos, contact
+sharing, invites and the calendar "reconnect" state. Run once against
+production (safe to re-run; it skips what is already there), then redeploy:
 
 ```bash
 cd ~/networking-voiceagent/backend && source .venv/bin/activate
 DATABASE_URL="$(grep '^DATABASE_URL:' prod.env.yaml | cut -d'"' -f2)" python -m scripts.migrate
 ```
+
+## Sessions: ambient recording at events
+
+**Session** (Home → Session, or long-press the record button on phones)
+records in 30-second pieces while you network. Each piece is transcribed,
+Nomi finds the people introduced and fills in what they said, and you
+review everyone before anything is saved. Audio is never stored; the
+transcript is deleted after you save or discard.
+
+It needs one new table. Run the migration above once (it includes
+`supabase/migrations/20261007000000_ambient_sessions.sql`), then redeploy.
+It uses the same transcription and Groq keys as voice notes, nothing new.
+
+Phones keep recording with the screen locked (background audio is on in
+`app.json`). In a browser, keep the tab open.
+
+**Apple Watch (optional).** The watch app is off by default so normal builds
+are unchanged. To build it on a Mac with Xcode:
+
+```bash
+cd mobile
+NOMI_WATCH=1 npx expo prebuild --clean -p ios
+NOMI_WATCH=1 npx expo run:ios
+```
+
+Then open Nomi on the watch: it records from your wrist into the session
+running on the phone. Details and limits: `mobile/targets/watch/README.md`.
 
 ## Plan Events: event sources (free)
 

@@ -1,10 +1,11 @@
-import type { ReactNode } from "react";
+import { Children, type ReactNode } from "react";
 import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { Backdrop } from "@/components/Backdrop";
 import { Icon } from "@/components/Icon";
+import { Reveal } from "@/components/Reveal";
 import { TAB_BAR_SPACE } from "@/components/TabBar";
 import { Txt } from "@/components/Txt";
 import { useDesktop } from "@/hooks/useDesktop";
@@ -71,8 +72,10 @@ export function Page({ title, subtitle, actions, back, width = "page", scroll = 
       <Backdrop />
       {scroll ? (
         <ScrollView contentContainerStyle={frame} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          {header}
-          {children}
+          {header && <Reveal>{header}</Reveal>}
+          {/* Each block arrives a beat after the last. Keys come from each
+              child's position, so state survives as blocks come and go. */}
+          {Children.map(children, (child, i) => (child == null || child === false ? child : <Reveal index={i + 1}>{child}</Reveal>))}
         </ScrollView>
       ) : (
         <View style={[frame, s.fill]}>

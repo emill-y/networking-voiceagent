@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
-import Animated, { FadeInDown, LinearTransition } from "react-native-reanimated";
 
 import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
@@ -11,6 +10,7 @@ import { Icon } from "@/components/Icon";
 import { Input } from "@/components/Input";
 import { OrbitLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
+import { Reveal } from "@/components/Reveal";
 import { SessionOrbit } from "@/components/SessionOrbit";
 import { useToast } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
@@ -166,9 +166,9 @@ export default function Session() {
           {failed > 0 && <Txt variant="small" tone="danger" align="center">{failed} part{failed === 1 ? "" : "s"} couldn’t upload.</Txt>}
         </View>
 
-        <Animated.View layout={LinearTransition} style={s.found}>
+        <View style={s.found}>
           {people.map((p) => (
-            <Animated.View key={p.name} entering={FadeInDown.springify().damping(16)} layout={LinearTransition}>
+            <Reveal key={p.name}>
               <Card style={s.personCard}>
                 <Avatar name={p.name} size={36} />
                 <View style={s.flex}>
@@ -179,9 +179,9 @@ export default function Session() {
                   </Txt>
                 </View>
               </Card>
-            </Animated.View>
+            </Reveal>
           ))}
-        </Animated.View>
+        </View>
 
         <View style={s.liveActions}>
           <Button title="End and review" icon="checkCircle" variant="primary" size="lg" fullWidth onPress={() => void end()} />
