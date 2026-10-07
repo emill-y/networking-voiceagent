@@ -146,7 +146,7 @@ const useStyles = makeStyles(({ colors }) =>
     borderColor: colors.border,
   },
   optionSelected: {
-    borderColor: colors.accent,
+    borderColor: colors.support,
     backgroundColor: "rgba(201, 183, 156, 0.10)",
   },
   pressed: {
@@ -161,7 +161,7 @@ const useStyles = makeStyles(({ colors }) =>
     backgroundColor: "rgba(242, 238, 232, 0.07)",
   },
   optionIconSelected: {
-    backgroundColor: colors.accentText,
+    backgroundColor: colors.supportText,
   },
   optionText: {
     flex: 1,
@@ -190,8 +190,8 @@ const useStyles = makeStyles(({ colors }) =>
     backgroundColor: colors.surface,
   },
   yearSelected: {
-    backgroundColor: colors.accentText,
-    borderColor: colors.accentText,
+    backgroundColor: colors.supportText,
+    borderColor: colors.supportText,
   },
   yearText: {
     fontSize: 14,

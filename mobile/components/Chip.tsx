@@ -23,7 +23,7 @@ export function Chip({
 }) {
   const s = useStyles();
   const { colors } = useTheme();
-  const fg = selected ? colors.accentText : colors.textSecondary;
+  const fg = selected ? colors.supportText : colors.textSecondary;
   return (
     <Pressable
       onPress={onPress ?? onRemove}
@@ -50,12 +50,13 @@ export function ChipRow({ children, wrap = true }: { children: ReactNode; wrap?:
 }
 
 // A small, non-interactive label (an interest, a status).
-export function Tag({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "accent" | "success" | "warning" | "danger" }) {
+export function Tag({ label, tone = "neutral" }: { label: string; tone?: "neutral" | "accent" | "support" | "success" | "warning" | "danger" }) {
   const s = useStyles();
   const { colors } = useTheme();
   const palette = {
     neutral: [colors.sunken, colors.textSecondary],
     accent: [colors.accentSoft, colors.accentText],
+    support: [colors.supportSoft, colors.supportText],
     success: [colors.successSoft, colors.success],
     warning: [colors.warningSoft, colors.warning],
     danger: [colors.dangerSoft, colors.danger],
@@ -80,7 +81,7 @@ const useStyles = makeStyles(({ colors }) =>
       borderColor: colors.border,
       backgroundColor: colors.surface,
     },
-    selected: { backgroundColor: colors.accentSoft, borderColor: colors.accent },
+    selected: { backgroundColor: colors.supportSoft, borderColor: colors.support },
     hover: { backgroundColor: colors.surfaceHover, borderColor: colors.borderStrong },
     row: { flexDirection: "row", gap: space.xs },
     wrap: { flexWrap: "wrap" },

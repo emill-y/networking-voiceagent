@@ -58,7 +58,7 @@ export function DatePicker({ label, value, onChange }: Props) {
         accessibilityLabel={`${label}: ${selected ? friendly(selected, today) : "no date"}. Choose a date`}
         style={[styles.field, open && styles.fieldOpen]}
       >
-        <Icon name="calendar" size={16} color={selected ? colors.accentText : colors.textTertiary} />
+        <Icon name="calendar" size={16} color={selected ? colors.supportText : colors.textTertiary} />
         <Text style={[styles.fieldText, !selected && styles.placeholder]}>
           {selected ? friendly(selected, today) : "Pick a date (optional)"}
         </Text>
@@ -146,7 +146,7 @@ const useStyles = makeStyles(({ colors }) =>
     borderWidth: 1,
     borderColor: "transparent",
   },
-  fieldOpen: { borderColor: colors.accent },
+  fieldOpen: { borderColor: colors.support },
   fieldText: { flex: 1, fontSize: 15, color: colors.text },
   placeholder: { color: colors.textTertiary },
   panel: {
@@ -165,7 +165,7 @@ const useStyles = makeStyles(({ colors }) =>
     borderRadius: radius.pill,
     backgroundColor: colors.surfaceHover,
   },
-  chipOn: { backgroundColor: colors.accent },
+  chipOn: { backgroundColor: colors.support },
   chipText: { fontSize: 13, color: colors.text },
   chipTextOn: { color: colors.bg, fontWeight: "600" },
   header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 4 },
@@ -177,11 +177,11 @@ const useStyles = makeStyles(({ colors }) =>
   weekday: { fontSize: 12, color: colors.textTertiary, textAlign: "center", textAlignVertical: "center" },
   day: { borderRadius: 999 },
   dayPressed: { backgroundColor: colors.surfaceHover },
-  daySelected: { backgroundColor: colors.accentText },
+  daySelected: { backgroundColor: colors.support },
   dayText: { fontSize: 15, color: colors.text },
   dayPast: { color: colors.textTertiary },
-  dayToday: { color: colors.accentText, fontWeight: "700" },
+  dayToday: { color: colors.supportText, fontWeight: "700" },
   daySelectedText: { color: colors.bg, fontWeight: "700" },
-  todayDot: { position: "absolute", bottom: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accentText },
+  todayDot: { position: "absolute", bottom: 5, width: 4, height: 4, borderRadius: 2, backgroundColor: colors.supportText },
 }),
 );

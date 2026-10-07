@@ -75,7 +75,7 @@ export default function Search() {
   return (
     <Page title="Search" width="narrow">
       <View style={s.box}>
-        <Icon name="spark" size={18} color={colors.accentText} />
+        <Icon name="spark" size={18} color={colors.supportText} />
         <TextInput
           value={query}
           onChangeText={setQuery}

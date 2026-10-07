@@ -258,7 +258,7 @@ function PlanCard({ plan, desktop, state, onPlan, onInvite }: {
       {event.imageUrl ? <Image source={{ uri: event.imageUrl }} style={s.image} contentFit="cover" /> : null}
       <View style={s.planBody}>
         <View style={s.planTop}>
-          <Txt variant="caption" tone="accent" weight="600">{planWhen(event)}</Txt>
+          <Txt variant="caption" tone="support" weight="600">{planWhen(event)}</Txt>
           <Tag label={categoryLabel(event.category)} />
         </View>
         <Pressable disabled={!event.url} onPress={() => event.url && void Linking.openURL(event.url)} accessibilityRole="link">
@@ -287,7 +287,7 @@ function EventRow({ event, first, state, onPlan }: { event: RealEvent; first: bo
   const person = event.people[0];
   return (
     <View style={[s.row, !first && s.border]}>
-      <View style={s.dateCol}><Txt variant="caption" tone="accent" weight="600">{planWhen(event)}</Txt></View>
+      <View style={s.dateCol}><Txt variant="caption" tone="support" weight="600">{planWhen(event)}</Txt></View>
       <View style={s.flex}>
         <Pressable disabled={!event.url} onPress={() => event.url && void Linking.openURL(event.url)} accessibilityRole="link">
           <Txt variant="label" numberOfLines={1}>{event.title}</Txt>
@@ -376,7 +376,7 @@ function FeedsSheet({ visible, onClose, onChanged }: { visible: boolean; onClose
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     flex: { flex: 1, minWidth: 0 },
-    accent: { color: colors.accentText },
+    accent: { color: colors.supportText },
     filters: { gap: space.sm },
     filterRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
     filterStack: { flexDirection: "column", alignItems: "stretch" },

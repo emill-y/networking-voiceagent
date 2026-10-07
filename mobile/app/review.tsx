@@ -413,7 +413,7 @@ const useStyles = makeStyles(({ colors }) =>
     gap: 2,
   },
   choiceSelected: {
-    borderColor: colors.accent,
+    borderColor: colors.support,
   },
   choiceTitle: {
     fontSize: 15,

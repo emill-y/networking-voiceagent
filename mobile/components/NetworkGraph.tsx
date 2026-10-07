@@ -6,15 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, {
-  Easing,
-  cancelAnimation,
-  useAnimatedStyle,
-  useReducedMotion,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import Svg, { Circle, Defs, G, Line, RadialGradient, Stop, Text as SvgText } from "react-native-svg";
 
@@ -56,17 +48,6 @@ export function NetworkGraph({ layout, selectedId = null, onSelect, compact, sty
   const tx = useSharedValue(0);
   const ty = useSharedValue(0);
   const saved = useSharedValue({ scale: 1, tx: 0, ty: 0 });
-  const reduced = useReducedMotion();
-  // The galaxy forms: everything swirls in toward you, then the orbits turn slowly.
-  const form = useSharedValue(reduced ? 1 : 0);
-  const spin = useSharedValue(0);
-
-  useEffect(() => {
-    if (reduced) return;
-    form.value = withTiming(1, { duration: 1500, easing: Easing.out(Easing.cubic) });
-    spin.value = withRepeat(withTiming(360, { duration: 120_000, easing: Easing.linear }), -1);
-    return () => cancelAnimation(spin);
-  }, [form, spin, reduced]);
 
   function fit(animated: boolean) {
     if (!viewport.width || !viewport.height) return;
@@ -147,11 +128,6 @@ export function NetworkGraph({ layout, selectedId = null, onSelect, compact, sty
   const canvasStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: tx.value }, { translateY: ty.value }, { scale: scale.value }],
   }));
-  const formStyle = useAnimatedStyle(() => ({
-    opacity: Math.min(1, form.value * 1.6),
-    transform: [{ rotate: `${(1 - form.value) * -50}deg` }, { scale: 0.62 + form.value * 0.38 }],
-  }));
-  const spinStyle = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.value}deg` }] }));
 
   const focus = useMemo(() => {
     if (!selectedId) return null;
@@ -162,28 +138,9 @@ export function NetworkGraph({ layout, selectedId = null, onSelect, compact, sty
   const people = layout.nodes.filter((n) => n.kind === "person");
   const reach = you ? Math.max(80, ...people.map((n) => Math.hypot(n.x - you.x, n.y - you.y))) : 0;
   const showAllLabels = compact ? layout.nodes.length <= 14 : layout.nodes.length <= 50;
-  const origin = you ? `${(you.x / layout.width) * 100}% ${(you.y / layout.height) * 100}%` : "50% 50%";
-  const layer = { position: "absolute" as const, left: 0, top: 0, width: layout.width, height: layout.height, transformOrigin: origin };
 
   const canvas = (
     <Animated.View style={[{ width: layout.width, height: layout.height, transformOrigin: "0 0" }, canvasStyle]}>
-      {/* Orbits around you (how far out the network reaches), turning slowly
-          with a moon on each so the motion reads. */}
-      {you && (
-        <Animated.View style={[layer, spinStyle]} pointerEvents="none">
-          <Svg width={layout.width} height={layout.height}>
-            {[0.55, 1].map((k, i) => (
-              <G key={k}>
-                <Circle cx={you.x} cy={you.y} r={reach * k} fill="none" stroke={colors.orbit} strokeWidth={1}
-                  strokeDasharray={i ? "3 9" : undefined} />
-                <Circle cx={you.x + Math.cos(i * 2.4) * reach * k} cy={you.y + Math.sin(i * 2.4) * reach * k}
-                  r={2.2} fill={colors.textTertiary} fillOpacity={0.6} />
-              </G>
-            ))}
-          </Svg>
-        </Animated.View>
-      )}
-      <Animated.View style={[layer, formStyle]}>
       <Svg width={layout.width} height={layout.height}>
         <Defs>
           <RadialGradient id="ng-you" cx="38%" cy="32%" r="72%">
@@ -196,6 +153,10 @@ export function NetworkGraph({ layout, selectedId = null, onSelect, compact, sty
             <Stop offset="1" stopColor={colors.accent} stopOpacity={0} />
           </RadialGradient>
         </Defs>
+        {/* Orbits around you: how far out the network reaches. */}
+        {you && [0.55, 1].map((k) => (
+          <Circle key={k} cx={you.x} cy={you.y} r={reach * k} fill="none" stroke={colors.orbit} strokeWidth={1} />
+        ))}
         <G>
           {layout.edges.map((edge, i) => {
             const a = byId.get(edge.source);
@@ -225,7 +186,6 @@ export function NetworkGraph({ layout, selectedId = null, onSelect, compact, sty
           ))}
         </G>
       </Svg>
-      </Animated.View>
     </Animated.View>
   );
 
@@ -276,7 +236,7 @@ function NodeMark({
         <Circle cx={node.x} cy={node.y} r={node.radius * 2.6} fill="url(#ng-halo)" />
         <Circle cx={node.x} cy={node.y} r={node.radius} fill="url(#ng-you)" />
         <SvgText x={node.x} y={node.y + node.radius + 15} fontSize={11} fontFamily={font.heading}
-          fill={colors.textSecondary} textAnchor="middle" {...halo(colors.sunken)}>You</SvgText>
+          fill={colors.textSecondary} textAnchor="middle" {...halo(colors.mapSurface)}>You</SvgText>
       </G>
     );
   }
@@ -285,7 +245,7 @@ function NodeMark({
     return (
       <G opacity={dimmed ? 0.25 : 1}>
         <Circle cx={node.x} cy={node.y} r={7} fill={colors.bg} stroke={edgeColor} strokeWidth={2} />
-        <SvgText x={node.x} y={node.y - 12} fontSize={11} fontFamily={font.heading} fill={colors.textSecondary} textAnchor="middle" {...halo(colors.sunken)}>
+        <SvgText x={node.x} y={node.y - 12} fontSize={11} fontFamily={font.heading} fill={colors.textSecondary} textAnchor="middle" {...halo(colors.mapSurface)}>
           {node.label}
         </SvgText>
       </G>
@@ -299,7 +259,7 @@ function NodeMark({
       <Circle cx={node.x} cy={node.y} r={r} fill={tint} fillOpacity={mode === "dark" ? 0.9 : 0.85} />
       {showLabel && (
         <SvgText x={node.x} y={node.y + r + 15} fontSize={12} fontFamily={font.heading}
-          fill={selected ? colors.text : colors.textSecondary} textAnchor="middle" {...halo(colors.sunken)}>
+          fill={selected ? colors.text : colors.textSecondary} textAnchor="middle" {...halo(colors.mapSurface)}>
           {node.label}
         </SvgText>
       )}
@@ -344,9 +304,9 @@ const useStyles = makeStyles(({ colors }) =>
     frame: {
       overflow: "hidden",
       borderRadius: radius.lg,
-      backgroundColor: colors.sunken,
+      backgroundColor: colors.mapSurface,
       borderWidth: 1,
-      borderColor: colors.border,
+      borderColor: colors.mapBorder,
     },
     grab: { cursor: "grab" } as object,
     controls: { position: "absolute", right: space.sm, top: space.sm, gap: space.xxs },

@@ -206,11 +206,11 @@ export default function Home() {
 
       {shares.length > 0 && (
         <Card onPress={() => router.push("/contacts")} style={s.share} accessibilityLabel="Review shared contacts">
-          <Icon name="inbox" size={18} color={colors.accentText} />
+          <Icon name="inbox" size={18} color={colors.supportText} />
           <Txt variant="label" style={s.flex}>
             {shares[0].senderName} shared {shares[0].count} contact{shares[0].count === 1 ? "" : "s"} with you
           </Txt>
-          <Txt variant="small" tone="accent" weight="600">Review</Txt>
+          <Txt variant="small" tone="support" weight="600">Review</Txt>
         </Card>
       )}
 
@@ -262,7 +262,7 @@ function EventRow({ item, onPerson }: { item: UpcomingEvent; onPerson: (id: stri
     : new Date(item.start).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   return (
     <View style={s.row}>
-      <View style={s.eventIcon}><Icon name="calendar" size={14} color={colors.accentText} /></View>
+      <View style={s.eventIcon}><Icon name="calendar" size={14} color={colors.supportText} /></View>
       <View style={s.flex}>
         <Txt variant="label" numberOfLines={1}>{item.title}</Txt>
         <Txt variant="caption" numberOfLines={1}>{[time, item.location].filter(Boolean).join(" · ")}</Txt>
@@ -292,7 +292,7 @@ const useStyles = makeStyles(({ colors }) =>
     capture: { flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" },
     captureText: { flex: 1, minWidth: 200, gap: 2 },
     captureButtons: { flexDirection: "row", gap: space.xs },
-    share: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.accent },
+    share: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.support },
     columns: { flexDirection: "row", alignItems: "flex-start", gap: space.lg },
     main: { flex: 1.5, minWidth: 0 },
     side: { flex: 1, minWidth: 0, gap: space.lg },

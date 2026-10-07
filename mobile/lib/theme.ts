@@ -1,6 +1,14 @@
 // Nomi design tokens. Every screen reads colors through the theme (dark by
 // default, optional light) and sizes from the scales below, so spacing,
 // type and color stay consistent everywhere.
+//
+// Color follows 70-20-10:
+//   70% dominant: the neutral page (bg) and its starfield.
+//   20% support:  a cool indigo for surfaces, chrome, avatars, chips,
+//                 selections and anything that supports the content.
+//   10% accent:   Jupiter orange, only for primary actions, the record
+//                 button, "you", and the active place you are in.
+// Reach for `support` before `accent`; if a screen looks orange, it's wrong.
 import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -27,6 +35,10 @@ type Palette = {
   accentSoft: string; // tinted backgrounds
   accentText: string; // accent used as text on surfaces (contrast-checked)
   onAccent: string;
+  // Support (the 20%): selections, avatars, chips, secondary emphasis
+  support: string;
+  supportSoft: string;
+  supportText: string;
   // Status
   success: string;
   successSoft: string;
@@ -44,17 +56,20 @@ type Palette = {
   orbit: string;
   // Skeletons
   skeleton: string;
+  // The network map keeps its original neutral surface
+  mapSurface: string;
+  mapBorder: string;
 };
 
 const dark: Palette = {
   bg: "#0A0B0F",
-  chrome: "#0D0E13",
-  surface: "#13151B",
-  surfaceHover: "#191C23",
-  sunken: "#0E1015",
+  chrome: "#0D0F17",
+  surface: "#131522",
+  surfaceHover: "#1A1D2D",
+  sunken: "#0F1119",
   overlay: "rgba(4, 5, 8, 0.72)",
-  border: "rgba(255, 255, 255, 0.07)",
-  borderStrong: "rgba(255, 255, 255, 0.13)",
+  border: "rgba(170, 176, 255, 0.08)",
+  borderStrong: "rgba(170, 176, 255, 0.15)",
   text: "#F3EFE9",
   textSecondary: "#A9A49C",
   textTertiary: "#706B64",
@@ -63,6 +78,9 @@ const dark: Palette = {
   accentSoft: "rgba(240, 138, 75, 0.13)",
   accentText: "#F5A06C",
   onAccent: "#1B0F07",
+  support: "#8B8FE0",
+  supportSoft: "rgba(139, 143, 224, 0.14)",
+  supportText: "#B7BAF2",
   success: "#5CC08C",
   successSoft: "rgba(92, 192, 140, 0.13)",
   warning: "#E6B450",
@@ -76,14 +94,16 @@ const dark: Palette = {
   glow: "rgba(240, 138, 75, 0.10)",
   orbit: "rgba(255, 255, 255, 0.05)",
   skeleton: "rgba(255, 255, 255, 0.06)",
+  mapSurface: "#0E1015",
+  mapBorder: "rgba(255, 255, 255, 0.07)",
 };
 
 const light: Palette = {
   bg: "#F7F5F1",
-  chrome: "#F1EEE8",
+  chrome: "#EFEEF5",
   surface: "#FFFFFF",
-  surfaceHover: "#FBF9F6",
-  sunken: "#EFECE6",
+  surfaceHover: "#F7F7FC",
+  sunken: "#ECEBF4",
   overlay: "rgba(23, 20, 15, 0.38)",
   border: "rgba(23, 20, 15, 0.08)",
   borderStrong: "rgba(23, 20, 15, 0.15)",
@@ -95,6 +115,9 @@ const light: Palette = {
   accentSoft: "rgba(217, 104, 42, 0.10)",
   accentText: "#B8541C",
   onAccent: "#FFFFFF",
+  support: "#5B5FB8",
+  supportSoft: "rgba(91, 95, 184, 0.10)",
+  supportText: "#474B9E",
   success: "#2F9463",
   successSoft: "rgba(47, 148, 99, 0.10)",
   warning: "#B7811C",
@@ -108,6 +131,8 @@ const light: Palette = {
   glow: "rgba(217, 104, 42, 0.07)",
   orbit: "rgba(23, 20, 15, 0.06)",
   skeleton: "rgba(23, 20, 15, 0.06)",
+  mapSurface: "#EFECE6",
+  mapBorder: "rgba(23, 20, 15, 0.08)",
 };
 
 // Spacing scale (4pt grid). Use these, never ad-hoc numbers.

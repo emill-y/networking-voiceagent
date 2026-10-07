@@ -273,7 +273,7 @@ const useStyles = makeStyles(({ colors }) =>
     stack: { gap: space.xs },
     sectionLabel: { paddingHorizontal: space.xxs },
     bullet: { flexDirection: "row", alignItems: "flex-start", gap: space.xs },
-    dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.accent, marginTop: 7 },
+    dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.support, marginTop: 7 },
     moment: { paddingHorizontal: space.md, paddingVertical: space.sm, gap: space.xs },
     momentHead: { flexDirection: "row", alignItems: "center", gap: space.sm },
     momentBody: { gap: space.xxs, alignItems: "flex-start" },

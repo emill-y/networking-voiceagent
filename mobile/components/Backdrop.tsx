@@ -160,8 +160,8 @@ export function Backdrop({ quiet = false }: { quiet?: boolean }) {
   const dark = mode === "dark";
   const star = dark ? "#FFF4E8" : "#5E5850";
   const nebula = useMemo(
-    () => (dark ? { warm: 0.16, cool: 0.1, coolColor: "#6D5BD0" } : { warm: 0.09, cool: 0.05, coolColor: "#7C6AD6" }),
-    [dark],
+    () => (dark ? { warm: 0.07, cool: 0.12, coolColor: colors.support } : { warm: 0.04, cool: 0.06, coolColor: colors.support }),
+    [dark, colors.support],
   );
   return (
     <View style={[StyleSheet.absoluteFill, styles.clip]} pointerEvents="none">

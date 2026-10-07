@@ -96,7 +96,7 @@ const useStyles = makeStyles(({ colors }) =>
       borderRadius: radius.sm,
     },
     itemHover: { backgroundColor: colors.surfaceHover },
-    itemActive: { backgroundColor: colors.accentSoft },
+    itemActive: { backgroundColor: colors.supportSoft },
     spacer: { flex: 1 },
     account: {
       flexDirection: "row",

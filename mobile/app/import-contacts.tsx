@@ -304,10 +304,10 @@ const useStyles = makeStyles(({ colors }) =>
     height: 20,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: colors.accent,
+    borderColor: colors.support,
   },
   checked: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.support,
   },
   rowText: {
     flex: 1,
@@ -333,7 +333,7 @@ const useStyles = makeStyles(({ colors }) =>
     color: colors.danger,
   },
   more: {
-    color: colors.accent,
+    color: colors.supportText,
   },
 }),
 );

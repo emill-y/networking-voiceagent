@@ -25,7 +25,7 @@ export function EmptyState({
     <View style={[s.wrap, compact && s.compact]}>
       <View style={s.badge}>
         <View style={s.orbit} />
-        <Icon name={icon} size={20} color={colors.accentText} />
+        <Icon name={icon} size={20} color={colors.supportText} />
       </View>
       <View style={s.text}>
         <Txt variant="heading" align="center">{title}</Txt>
@@ -46,7 +46,7 @@ const useStyles = makeStyles(({ colors }) =>
       borderRadius: radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: colors.accentSoft,
+      backgroundColor: colors.supportSoft,
     },
     orbit: {
       position: "absolute",

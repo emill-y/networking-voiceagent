@@ -298,7 +298,7 @@ function ContactRow({ person, first, desktop, selecting, selected, onPress }: {
           {(person.interests ?? []).slice(0, 2).map((x) => <Tag key={x} label={x} />)}
         </View>
       )}
-      {desktop && person.openFollowUps > 0 && <Tag label={`${person.openFollowUps} to do`} tone="accent" />}
+      {desktop && person.openFollowUps > 0 && <Tag label={`${person.openFollowUps} to do`} tone="support" />}
       <Txt variant="caption" style={s.when}>{formatRelative(person.lastInteractionAt)}</Txt>
     </Pressable>
   );
@@ -361,9 +361,9 @@ function Option({ label, count, on, radio, onPress }: { label: string; count?: n
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     flex: { flex: 1, minWidth: 0 },
-    accent: { color: colors.accentText },
+    accent: { color: colors.supportText },
     pad: { padding: space.md },
-    share: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.accent, flexWrap: "wrap" },
+    share: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.support, flexWrap: "wrap" },
     toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
     body: { flexDirection: "row", alignItems: "flex-start", gap: space.lg },
     sidebar: { width: 220 },
@@ -386,7 +386,7 @@ const useStyles = makeStyles(({ colors }) =>
     },
     radio: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: colors.borderStrong, alignItems: "center", justifyContent: "center" },
     radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.onAccent },
-    checkboxOn: { backgroundColor: colors.accent, borderColor: colors.accent },
+    checkboxOn: { backgroundColor: colors.support, borderColor: colors.support },
     panel: { gap: space.lg },
     panelGroup: { gap: 2 },
     option: { flexDirection: "row", alignItems: "center", gap: space.xs, minHeight: 32, paddingHorizontal: space.xxs, borderRadius: radius.sm },

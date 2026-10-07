@@ -3,7 +3,7 @@ import { Text, type StyleProp, type TextProps, type TextStyle } from "react-nati
 import { useTheme, type Theme } from "@/lib/theme";
 
 export type TextVariant = keyof Theme["type"];
-type Tone = "default" | "secondary" | "tertiary" | "accent" | "danger" | "success" | "onAccent";
+type Tone = "default" | "secondary" | "tertiary" | "accent" | "support" | "danger" | "success" | "onAccent";
 
 type Props = Omit<TextProps, "style"> & {
   variant?: TextVariant;
@@ -20,6 +20,7 @@ export function Txt({ variant = "body", tone = "default", weight, align, style, 
     tone === "secondary" ? colors.textSecondary
     : tone === "tertiary" ? colors.textTertiary
     : tone === "accent" ? colors.accentText
+    : tone === "support" ? colors.supportText
     : tone === "danger" ? colors.danger
     : tone === "success" ? colors.success
     : tone === "onAccent" ? colors.onAccent

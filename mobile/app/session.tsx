@@ -204,7 +204,7 @@ export default function Session() {
 
       {resumable && (
         <Card style={s.resume}>
-          <Icon name="clock" size={18} color={colors.accentText} />
+          <Icon name="clock" size={18} color={colors.supportText} />
           <View style={s.flex}>
             <Txt variant="label">A session is still recording</Txt>
             <Txt variant="caption">{resumable.title ?? "Untitled"} · {resumable.people.length} found so far</Txt>
@@ -254,7 +254,7 @@ const useStyles = makeStyles(({ colors }) =>
     centerSelf: { alignSelf: "center" },
     hero: { alignItems: "center", gap: space.sm },
     heroBody: { maxWidth: 440 },
-    resume: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.accent },
+    resume: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.support },
     setup: { gap: space.md },
     consent: { flexDirection: "row", alignItems: "flex-start", gap: space.sm },
     check: {
