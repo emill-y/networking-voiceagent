@@ -13,7 +13,7 @@
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "Nomi uses the microphone only while you record a note about someone you met.",
+        "NSMicrophoneUsageDescription": "Nomi uses the microphone while you record a note, or during a networking session you start, to remember the people you meet.",
         "NSSpeechRecognitionUsageDescription": "Nomi turns your spoken notes into text, on your iPhone whenever possible.",
         "NSContactsUsageDescription": "Nomi lets you choose people from your contacts to remember. Your address book stays on your phone."
       }
@@ -58,9 +58,9 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Nomi uses the microphone only while you record a note about someone you met.",
+          "microphonePermission": "Nomi uses the microphone while you record a note, or during a networking session you start, to remember the people you meet.",
           "recordAudioAndroid": true,
-          "enableBackgroundRecording": false,
+          "enableBackgroundRecording": true,
           "enableBackgroundPlayback": false
         }
       ],
@@ -74,7 +74,7 @@
       [
         "expo-speech-recognition",
         {
-          "microphonePermission": "Nomi uses the microphone only while you record a note about someone you met.",
+          "microphonePermission": "Nomi uses the microphone while you record a note, or during a networking session you start, to remember the people you meet.",
           "speechRecognitionPermission": "Nomi turns your spoken notes into text, on your iPhone whenever possible."
         }
       ]

@@ -23,7 +23,7 @@ import {
   type Draft,
 } from "@/lib/review";
 import { makeStyles, radius, space, useTheme } from "@/lib/theme";
-import { duplicateCheck, extract, saveCapture, transcribe } from "@/services/nomi";
+import { deleteSession, duplicateCheck, extract, getSession, saveCapture, transcribe } from "@/services/nomi";
 
 type TextField = "role" | "company" | "school" | "major" | "location" | "metAt" | "projects"
   | "needs" | "topicsDiscussed" | "interests" | "notes";
@@ -59,7 +59,8 @@ export default function Review() {
   const router = useRouter();
   const profile = useProfile();
   // `uri` comes from the record screen; `transcript` lets you type a note instead.
-  const params = useLocalSearchParams<{ uri?: string; transcript?: string; source?: string }>();
+  // `session` comes from an ambient session: its people are already found.
+  const params = useLocalSearchParams<{ uri?: string; transcript?: string; source?: string; session?: string }>();
   const [stage, setStage] = useState<Stage>(params.transcript ? "extracting" : "transcribing");
   const [error, setError] = useState<string | null>(null);
   const [transcript, setTranscript] = useState(params.transcript ?? "");
@@ -75,6 +76,21 @@ export default function Review() {
     async function run() {
       setError(null);
       try {
+        if (params.session) {
+          setStage("extracting");
+          const found = (await getSession(params.session)).people;
+          let next = found.map(draftFromExtracted);
+          try {
+            const { matches } = await duplicateCheck(found.map((p) => ({ name: p.name, company: p.company, school: p.school })));
+            next = next.map((draft, i) => withCandidates(draft, matches[i] ?? []));
+          } catch {
+            // Duplicate suggestions unavailable.
+          }
+          if (!active) return;
+          setDrafts(next);
+          setStage("review");
+          return;
+        }
         let text = transcript;
         if (!text) {
           if (!params.uri) throw new ApiError("There's no recording to process.", null);
@@ -130,11 +146,14 @@ export default function Review() {
     setSaving(true);
     setError(null);
     try {
+      // Sessions don't keep the recording of other people's conversations:
+      // only the details you confirm here are saved.
       const { saved } = await saveCapture(
-        transcript || null,
+        params.session ? null : transcript || null,
         included.map(toCapturedPerson),
-        params.uri || params.source === "voice" ? "voice" : "manual",
+        params.session || params.uri || params.source === "voice" ? "voice" : "manual",
       );
+      if (params.session) void deleteSession(params.session).catch(() => undefined);
       if (saved.length === 1) {
         router.replace({ pathname: "/contacts/[id]", params: { id: saved[0].contactId } });
       } else {

@@ -6,6 +6,7 @@ import type { ImportedPerson } from "@/lib/addressBook";
 import { request } from "@/lib/api";
 import { localToday } from "@/lib/dates";
 import type {
+  AmbientSession,
   CalendarState,
   CalendarStatus,
   CapturedPerson,
@@ -256,4 +257,42 @@ export function updateMyProfile(changes: { displayName?: string | null; avatar?:
 
 export function redeemInvite(code: string) {
   return request<{ redeemed: boolean }>("/invites/redeem", { method: "POST", body: { code } });
+}
+
+// ---------- Ambient sessions ----------
+
+export function startSession(title: string | null) {
+  return request<AmbientSession>("/sessions", { method: "POST", body: { title } });
+}
+
+export function activeSession() {
+  return request<AmbientSession | null>("/sessions/active");
+}
+
+export function getSession(id: string) {
+  return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}`);
+}
+
+// One chunk of audio: a blob: URL on the web, a file URI on phones.
+export async function uploadSessionChunk(id: string, seq: number, audio: string | Blob) {
+  const form = new FormData();
+  form.append("seq", String(seq));
+  form.append("today", localToday());
+  if (typeof audio !== "string") {
+    form.append("audio", audio, audio.type.includes("mp4") ? `chunk-${seq}.m4a` : `chunk-${seq}.webm`);
+  } else if (Platform.OS === "web") {
+    const blob = await (await fetch(audio)).blob();
+    form.append("audio", blob, blob.type.includes("mp4") ? `chunk-${seq}.m4a` : `chunk-${seq}.webm`);
+  } else {
+    form.append("audio", new File(audio) as unknown as Blob, `chunk-${seq}.m4a`);
+  }
+  return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}/chunks`, { method: "POST", body: form, timeoutMs: 90_000 });
+}
+
+export function finishSession(id: string) {
+  return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}/finish`, { method: "POST", timeoutMs: 120_000 });
+}
+
+export function deleteSession(id: string) {
+  return request<void>(`/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

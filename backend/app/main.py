@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import get_settings
-from app.routes import account, calendar, demo, me, plans, sharing, network, pages, web_app, captures, contacts, extract, follow_ups, health, search, transcribe
+from app.routes import account, calendar, demo, me, plans, sessions, sharing, network, pages, web_app, captures, contacts, extract, follow_ups, health, search, transcribe
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -18,7 +18,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-Session-Token"],
 )
 
 app.include_router(health.router)
@@ -35,5 +35,6 @@ app.include_router(calendar.router)
 app.include_router(plans.router)
 app.include_router(me.router)
 app.include_router(sharing.router)
+app.include_router(sessions.router)
 app.include_router(pages.router)
 app.include_router(web_app.router)

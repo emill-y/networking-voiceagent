@@ -98,6 +98,14 @@
       "destination": "/api/index"
     },
     {
+      "source": "/sessions",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/sessions/:path*",
+      "destination": "/api/index"
+    },
+    {
       "source": "/shares",
       "destination": "/api/index"
     },

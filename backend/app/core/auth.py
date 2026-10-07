@@ -87,6 +87,14 @@ def get_current_user_id(authorization: str | None = Header(default=None)) -> UUI
         raise _unauthorized("Please sign in again.") from exc
 
 
+def get_optional_user_id(authorization: str | None = Header(default=None)) -> UUID | None:
+    """FastAPI dependency: the signed-in user's id, or None when no sign-in was sent
+    (for endpoints that also accept another credential, like a watch's session token)."""
+    if not authorization and not get_settings().dev_auth:
+        return None
+    return get_current_user_id(authorization)
+
+
 def get_current_email(authorization: str | None = Header(default=None)) -> str | None:
     """FastAPI dependency: the signed-in user's email (lowercased), if their account has one."""
     settings = get_settings()

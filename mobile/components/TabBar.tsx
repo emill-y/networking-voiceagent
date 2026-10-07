@@ -42,7 +42,8 @@ export function TabBar() {
     <View style={[s.bar, { paddingBottom: Math.max(insets.bottom, space.xs) }]} accessibilityRole="tablist">
       {TABS.slice(0, 2).map(tab)}
       <View style={s.tab}>
-        <Pressable onPress={() => router.push("/record")} accessibilityRole="button" accessibilityLabel="Remember someone"
+        <Pressable onPress={() => router.push("/record")} onLongPress={() => router.push("/session")} delayLongPress={350}
+          accessibilityRole="button" accessibilityLabel="Remember someone" accessibilityHint="Hold to start a networking session"
           style={({ pressed }) => [s.record, pressed && { transform: [{ scale: 0.95 }] }]}>
           <Icon name="mic" size={22} color={colors.onAccent} />
         </Pressable>

@@ -300,6 +300,36 @@ function exportDemo(ids: string[] | null, format: string): string {
 
 let calendarConnected = true;
 
+// A scripted session: people "join" as chunks arrive, details filling in.
+const SESSION_PEOPLE = [
+  { at: 1, person: { name: "Leo Tran", role: "Founder", company: "Ramen Lab", school: null, major: null, metAt: null, location: "San Francisco",
+    interests: ["food"], projects: ["a ramen pop-up"], needs: [], topicsDiscussed: [], notes: [], followUp: null, followUpDue: null } },
+  { at: 2, person: { name: "Leo Tran", role: "Founder", company: "Ramen Lab", school: null, major: null, metAt: null, location: "San Francisco",
+    interests: ["food", "design"], projects: ["a ramen pop-up"], needs: ["branding help"], topicsDiscussed: ["menu design"], notes: [],
+    followUp: "Send Leo branding ideas by Friday", followUpDue: null } },
+  { at: 3, person: { name: "Ines Moreau", role: "PhD student", company: null, school: "Stanford", major: "Materials science", metAt: null,
+    location: null, interests: ["climate"], projects: ["solar coatings"], needs: ["a design partner"], topicsDiscussed: [], notes: [],
+    followUp: null, followUpDue: null } },
+  { at: 5, person: { name: "Kai Johnson", role: "Product designer", company: "Airbnb", school: null, major: null, metAt: null, location: null,
+    interests: ["design", "music"], projects: [], needs: [], topicsDiscussed: ["portfolio reviews"], notes: ["Offered a portfolio review"],
+    followUp: "Book a portfolio review with Kai next week", followUpDue: null } },
+];
+let demoSession: { id: string; title: string | null; status: "recording" | "ready"; chunks: number; startedAt: string } | null = null;
+
+function sessionPeople(chunks: number, title: string | null) {
+  const latest = new Map<string, (typeof SESSION_PEOPLE)[number]["person"]>();
+  for (const { at, person } of SESSION_PEOPLE) if (chunks >= at) latest.set(person.name, person);
+  return [...latest.values()].map((p) => ({ ...p, metAt: p.metAt ?? title }));
+}
+
+function sessionOut(extra: Record<string, unknown> = {}) {
+  const sess = demoSession!;
+  return {
+    ...sess, audioSeconds: sess.chunks * 30, words: sess.chunks * 70, endedAt: sess.status === "ready" ? new Date().toISOString() : null,
+    people: sessionPeople(sess.chunks, sess.title), ...extra,
+  };
+}
+
 export async function demoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method ?? "GET";
   const body = (options.body ?? {}) as Record<string, unknown>;
@@ -399,6 +429,20 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
       return { contactId: id, interactionId: `i-${id}`, followUpId: null, created: true };
     });
     return reply({ saved });
+  }
+  if (route === "/sessions" && method === "POST") {
+    demoSession = { id: "demo-session", title: (body.title as string | null) || null, status: "recording", chunks: 0, startedAt: new Date().toISOString() };
+    return reply(sessionOut({ uploadToken: "demo" }));
+  }
+  if (route === "/sessions/active") return reply(demoSession?.status === "recording" ? sessionOut() : null);
+  if (parts[0] === "sessions" && demoSession && parts[1] === demoSession.id) {
+    if (parts[2] === "chunks") demoSession.chunks += 1;
+    if (parts[2] === "finish") demoSession.status = "ready";
+    if (method === "DELETE") {
+      demoSession = null;
+      return reply(undefined);
+    }
+    return reply(sessionOut(parts[2] === "finish" ? { transcript: "" } : {}));
   }
   if (route === "/me/export") return reply({ exportedAt: new Date().toISOString(), contacts: people.map(detail) });
   return reply(method === "GET" ? [] : undefined);

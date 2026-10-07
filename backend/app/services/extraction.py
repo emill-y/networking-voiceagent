@@ -56,6 +56,27 @@ Result: {"people":[{"name":"Priya Shah","company":"Figma","role":"Software engin
 "projects":["Plugin platform"],"needs":[],"topicsDiscussed":["Design systems"],
 "notes":["Offered to refer me"],"followUp":"Send my resume by Friday"}]}"""
 
+# Ambient sessions: a recording of the conversations themselves, not a note.
+AMBIENT_PROMPT = """You extract memory notes about people from an ambient recording of the
+user at a networking event. The transcript has several speakers and no speaker labels,
+and may include background noise or fragments. Return JSON only.
+
+Rules:
+- Create one entry per person the user actually talked with. Find them through
+  introductions ("I'm Sarah", "my name is", "this is my friend Jason") and what each
+  person says about themselves ("I study chemistry at Berkeley", "I work at Figma").
+- Never include the user (the person wearing the recorder; they often ask the
+  questions and introduce themselves first). If you can't tell who someone is, skip them.
+- Skip people who are only mentioned and weren't there ("my professor said...").
+- Never invent a name. A person without a stated name is skipped.
+- Only record facts that are stated. Hedged facts go in notes, starting with "Unsure:".
+- company is only a named organization; descriptions go in role or projects.
+- metAt is the event if it's named in the recording, else null.
+- followUp is a concrete next step that was agreed ("let's get coffee next week",
+  "send me your resume"), written as the user's action. Else null.
+- Keep list items short, without duplicates. Use null and [] for unknowns.
+- Do not record sensitive traits (health, religion, sexuality, politics, ethnicity)."""
+
 # A note this long that yields nothing but names probably lost its details.
 THIN_NOTE_WORDS = 12
 RETRY_NUDGE = (
@@ -132,11 +153,15 @@ def extract_people(
     llm: LLMClient,
     today: date | None = None,
     context: SpeakerContext | None = None,
+    ambient: bool = False,
 ) -> ContactExtractionResult:
+    """People from a voice note, or (ambient=True) from a recorded conversation."""
     today = today or date.today()
     about = describe_speaker(context)
+    label = "Ambient recording transcript" if ambient else "Voice note transcript"
+    prompt = AMBIENT_PROMPT if ambient else SYSTEM_PROMPT
     user_message = (f"{about}\n\n" if about else "") + (
-        f"Voice note transcript:\n\"\"\"\n{transcript.strip()}\n\"\"\""
+        f"{label}:\n\"\"\"\n{transcript.strip()}\n\"\"\""
     )
     last_error: Exception | None = None
     thin: list[ExtractedPerson] | None = None
@@ -144,7 +169,7 @@ def extract_people(
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         message = user_message + (RETRY_NUDGE if thin is not None else "")
-        raw = llm.chat_json(SYSTEM_PROMPT, message, EXTRACTION_JSON_SCHEMA)
+        raw = llm.chat_json(prompt, message, EXTRACTION_JSON_SCHEMA)
         try:
             parsed = ContactExtractionResult.model_validate_json(raw)
         except ValidationError as exc:

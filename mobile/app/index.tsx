@@ -95,11 +95,12 @@ export default function Home() {
     <Card style={s.capture}>
       <View style={s.captureText}>
         <Txt variant="heading">Who did you meet?</Txt>
-        <Txt variant="small">Say it in a sentence. Nomi saves the details.</Txt>
+        <Txt variant="small">Say it in a sentence, or start a session at an event and Nomi fills in everyone you meet.</Txt>
       </View>
       <View style={s.captureButtons}>
         <Button title="Record" icon="mic" variant="primary" onPress={() => router.push("/record")} />
         <Button title="Type" icon="pen" onPress={() => router.push("/write")} />
+        <Button title="Session" icon="radio" onPress={() => router.push("/session")} accessibilityLabel="Start a networking session" />
       </View>
     </Card>
   );

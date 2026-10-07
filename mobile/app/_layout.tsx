@@ -91,6 +91,7 @@ function RootNavigator() {
       <Stack.Protected guard={inApp}>
         <Stack.Screen name="index" />
         <Stack.Screen name="record" />
+        <Stack.Screen name="session" />
         <Stack.Screen name="write" />
         <Stack.Screen name="review" />
         <Stack.Screen name="contacts/index" />

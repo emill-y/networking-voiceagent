@@ -277,3 +277,19 @@ export type IncomingShare = {
 };
 
 export type EventFeed = { id: string; url: string; label: string; createdAt: string };
+
+// ---------- Ambient sessions ----------
+
+export type AmbientSession = {
+  id: string;
+  title: string | null;
+  status: "recording" | "ready";
+  chunks: number;
+  audioSeconds: number;
+  words: number;
+  people: ExtractedPerson[];
+  startedAt: string;
+  endedAt: string | null;
+  uploadToken?: string;
+  transcript?: string;
+};

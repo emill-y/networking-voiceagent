@@ -1,0 +1,113 @@
+"""Ambient sessions: a whole networking event, transcribed in short chunks.
+
+Each uploaded chunk (about 30 seconds) is transcribed and stored as a
+segment. The transcript is split into windows of a few chunks; when a chunk
+arrives, only its window is re-read by the model, so a two-hour event costs
+the same per minute as a two-minute one. People found in every window are
+merged by name into one list for the user to review and save.
+"""
+
+import hashlib
+import hmac
+import logging
+import secrets
+from datetime import date
+
+from app.schemas.extraction import ExtractedPerson
+from app.services.extraction import ExtractionFailed, extract_people
+from app.services.identity import normalize
+from app.services.llm import LLMClient, LLMUnavailable
+
+logger = logging.getLogger(__name__)
+
+WINDOW_CHUNKS = 4  # about two minutes of conversation per model read
+MAX_CHUNKS = 360  # three hours at 30-second chunks
+LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes")
+TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due")
+
+
+def new_upload_token() -> tuple[str, str]:
+    """(token for the client, hash to store)."""
+    token = secrets.token_urlsafe(32)
+    return token, hash_token(token)
+
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def token_matches(token: str, stored_hash: str) -> bool:
+    return hmac.compare_digest(hash_token(token), stored_hash)
+
+
+def add_segment(segments: list[dict], seq: int, text: str, seconds: float) -> list[dict]:
+    """Insert or replace chunk `seq` (uploads can be retried or arrive out of order)."""
+    kept = [s for s in segments if s["seq"] != seq]
+    kept.append({"seq": seq, "text": text.strip(), "seconds": round(seconds, 1)})
+    return sorted(kept, key=lambda s: s["seq"])
+
+
+def window_of(seq: int) -> int:
+    return seq // WINDOW_CHUNKS
+
+
+def window_text(segments: list[dict], window: int) -> str:
+    """The window's chunks plus the one before it, so a conversation split across
+    windows is still read whole."""
+    start = window * WINDOW_CHUNKS - 1
+    end = (window + 1) * WINDOW_CHUNKS
+    return "\n".join(s["text"] for s in segments if start <= s["seq"] < end and s["text"])
+
+
+def full_transcript(segments: list[dict]) -> str:
+    return "\n".join(s["text"] for s in segments if s["text"])
+
+
+def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, title: str | None) -> list[dict] | None:
+    """People in one window, or None if the model couldn't answer (try again next chunk)."""
+    text = window_text(segments, window)
+    if len(text.split()) < 8:
+        return []
+    if title:
+        text = f"(Event: {title})\n{text}"
+    try:
+        result = extract_people(text, llm, today, ambient=True)
+    except (LLMUnavailable, ExtractionFailed) as exc:
+        logger.warning("Ambient extraction failed for a window: %s", type(exc).__name__)
+        return None
+    return [p.model_dump(mode="json") for p in result.people]
+
+
+def _same_person(a: str, b: str) -> bool:
+    """'sarah kim' and 'sarah' are the same person; 'sarah kim' and 'sarah lee' aren't."""
+    if a == b:
+        return True
+    short, long_ = sorted((a, b), key=len)
+    return " " not in short and long_.split()[0] == short
+
+
+def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[ExtractedPerson]:
+    """One entry per person across all windows, in the order they were met."""
+    merged: list[dict] = []
+    for key in sorted(windows, key=int):
+        for person in windows[key]:
+            name = normalize(person.get("name"))
+            if not name:
+                continue
+            match = next((m for m in merged if _same_person(normalize(m["name"]), name)), None)
+            if match is None:
+                merged.append(dict(person))
+                continue
+            if len(person["name"]) > len(match["name"]):
+                match["name"] = person["name"]  # the fuller name wins
+            for field in TEXT_FIELDS:
+                if not match.get(field) and person.get(field):
+                    match[field] = person[field]
+            for field in LIST_FIELDS:
+                seen = {x.lower() for x in match.get(field) or []}
+                match[field] = list(match.get(field) or []) + [x for x in person.get(field) or [] if x.lower() not in seen]
+    people = [ExtractedPerson.model_validate(p) for p in merged]
+    for person in people:
+        if event and not person.met_at:
+            person.met_at = event
+    return people
