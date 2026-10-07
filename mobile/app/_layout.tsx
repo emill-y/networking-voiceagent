@@ -15,7 +15,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { Sidebar } from "@/components/Sidebar";
 import { showsTabBar, TabBar } from "@/components/TabBar";
 import { ToastProvider } from "@/components/Toast";
-import { WarpTransition } from "@/components/WarpTransition";
 import { AccountProvider } from "@/hooks/useAccount";
 import { useDesktop } from "@/hooks/useDesktop";
 import { SessionProvider, useSession } from "@/hooks/useSession";
@@ -124,15 +123,11 @@ function RootNavigator() {
         // Wide windows: persistent sidebar next to the current screen.
         <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
           <Sidebar />
-          <View style={{ flex: 1 }}>
-            {stack}
-            <WarpTransition routeKey={pathname} />
-          </View>
+          <View style={{ flex: 1 }}>{stack}</View>
         </View>
       ) : (
         <View style={{ flex: 1, backgroundColor: colors.bg }}>
           {stack}
-          <WarpTransition routeKey={pathname} />
           {inApp && showsTabBar(pathname) && <TabBar />}
         </View>
       )}

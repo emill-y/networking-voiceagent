@@ -115,7 +115,7 @@ export default function Home() {
           <EmptyState compact icon="calendar" title="Nothing scheduled this week"
             action={<Button title="Add a follow-up" icon="plus" size="sm" onPress={() => router.push({ pathname: "/follow-ups", params: { add: "1" } })} />} />
         ) : (
-          upcoming.slice(0, 9).map((entry, i) => {
+          upcoming.slice(0, 6).map((entry, i) => {
             const heading = dayHeading(entry.day);
             const showHeading = i === 0 || dayHeading(upcoming[i - 1].day) !== heading;
             return (
@@ -245,12 +245,13 @@ function FollowUpRow({ item, onDone, onOpen }: { item: FollowUp; onDone: () => v
       <Pressable onPress={onDone} accessibilityRole="checkbox" accessibilityState={{ checked: false }}
         accessibilityLabel={`Mark done: ${item.action}`} hitSlop={8}
         style={({ hovered }: { hovered?: boolean }) => [s.check, hovered && { borderColor: colors.accent }]} />
+      {/* Just what to do and with whom; the day heading already says when. */}
       <Pressable onPress={onOpen} style={s.flex} accessibilityRole="link">
-        <Txt variant="label" numberOfLines={2}>{item.action}</Txt>
-        <Txt variant="caption" numberOfLines={1}>{[item.contactName, item.context].filter(Boolean).join(" · ")}</Txt>
+        <Txt variant="label" numberOfLines={1}>{item.action}</Txt>
+        {item.contactName ? <Txt variant="caption" numberOfLines={1}>{item.contactName}</Txt> : null}
       </Pressable>
       {item.onCalendar && <Icon name="calendarCheck" size={15} color={colors.success} />}
-      <Txt variant="caption" style={late ? { color: colors.danger } : undefined}>{label}</Txt>
+      {late && <Txt variant="caption" style={{ color: colors.danger }}>{label}</Txt>}
     </View>
   );
 }
@@ -265,18 +266,19 @@ function EventRow({ item, onPerson }: { item: UpcomingEvent; onPerson: (id: stri
       <View style={s.eventIcon}><Icon name="calendar" size={14} color={colors.supportText} /></View>
       <View style={s.flex}>
         <Txt variant="label" numberOfLines={1}>{item.title}</Txt>
-        <Txt variant="caption" numberOfLines={1}>{[time, item.location].filter(Boolean).join(" · ")}</Txt>
-        {item.people.length > 0 && (
-          <View style={s.talkRow}>
-            {item.people.slice(0, 2).map((p) => (
-              <Pressable key={p.contactId} onPress={() => onPerson(p.contactId)} accessibilityRole="link" style={s.talk}>
-                <Avatar name={p.name} size={18} />
-                <Txt variant="caption" tone="secondary" weight="500">Talk to {firstName(p.name)}</Txt>
-              </Pressable>
-            ))}
-          </View>
-        )}
+        <Txt variant="caption" numberOfLines={1}>{time}</Txt>
       </View>
+      {/* Who to catch there, as faces; tap one to open them. */}
+      {item.people.length > 0 && (
+        <View style={s.faces}>
+          {item.people.slice(0, 3).map((p) => (
+            <Pressable key={p.contactId} onPress={() => onPerson(p.contactId)} accessibilityRole="link"
+              accessibilityLabel={`Talk to ${p.name}`} style={s.face}>
+              <Avatar name={p.name} size={22} />
+            </Pressable>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -300,17 +302,8 @@ const useStyles = makeStyles(({ colors }) =>
     row: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 52 },
     check: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: colors.borderStrong },
     eventIcon: { width: 18, alignItems: "center" },
-    talkRow: { flexDirection: "row", gap: space.xs, marginTop: 6, flexWrap: "wrap" },
-    talk: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 6,
-      paddingVertical: 3,
-      paddingLeft: 3,
-      paddingRight: space.xs,
-      borderRadius: radius.pill,
-      backgroundColor: colors.sunken,
-    },
+    faces: { flexDirection: "row" },
+    face: { marginLeft: -6, borderRadius: 12, borderWidth: 2, borderColor: colors.surface },
     personRow: { flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.xs, borderRadius: radius.md },
     hover: { backgroundColor: colors.surfaceHover },
     preview: { height: 220, borderWidth: 0, borderRadius: 0 },
