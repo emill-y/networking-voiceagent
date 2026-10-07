@@ -1,7 +1,9 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from psycopg import errors as pg_errors
 
 from app.core.config import get_settings
 from app.routes import account, calendar, demo, me, plans, sessions, sharing, network, pages, web_app, captures, contacts, extract, follow_ups, health, search, transcribe
@@ -20,6 +22,19 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "X-Session-Token"],
 )
+
+
+# A deploy that ran before its migration (a new table or column is missing)
+# says so plainly instead of a bare 500.
+@app.exception_handler(pg_errors.UndefinedTable)
+@app.exception_handler(pg_errors.UndefinedColumn)
+async def missing_migration(_: Request, exc: Exception) -> JSONResponse:
+    logging.getLogger("nomi").error("Database is missing a migration: %s. Run `python -m scripts.migrate`.", exc)
+    return JSONResponse(
+        status_code=503,
+        content={"detail": "This feature needs a database update that hasn't been applied yet. Run the migration, then try again."},
+    )
+
 
 app.include_router(health.router)
 app.include_router(transcribe.router)
