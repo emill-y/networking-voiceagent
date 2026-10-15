@@ -1,19 +1,23 @@
 /* Waitlist page: only what the shared style.css doesn't already have. */
 [hidden] { display: none !important; }
-.wl-hero .lede { margin-bottom: 28px; }
+/* Everything up to the button fits on one screen, laptop or phone. */
+.wl-hero { min-height: 0; padding: 24px 0 48px; }
+.wl-hero h1 { font-size: clamp(40px, 5.2vw, 76px); margin: 14px 0 12px; }
+.wl-hero .lede { font-size: 18px; margin: 0 0 20px; }
+.wl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
 /* Form card */
-.wl-card { display: grid; gap: 14px; max-width: 540px; padding: 28px; }
+.wl-card { display: grid; gap: 12px; max-width: 540px; padding: 22px 24px; }
 .wl-field { display: grid; gap: 7px; }
 .wl-field label { font: 600 13.5px var(--sans); color: var(--soft); }
 .wl-field input {
-  width: 100%; height: 52px; padding: 0 18px; border-radius: 16px; border: 1px solid var(--line-strong);
+  width: 100%; height: 48px; padding: 0 16px; border-radius: 14px; border: 1px solid var(--line-strong);
   background: rgba(0, 0, 0, 0.35); color: var(--ink); font: 16px var(--sans); outline: none;
   transition: border-color .2s, box-shadow .2s;
 }
 .wl-field input::placeholder { color: var(--faint); }
 .wl-field input:focus { border-color: var(--orange-hot); box-shadow: 0 0 0 4px rgba(255, 107, 26, 0.18); }
-.wl-submit { width: 100%; margin-top: 6px; }
+.wl-submit { width: 100%; margin-top: 4px; }
 .wl-submit[disabled] { opacity: .7; cursor: progress; }
 .wl-error { margin: 0; color: #ff8f7a; font-size: 14px; }
 .wl-fine { margin: 0; color: var(--faint); font-size: 13.5px; }
@@ -73,12 +77,15 @@
 @media (max-width: 1080px) {
   .wl-hero .hero-grid > div:first-child { display: grid; justify-items: center; text-align: center; }
   .wl-card { text-align: left; width: 100%; }
-  .mascot-wrap { order: -1; width: min(320px, 80%); }
+  .mascot-wrap { order: 2; width: min(260px, 70%); margin-top: 8px; }
   .wl-perks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
+  .wl-hero { padding-top: 8px; }
+  .wl-hero h1 { font-size: 40px; }
+  .wl-hero .lede { font-size: 16px; margin-bottom: 16px; }
   .speech { left: auto; right: -4%; top: -2%; max-width: 180px; font-size: 13px; }
-  .wl-card { padding: 20px; }
+  .wl-card { padding: 18px; }
 }
 @media (max-width: 460px) {
   .wl-perks { grid-template-columns: 1fr; }
