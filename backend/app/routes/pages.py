@@ -1,4 +1,4 @@
-"""The public website: /, /product, /students, /demo, /privacy and /site/* assets.
+"""The public website: / (the waitlist), /about, /product, /students, /demo, /privacy and /site/* assets.
 
 On Vercel these are static files (scripts/build-vercel.mjs); serving them
 from the API too means the site also works locally and on Cloud Run.
@@ -31,7 +31,7 @@ def _page(name: str) -> HTMLResponse:
 
 
 SITE = PAGES / "site"
-NAMED_PAGES = ("product", "students", "demo", "privacy")
+NAMED_PAGES = ("about", "product", "students", "demo", "privacy")
 
 
 @router.get("/", include_in_schema=False)
