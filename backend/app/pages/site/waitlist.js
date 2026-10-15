@@ -10,6 +10,84 @@
     set(v) { try { v ? localStorage.setItem(KEY, v) : localStorage.removeItem(KEY); } catch { /* private mode */ } },
   };
 
+  // ---------- School picker ----------
+  // Type to search a list of schools (or a short name like "UCLA"); pick one
+  // with the mouse or arrow keys + Enter. A school that isn't listed is kept
+  // exactly as typed.
+  (function schoolPicker() {
+    const input = $("school");
+    const list = $("school-list");
+    const schools = window.NOMI_SCHOOLS || [];
+    const aliases = window.NOMI_SCHOOL_ALIASES || {};
+    let items = [];
+    let active = -1;
+    const esc = (t) => t.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+    function matches(q) {
+      const query = q.trim().toLowerCase();
+      if (!query) return schools.slice(0, 8);
+      const alias = aliases[query];
+      const words = query.split(/\s+/);
+      const found = schools.filter((s) => words.every((w) => s.toLowerCase().includes(w)));
+      const ranked = found.sort((a, b) => a.toLowerCase().indexOf(words[0]) - b.toLowerCase().indexOf(words[0]));
+      return [...(alias ? [alias] : []), ...ranked.filter((s) => s !== alias)].slice(0, 8);
+    }
+    function highlight(name, q) {
+      const word = q.trim().split(/\s+/)[0];
+      if (!word) return esc(name);
+      const i = name.toLowerCase().indexOf(word.toLowerCase());
+      return i < 0 ? esc(name) : esc(name.slice(0, i)) + "<mark>" + esc(name.slice(i, i + word.length)) + "</mark>" + esc(name.slice(i + word.length));
+    }
+    function render() {
+      const q = input.value;
+      items = matches(q);
+      const typed = q.trim();
+      const exact = items.some((s) => s.toLowerCase() === typed.toLowerCase());
+      if (typed.length >= 2 && !exact) items.push({ other: typed });
+      active = items.length ? 0 : -1;
+      list.innerHTML = items.map((it, i) => it.other
+        ? `<li role="option" id="school-opt-${i}" class="wl-other" data-i="${i}">Use “${esc(it.other)}”</li>`
+        : `<li role="option" id="school-opt-${i}" data-i="${i}">${highlight(it, q)}</li>`).join("");
+      mark();
+      open(items.length > 0);
+    }
+    function mark() {
+      [...list.children].forEach((li, i) => li.setAttribute("aria-selected", String(i === active)));
+      input.setAttribute("aria-activedescendant", active >= 0 ? `school-opt-${active}` : "");
+      list.children[active]?.scrollIntoView({ block: "nearest" });
+    }
+    function open(yes) {
+      list.hidden = !yes;
+      input.setAttribute("aria-expanded", String(yes));
+    }
+    function choose(i) {
+      const it = items[i];
+      if (!it) return;
+      input.value = it.other ?? it;
+      open(false);
+      $("email").focus();
+    }
+    input.addEventListener("input", render);
+    input.addEventListener("focus", render);
+    input.addEventListener("keydown", (e) => {
+      if (list.hidden && (e.key === "ArrowDown" || e.key === "ArrowUp")) { render(); e.preventDefault(); return; }
+      if (e.key === "ArrowDown") { active = Math.min(items.length - 1, active + 1); mark(); e.preventDefault(); }
+      else if (e.key === "ArrowUp") { active = Math.max(0, active - 1); mark(); e.preventDefault(); }
+      else if (e.key === "Enter" && !list.hidden && active >= 0) { choose(active); e.preventDefault(); }
+      else if (e.key === "Escape") open(false);
+    });
+    list.addEventListener("mousedown", (e) => {
+      const li = e.target.closest("li");
+      if (li) { e.preventDefault(); choose(Number(li.dataset.i)); }
+    });
+    input.addEventListener("blur", () => setTimeout(() => {
+      open(false);
+      // "ucla" typed and left: store the full name.
+      const alias = aliases[input.value.trim().toLowerCase()];
+      if (alias) input.value = alias;
+    }, 120));
+  })();
+
   if (/^[A-Z0-9]{4,12}$/.test(ref)) {
     $("invited").hidden = false;
     $("founding").hidden = true;

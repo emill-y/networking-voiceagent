@@ -5,6 +5,26 @@
 .wl-hero h1 { font-size: clamp(40px, 5.2vw, 76px); margin: 14px 0 12px; }
 .wl-hero .lede { font-size: 18px; margin: 0 0 20px; }
 .wl-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.wl-hero h1 { white-space: nowrap; font-size: clamp(36px, 4.4vw, 64px); }
+.wl-hero .lede { margin-bottom: 10px; }
+
+/* Perks, before you sign up */
+.wl-perk-list { list-style: none; padding: 0; margin: 0 0 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; max-width: 560px; }
+.wl-perk-list li { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; line-height: 1.4; color: var(--soft); }
+.wl-perk-list li span { flex: none; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; font-size: 13px;
+  background: rgba(255, 107, 26, 0.14); border: 1px solid rgba(255, 107, 26, 0.28); color: var(--orange-hot); }
+
+/* School picker: type to search, or keep what you typed */
+.wl-combo { position: relative; }
+.wl-combo input { padding-right: 40px; }
+.wl-caret { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); color: var(--faint); font-size: 13px; pointer-events: none; }
+.wl-options { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 6px); margin: 0; padding: 6px; list-style: none;
+  max-height: 260px; overflow-y: auto; border-radius: 16px; background: #15100d; border: 1px solid var(--line-strong);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6); }
+.wl-options li { padding: 10px 12px; border-radius: 10px; font-size: 15px; color: var(--soft); cursor: pointer; }
+.wl-options li[aria-selected="true"], .wl-options li:hover { background: rgba(255, 107, 26, 0.16); color: var(--ink); }
+.wl-options li mark { background: none; color: var(--orange-hot); font-weight: 600; }
+.wl-options .wl-other { color: var(--muted); font-style: italic; }
 
 /* Form card */
 .wl-card { display: grid; gap: 12px; max-width: 540px; padding: 22px 24px; }
@@ -81,6 +101,11 @@
   .wl-perks { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 760px) {
+  .wl-hero .lede { display: none; }
+  .wl-perk-list { grid-template-columns: 1fr 1fr; text-align: left; gap: 6px 10px; margin-bottom: 14px; }
+  .wl-perk-list li { font-size: 13.5px; gap: 8px; }
+  .wl-perk-list li span { width: 22px; height: 22px; font-size: 12px; }
+  .wl-hero h1 { white-space: normal; font-size: 40px; }
   .wl-hero { padding-top: 8px; }
   .wl-hero h1 { font-size: 40px; }
   .wl-hero .lede { font-size: 16px; margin-bottom: 16px; }
