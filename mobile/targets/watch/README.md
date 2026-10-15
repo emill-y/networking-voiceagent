@@ -16,7 +16,7 @@ open ios/*.xcworkspace   # select the NomiWatch scheme to run on a watch or simu
 ```
 
 For EAS builds, set `NOMI_WATCH=1` in the build profile's `env` (eas.json).
-You'll also need an App ID for `com.nomi.app.watchkitapp` (EAS creates it
+You'll also need an App ID for `com.network.nomi.watchkitapp` (EAS creates it
 when it manages credentials).
 
 ## Limits to know

@@ -63,7 +63,7 @@ link is useless. `app/auth/callback.tsx` exchanges the code for a session.
    Console create an OAuth client of type *Web application* with the
    authorized redirect URI `https://qebslfifekeswyesddpr.supabase.co/auth/v1/callback`,
    then paste its client ID and secret into Supabase.
-3. **Apple** (same page → Apple): add the app's bundle ID `com.nomi.app` to
+3. **Apple** (same page → Apple): add the app's bundle ID `com.network.nomi` to
    *Client IDs*, plus `host.exp.Exponent` to test inside Expo Go. Native
    sign-in needs only the IDs. Shipping your own iOS build requires the Apple
    Developer Program (also needed for the App Store) and enabling "Sign in with

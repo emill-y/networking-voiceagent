@@ -144,7 +144,7 @@ and add the DNS records it prints.
 
 In the **Supabase** dashboard:
 1. **Authentication → Sign In / Providers → Apple → Client IDs**: make sure it
-   contains `com.nomi.app` (the app's bundle ID) as well as `host.exp.Exponent`.
+   contains `com.network.nomi` (the app's bundle ID) as well as `host.exp.Exponent`.
 2. **Authentication → URL Configuration → Redirect URLs** must include
    `nomi://auth/callback` (phone app) and
    `https://nomi-api-xxxxx.a.run.app/app/auth/callback` (web app). Set **Site URL**
@@ -178,7 +178,7 @@ In **Google Cloud → APIs & Services → OAuth consent screen**:
      eas env:create --environment $ENV --name EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY --value YOUR_SB_PUBLISHABLE_KEY --visibility plaintext --non-interactive
    done
    ```
-4. **Bundle ID:** the app uses `com.nomi.app`. Bundle IDs are unique across the
+4. **Bundle ID:** the app uses `com.network.nomi`. Bundle IDs are unique across the
    whole App Store. If EAS reports it's taken in the next step, change it in
    `mobile/app.json` (`ios.bundleIdentifier` and `android.package`, e.g.
    `com.yourname.nomi`) and in Supabase's Apple Client IDs, then retry.
