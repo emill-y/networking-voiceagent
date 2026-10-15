@@ -8,7 +8,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "environment": "development",
-      "ios": { "simulator": false }
+      "ios": {
+        "simulator": false
+      }
     },
     "preview": {
       "distribution": "internal",
@@ -16,7 +18,10 @@
     },
     "production": {
       "environment": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://nomi-connect.vercel.app"
+      }
     }
   },
   "submit": {

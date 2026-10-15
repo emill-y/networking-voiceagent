@@ -1,4 +1,5 @@
 import * as AppleAuthentication from "expo-apple-authentication";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -23,6 +24,7 @@ import { makeStyles, radius, space } from "@/lib/theme";
 // After sign-in, the session listener in _layout shows the app.
 export default function SignIn() {
   const s = useStyles();
+  const router = useRouter();
   const [appleAvailable, setAppleAvailable] = useState(false);
   const [email, setEmail] = useState("");
   const [sentTo, setSentTo] = useState<string | null>(null);
@@ -106,6 +108,9 @@ export default function SignIn() {
             )}
             {error ? <Txt variant="small" tone="danger" accessibilityLiveRegion="polite">{error}</Txt> : null}
           </Card>
+
+          {/* Look around first with a made-up network; nothing is saved. */}
+          <Button title="Explore the demo" variant="ghost" onPress={() => router.push("/demo")} accessibilityLabel="Explore the demo with sample contacts" />
 
           <Txt variant="caption" align="center">Private to you. Read our privacy policy at nomi-connect.vercel.app/privacy.</Txt>
           {__DEV__ && (
