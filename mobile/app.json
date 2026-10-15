@@ -15,7 +15,9 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Nomi uses the microphone while you record a note, or during a networking session you start, to remember the people you meet.",
         "NSSpeechRecognitionUsageDescription": "Nomi turns your spoken notes into text, on your iPhone whenever possible.",
-        "NSContactsUsageDescription": "Nomi lets you choose people from your contacts to remember. Your address book stays on your phone."
+        "NSContactsUsageDescription": "Nomi lets you choose people from your contacts to remember. Your address book stays on your phone.",
+        "NSPhotoLibraryUsageDescription": "Nomi lets you choose a profile photo from your library. It never reads your photos otherwise.",
+        "NSPhotoLibraryAddUsageDescription": "Nomi only saves an image to your library when you ask it to."
       }
     },
     "android": {
