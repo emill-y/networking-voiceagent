@@ -84,7 +84,7 @@ def _welcome(settings: Settings, to: str, name: str, url: str, friend_code: str)
     text = (
         f"Hi {first},\n\n"
         "You're on the Nomi waitlist as a founding member. That means early access before anyone else, "
-        "a founding badge in the app, and founding-member pricing when Premium launches.\n\n"
+        "a founding badge in the app, and Nomi Premium free when it launches.\n\n"
         f"Move up the list by sharing your link with friends: {url}\n\n"
         f"Your friend code is {friend_code}. When Premium opens, friends who join with it get a founding-friend discount.\n\n"
         "We'll email you the moment your spot opens.\n\n"
