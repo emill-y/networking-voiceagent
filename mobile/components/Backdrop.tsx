@@ -2,8 +2,8 @@
 // speeds (parallax), a few that twinkle, soft nebula glows, and now and then
 // a shooting star. The drift is driven by the clock, so moving between pages
 // never makes the sky jump. Still for people who ask for reduced motion.
-import { useEffect, useMemo } from "react";
-import { StyleSheet, View, useWindowDimensions } from "react-native";
+import { useEffect } from "react";
+import { Platform, StyleSheet, View, useWindowDimensions } from "react-native";
 import Animated, {
   Easing,
   cancelAnimation,
@@ -15,7 +15,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from "react-native-reanimated";
-import Svg, { Circle, Defs, G, Line, LinearGradient, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
+import Svg, { Circle, Defs, FeTurbulence, Filter, G, Line, LinearGradient, Pattern, RadialGradient, Rect, Stop } from "react-native-svg";
 
 import { useTheme } from "@/lib/theme";
 
@@ -155,35 +155,51 @@ function ShootingStar({ color }: { color: string }) {
   );
 }
 
+// The website's warmth: two big, soft orange glows (top left, bottom right)
+// and a fine film grain, with a faint starfield drifting through.
 export function Backdrop({ quiet = false }: { quiet?: boolean }) {
-  const { colors, mode } = useTheme();
+  const { mode } = useTheme();
   const dark = mode === "dark";
-  const star = dark ? "#FFF4E8" : "#5E5850";
-  const nebula = useMemo(
-    () => (dark ? { warm: 0.07, cool: 0.12, coolColor: colors.support } : { warm: 0.04, cool: 0.06, coolColor: colors.support }),
-    [dark, colors.support],
-  );
+  const star = dark ? "#FFF1E4" : "#6E5A4C";
+  const glow = dark ? { hot: 0.34, ember: 0.26 } : { hot: 0.16, ember: 0.1 };
   return (
     <View style={[StyleSheet.absoluteFill, styles.clip]} pointerEvents="none">
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
         <Defs>
-          <RadialGradient id="bd-warm" cx="88%" cy="-6%" r="60%">
-            <Stop offset="0" stopColor={colors.accent} stopOpacity={nebula.warm} />
-            <Stop offset="1" stopColor={colors.accent} stopOpacity={0} />
+          <RadialGradient id="bd-hot" cx="8%" cy="-4%" r="62%">
+            <Stop offset="0" stopColor="#FF6B1A" stopOpacity={glow.hot} />
+            <Stop offset="0.55" stopColor="#FF6B1A" stopOpacity={glow.hot * 0.35} />
+            <Stop offset="1" stopColor="#FF6B1A" stopOpacity={0} />
           </RadialGradient>
-          <RadialGradient id="bd-cool" cx="6%" cy="104%" r="55%">
-            <Stop offset="0" stopColor={nebula.coolColor} stopOpacity={nebula.cool} />
-            <Stop offset="1" stopColor={nebula.coolColor} stopOpacity={0} />
+          <RadialGradient id="bd-ember" cx="100%" cy="104%" r="60%">
+            <Stop offset="0" stopColor="#C83208" stopOpacity={glow.ember} />
+            <Stop offset="0.55" stopColor="#C83208" stopOpacity={glow.ember * 0.35} />
+            <Stop offset="1" stopColor="#C83208" stopOpacity={0} />
           </RadialGradient>
         </Defs>
-        <Rect width="100%" height="100%" fill="url(#bd-warm)" />
-        <Rect width="100%" height="100%" fill="url(#bd-cool)" />
+        <Rect width="100%" height="100%" fill="url(#bd-hot)" />
+        <Rect width="100%" height="100%" fill="url(#bd-ember)" />
       </Svg>
-      <Drift id="bd-far" stars={FAR} color={star} duration={240_000} opacity={dark ? (quiet ? 0.5 : 0.8) : 0.22} />
-      <Drift id="bd-near" stars={NEAR} color={star} duration={110_000} opacity={dark ? (quiet ? 0.6 : 1) : 0.28} />
+      <Drift id="bd-far" stars={FAR} color={star} duration={240_000} opacity={dark ? (quiet ? 0.3 : 0.45) : 0.16} />
+      <Drift id="bd-near" stars={NEAR} color={star} duration={110_000} opacity={dark ? (quiet ? 0.4 : 0.6) : 0.2} />
       {dark && !quiet && <Twinkles color={star} />}
       {dark && !quiet && <ShootingStar color={star} />}
+      {Platform.OS === "web" && <Grain />}
     </View>
+  );
+}
+
+// The website's grain (SVG noise), web only: phones don't render SVG filters.
+function Grain() {
+  return (
+    <Svg style={[StyleSheet.absoluteFill, styles.grain]} width="100%" height="100%">
+      <Defs>
+        <Filter id="bd-noise">
+          <FeTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves={3} />
+        </Filter>
+      </Defs>
+      <Rect width="100%" height="100%" filter="url(#bd-noise)" />
+    </Svg>
   );
 }
 
@@ -191,4 +207,5 @@ const styles = StyleSheet.create({
   clip: { overflow: "hidden" },
   layer: { position: "absolute", left: 0, top: 0 },
   shooting: { position: "absolute", left: 0, top: 0, width: 140, height: 2 },
+  grain: { opacity: 0.06, mixBlendMode: "overlay" } as object,
 });

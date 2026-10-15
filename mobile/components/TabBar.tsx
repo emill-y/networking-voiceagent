@@ -87,7 +87,7 @@ function ActionRow({ icon, title, body, primary, onPress }: { icon: IconName; ti
   );
 }
 
-const useStyles = makeStyles(({ colors, shadow }) =>
+const useStyles = makeStyles(({ colors, shadow, mode }) =>
   StyleSheet.create({
     flex: { flex: 1, minWidth: 0 },
     wrap: {
@@ -105,9 +105,10 @@ const useStyles = makeStyles(({ colors, shadow }) =>
       alignItems: "center",
       paddingHorizontal: space.xxs,
       borderRadius: 32,
-      backgroundColor: colors.chrome,
+      backgroundColor: mode === "dark" ? "rgba(21, 15, 12, 0.82)" : colors.chrome,
       borderWidth: 1,
       borderColor: colors.borderStrong,
+      ...(mode === "dark" ? ({ backdropFilter: "blur(18px)" } as object) : {}),
       ...shadow.raised,
     },
     tab: { flex: 1, height: 56, alignItems: "center", justifyContent: "center" },
@@ -120,7 +121,7 @@ const useStyles = makeStyles(({ colors, shadow }) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: colors.accent,
-      shadowColor: colors.accent,
+      shadowColor: "#FF6B1A",
       shadowOpacity: 0.45,
       shadowRadius: 16,
       shadowOffset: { width: 0, height: 6 },

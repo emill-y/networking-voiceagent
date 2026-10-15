@@ -14,6 +14,10 @@
   },
   "rewrites": [
     {
+      "source": "/about",
+      "destination": "/about.html"
+    },
+    {
       "source": "/product",
       "destination": "/product.html"
     },
@@ -95,6 +99,14 @@
     },
     {
       "source": "/plans",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/waitlist",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/waitlist/:path*",
       "destination": "/api/index"
     },
     {
