@@ -44,19 +44,32 @@
     <div class="wrap hero-grid">
       <div>
         <span class="pill reveal" id="invited" hidden><span class="dot">✦</span>A friend invited you</span>
-        <span class="pill reveal" id="founding"><span class="dot">✦</span>Founding member waitlist</span>
-        <h1 class="reveal d1">Be first to<br>never <span class="grad-text">forget.</span></h1>
-        <p class="lede reveal d2">Founding members get Nomi before anyone else. Save your spot, and bring friends along with your own invite link.</p>
+        <span class="pill reveal" id="founding"><span class="dot">✦</span>Founding members get in first</span>
+        <h1 class="reveal d1">Join the Nomi <span class="grad-text">waitlist.</span></h1>
+        <p class="lede reveal d2">Sign up to become a founding member. Here's what you get:</p>
+        <ul class="wl-perk-list reveal d2" aria-label="Founding member perks">
+          <li><span>🚀</span>Early access before launch</li>
+          <li><span>✦</span>Founding member badge</li>
+          <li><span>💎</span>Founding pricing on Premium</li>
+          <li><span>🎁</span>Friend code: your friends get a discount</li>
+        </ul>
 
         <!-- Signup -->
         <form class="card wl-card reveal d3" id="join" novalidate>
+          <div class="wl-row">
           <div class="wl-field">
             <label for="name">Name</label>
             <input id="name" name="name" autocomplete="name" placeholder="Maya Singh" maxlength="80" required>
           </div>
           <div class="wl-field">
             <label for="school">School</label>
-            <input id="school" name="school" autocomplete="organization" placeholder="UC Berkeley" maxlength="120" required>
+            <div class="wl-combo">
+              <input id="school" name="school" placeholder="Your school" maxlength="120" required autocomplete="off"
+                role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="school-list">
+              <span class="wl-caret" aria-hidden="true">▾</span>
+              <ul class="wl-options" id="school-list" role="listbox" hidden></ul>
+            </div>
+          </div>
           </div>
           <div class="wl-field">
             <label for="email">Email</label>
@@ -188,6 +201,7 @@
   </div>
 </footer>
 <script src="/site/site.js"></script>
+<script src="/site/schools.js"></script>
 <script src="/site/waitlist.js"></script>
 </body>
 </html>
