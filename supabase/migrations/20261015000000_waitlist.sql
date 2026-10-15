@@ -5,7 +5,7 @@ create table public.waitlist (
   name text not null,
   school text not null,
   email text not null,
-  -- Their personal link: nomi-connect.vercel.app/?ref=<referral_code>
+  -- Their personal link: nomi-connect.vercel.app/waitlist?ref=<referral_code>
   referral_code text not null unique,
   -- The referral_code of whoever invited them, if anyone.
   referred_by text,

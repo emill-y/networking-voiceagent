@@ -40,7 +40,7 @@
 
   function confetti() {
     const box = $("confetti");
-    const colors = ["#C4B5FD", "#F0ABFC", "#FDBA74", "#FFE27A", "#8B5CF6", "#F08A4B"];
+    const colors = ["#FF6B1A", "#FFA066", "#FFD27A", "#FFF0E0", "#E2440C", "#FF8A3D"];
     for (let i = 0; i < 46; i++) {
       const p = document.createElement("i");
       const angle = Math.random() * Math.PI * 2;
@@ -96,8 +96,7 @@
       document.execCommand("copy");
     }
     button.textContent = "Copied!";
-    button.classList.add("ok");
-    setTimeout(() => { button.textContent = "Copy"; button.classList.remove("ok"); }, 1800);
+    setTimeout(() => { button.textContent = "Copy"; }, 1800);
   });
 
   $("not-me").addEventListener("click", () => {
@@ -124,7 +123,7 @@
     button.disabled = true;
     button.firstElementChild.textContent = "Saving your spot…";
     try {
-      const spot = await api("/waitlist", { name, school, email, ref: ref || undefined });
+      const spot = await api("/waitlist/join", { name, school, email, ref: ref || undefined });
       show(spot, !spot.alreadyJoined);
     } catch (e) {
       error.textContent = e.message;
@@ -138,6 +137,6 @@
   // Coming back: show your spot (and fresh referral count) right away.
   const saved = store.get();
   if (saved) {
-    api(`/waitlist/${encodeURIComponent(saved)}`).then((spot) => show({ ...spot, alreadyJoined: true }, false)).catch(() => store.set(null));
+    api(`/waitlist/spot/${encodeURIComponent(saved)}`).then((spot) => show({ ...spot, alreadyJoined: true }, false)).catch(() => store.set(null));
   }
 })();
