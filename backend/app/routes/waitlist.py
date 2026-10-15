@@ -1,8 +1,10 @@
 """The website waitlist.
 
-    POST /waitlist          join (name, school, email, optional ref code)
-    GET  /waitlist/stats    how many people have joined (for the page)
-    GET  /waitlist/{code}   your spot and how many friends joined with your link
+    POST /waitlist/join          join (name, school, email, optional ref code)
+    GET  /waitlist/stats         how many people have joined (for the page)
+    GET  /waitlist/spot/{code}   your spot and how many friends joined with your link
+
+The page itself is the website's /waitlist.
 
 Public, so it is rate limited per visitor. Joining twice with the same email
 returns your existing spot instead of an error, so nobody loses their link.
@@ -70,7 +72,7 @@ def _spot(conn: Connection, row: dict, base: str, already: bool = False) -> Spot
         position=repo.position(conn, row),
         total=repo.total(conn),
         referral_code=row["referral_code"],
-        referral_url=f"{base}/?ref={row['referral_code']}",
+        referral_url=f"{base}/waitlist?ref={row['referral_code']}",
         friend_code=row["friend_code"],
         referrals=repo.referrals(conn, row["referral_code"]),
         already_joined=already,
@@ -103,7 +105,7 @@ def _send_welcome(row_id, to: str, name: str, url: str, friend_code: str) -> Non
         logger.warning("Welcome email sent but not recorded for a waitlist signup")
 
 
-@router.post("/waitlist", response_model=Spot, status_code=status.HTTP_201_CREATED)
+@router.post("/waitlist/join", response_model=Spot, status_code=status.HTTP_201_CREATED)
 def join(body: JoinRequest, request: Request, background: BackgroundTasks, conn: Connection = Depends(get_db),
          settings: Settings = Depends(get_settings)) -> Spot:
     per_hour.check(visitor(request))  # type: ignore[arg-type]
@@ -137,7 +139,7 @@ def stats(conn: Connection = Depends(get_db)) -> Stats:
     return Stats(total=repo.total(conn))
 
 
-@router.get("/waitlist/{code}", response_model=Spot)
+@router.get("/waitlist/spot/{code}", response_model=Spot)
 def spot(code: CODE, request: Request, conn: Connection = Depends(get_db), settings: Settings = Depends(get_settings)) -> Spot:
     row = repo.by_code(conn, code)
     if not row:
