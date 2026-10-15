@@ -4,8 +4,8 @@
 //
 // Color follows 70-20-10:
 //   70% dominant: the neutral page (bg) and its starfield.
-//   20% support:  a cool indigo for surfaces, chrome, avatars, chips,
-//                 selections and anything that supports the content.
+//   20% support:  warm glass and peach (the website's look) for surfaces,
+//                 chrome, avatars, chips, selections and supporting text.
 //   10% accent:   Jupiter orange, only for primary actions, the record
 //                 button, "you", and the active place you are in.
 // Reach for `support` before `accent`; if a screen looks orange, it's wrong.
@@ -62,25 +62,25 @@ type Palette = {
 };
 
 const dark: Palette = {
-  bg: "#0A0B0F",
-  chrome: "#0D0F17",
-  surface: "#131522",
-  surfaceHover: "#1A1D2D",
-  sunken: "#0F1119",
-  overlay: "rgba(4, 5, 8, 0.72)",
-  border: "rgba(170, 176, 255, 0.08)",
-  borderStrong: "rgba(170, 176, 255, 0.15)",
-  text: "#F3EFE9",
-  textSecondary: "#A9A49C",
-  textTertiary: "#706B64",
-  accent: "#F08A4B",
-  accentHover: "#F79A60",
-  accentSoft: "rgba(240, 138, 75, 0.13)",
-  accentText: "#F5A06C",
-  onAccent: "#1B0F07",
-  support: "#8B8FE0",
-  supportSoft: "rgba(139, 143, 224, 0.14)",
-  supportText: "#B7BAF2",
+  bg: "#080605",
+  chrome: "#0D0907",
+  surface: "#15100D",
+  surfaceHover: "#1D1612",
+  sunken: "#0F0B09",
+  overlay: "rgba(5, 3, 2, 0.74)",
+  border: "rgba(255, 220, 200, 0.10)",
+  borderStrong: "rgba(255, 200, 170, 0.20)",
+  text: "#FFF6EE",
+  textSecondary: "#C2B5AA",
+  textTertiary: "#857970",
+  accent: "#FF6B1A",
+  accentHover: "#FF8A3D",
+  accentSoft: "rgba(255, 107, 26, 0.14)",
+  accentText: "#FF8A3D",
+  onAccent: "#1A0802",
+  support: "#F2B48C",
+  supportSoft: "rgba(255, 170, 120, 0.12)",
+  supportText: "#F6C3A0",
   success: "#5CC08C",
   successSoft: "rgba(92, 192, 140, 0.13)",
   warning: "#E6B450",
@@ -88,22 +88,22 @@ const dark: Palette = {
   danger: "#F0705F",
   dangerSoft: "rgba(240, 112, 95, 0.13)",
   edgeWork: "#6FA0F6",
-  edgeEvent: "#F08A4B",
+  edgeEvent: "#FF6B1A",
   edgeInterest: "#5CC08C",
-  edgeYou: "rgba(240, 138, 75, 0.22)",
-  glow: "rgba(240, 138, 75, 0.10)",
-  orbit: "rgba(255, 255, 255, 0.05)",
-  skeleton: "rgba(255, 255, 255, 0.06)",
+  edgeYou: "rgba(255, 107, 26, 0.24)",
+  glow: "rgba(255, 107, 26, 0.12)",
+  orbit: "rgba(255, 220, 200, 0.06)",
+  skeleton: "rgba(255, 230, 210, 0.06)",
   mapSurface: "#0E1015",
   mapBorder: "rgba(255, 255, 255, 0.07)",
 };
 
 const light: Palette = {
   bg: "#F7F5F1",
-  chrome: "#EFEEF5",
+  chrome: "#F3EEE7",
   surface: "#FFFFFF",
-  surfaceHover: "#F7F7FC",
-  sunken: "#ECEBF4",
+  surfaceHover: "#FBF8F4",
+  sunken: "#EFE9E1",
   overlay: "rgba(23, 20, 15, 0.38)",
   border: "rgba(23, 20, 15, 0.08)",
   borderStrong: "rgba(23, 20, 15, 0.15)",
@@ -115,9 +115,9 @@ const light: Palette = {
   accentSoft: "rgba(217, 104, 42, 0.10)",
   accentText: "#B8541C",
   onAccent: "#FFFFFF",
-  support: "#5B5FB8",
-  supportSoft: "rgba(91, 95, 184, 0.10)",
-  supportText: "#474B9E",
+  support: "#B0582A",
+  supportSoft: "rgba(217, 104, 42, 0.10)",
+  supportText: "#8F4519",
   success: "#2F9463",
   successSoft: "rgba(47, 148, 99, 0.10)",
   warning: "#B7811C",
@@ -310,9 +310,9 @@ export function tintFor(name: string | null | undefined, mode: ThemeMode = "dark
 
 // The planet: the record button's glossy orb, the same in both themes.
 export const orb = {
-  light: "#FFE1C4",
-  mid: "#F08A4B",
-  deep: "#D2561C",
-  shadow: "#5A1E08",
-  glow: "#F08A4B",
+  light: "#FFE6CF",
+  mid: "#FF6B1A",
+  deep: "#E2440C",
+  shadow: "#5A1406",
+  glow: "#FF6B1A",
 } as const;

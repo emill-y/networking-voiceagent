@@ -12,7 +12,8 @@ type Props = {
   accessibilityLabel?: string;
 };
 
-// The one surface: flat, 1px border, consistent radius and padding.
+// The one surface. Dark mode matches the website: frosted glass with a warm
+// highlight along the top and left edges.
 export function Card({ children, onPress, style, padding = "md", accessibilityLabel }: Props) {
   const s = useStyles();
   const pad = s[padding];
@@ -34,16 +35,22 @@ export function Card({ children, onPress, style, padding = "md", accessibilityLa
   );
 }
 
-const useStyles = makeStyles(({ colors, shadow }) =>
+const useStyles = makeStyles(({ colors, shadow, mode }) =>
   StyleSheet.create({
     card: {
-      backgroundColor: colors.surface,
-      borderRadius: radius.lg,
+      backgroundColor: mode === "dark" ? "rgba(255, 240, 228, 0.045)" : colors.surface,
+      borderRadius: radius.xl,
       borderWidth: 1,
       borderColor: colors.border,
+      ...(mode === "dark" ? { borderTopColor: "rgba(255, 170, 120, 0.26)", borderLeftColor: "rgba(255, 170, 120, 0.16)" } : {}),
+      ...(mode === "dark" ? ({ backdropFilter: "blur(14px)" } as object) : {}),
       ...shadow.card,
     },
-    hover: { backgroundColor: colors.surfaceHover, borderColor: colors.borderStrong },
+    hover: {
+      backgroundColor: mode === "dark" ? "rgba(255, 240, 228, 0.075)" : colors.surfaceHover,
+      borderColor: colors.borderStrong,
+      ...(mode === "dark" ? { borderTopColor: "rgba(255, 170, 120, 0.4)" } : {}),
+    },
     none: { padding: 0, overflow: "hidden" },
     sm: { padding: space.sm },
     md: { padding: space.md + 4 },
