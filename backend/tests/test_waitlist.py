@@ -95,3 +95,17 @@ def test_waitlist_page_is_served(wl):
     page = wl.get("/waitlist")
     assert page.status_code == 200 and "Claim my founding spot" in page.text
     assert 'href="/waitlist"' in wl.get("/").text
+
+
+def test_displayed_spot_can_start_higher(wl):
+    settings = dataclasses.replace(get_settings(), waitlist_start=405)
+    app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        first = join(wl).json()
+        second = join(wl, name="Leo Tran", email="leo@stanford.edu").json()
+        again = wl.get(f"/waitlist/spot/{first['referralCode']}").json()
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+    assert (first["position"], second["position"], again["position"]) == (405, 406, 405)
+    assert second["total"] == 2  # the real count is never inflated
+    assert wl.get("/waitlist/stats").json()["total"] == 2

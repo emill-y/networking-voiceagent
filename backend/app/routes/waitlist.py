@@ -68,10 +68,11 @@ def _base_url(request: Request, settings: Settings) -> str:
     return settings.public_url or str(request.base_url).rstrip("/")
 
 
-def _spot(conn: Connection, row: dict, base: str, already: bool = False) -> Spot:
+def _spot(conn: Connection, row: dict, base: str, start: int = 1, already: bool = False) -> Spot:
     return Spot(
         name=row["name"],
-        position=repo.position(conn, row),
+        # The displayed spot starts at WAITLIST_START; total stays the real count.
+        position=repo.position(conn, row) + start - 1,
         total=repo.total(conn),
         referral_code=row["referral_code"],
         referral_url=f"{base}/waitlist?ref={row['referral_code']}",
@@ -149,7 +150,7 @@ def join(body: JoinRequest, request: Request, conn: Connection = Depends(get_db)
     base = _base_url(request, settings)
     existing = repo.by_email(conn, body.email)
     if existing:
-        return _spot(conn, existing, base, already=True)
+        return _spot(conn, existing, base, settings.waitlist_start, already=True)
 
     ref = (body.ref or "").strip().upper() or None
     if ref and not repo.code_exists(conn, ref):
@@ -163,9 +164,9 @@ def join(body: JoinRequest, request: Request, conn: Connection = Depends(get_db)
         existing = repo.by_email(conn, body.email)
         if not existing:
             raise HTTPException(status.HTTP_409_CONFLICT, "Please try again.")
-        return _spot(conn, existing, base, already=True)
+        return _spot(conn, existing, base, settings.waitlist_start, already=True)
 
-    spot = _spot(conn, row, base)
+    spot = _spot(conn, row, base, settings.waitlist_start)
     # Sent before responding: serverless hosts (Vercel) can stop work that
     # runs after the response, so a background send could silently vanish.
     if mail.can_send(settings) and _welcome(settings, row["email"], row["name"], spot.position, spot.referral_url, row["friend_code"]):
@@ -183,4 +184,4 @@ def spot(code: CODE, request: Request, conn: Connection = Depends(get_db), setti
     row = repo.by_code(conn, code)
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That referral code isn't on the list.")
-    return _spot(conn, row, _base_url(request, settings))
+    return _spot(conn, row, _base_url(request, settings), settings.waitlist_start)
