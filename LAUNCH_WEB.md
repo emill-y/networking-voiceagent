@@ -177,6 +177,15 @@ to send themselves and never claims an email was sent.
 link (`/?invite=CODE`). Sign-ups through it are counted per user, ready for
 "invite 3 friends" rewards later; nothing is gated today.
 
+## Emails for free (waitlist welcomes and shares)
+
+No domain needed: Nomi can send through a Gmail account (about 500 emails a
+day). Turn on 2-Step Verification for the account, then create an app
+password at https://myaccount.google.com/apppasswords. In Vercel ->
+Settings -> Environment Variables (Production) add `GMAIL_ADDRESS` (e.g.
+`nomiconnect@gmail.com`) and `GMAIL_APP_PASSWORD` (the 16 letters), and
+redeploy. If `RESEND_API_KEY` is also set, Resend is used instead.
+
 ## Demo mode (for screen recordings)
 
 Open `https://nomi-connect.vercel.app/app/demo`. It loads a made-up network
