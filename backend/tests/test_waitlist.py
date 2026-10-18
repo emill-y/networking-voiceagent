@@ -1,4 +1,7 @@
 import dataclasses
+import os
+
+import psycopg
 
 import pytest
 
@@ -54,22 +57,38 @@ def test_validation(wl):
 
 def test_welcome_email_only_when_email_is_configured(wl, monkeypatch):
     sent = []
-    monkeypatch.setattr(routes.mail, "send", lambda settings, to, subject, text, button=None: sent.append((to, text)) or True)
-    monkeypatch.setattr(routes.repo, "mark_welcomed", lambda conn, row_id: None)
-    monkeypatch.setattr(routes, "get_db", lambda: iter([None]))
+    monkeypatch.setattr(routes.mail, "send", lambda settings, to, subject, text, button=None, html_body=None:
+                        sent.append((to, text, html_body)) or True)
 
     join(wl, email="a@x.edu")
     assert sent == []  # no RESEND_API_KEY: nothing is sent
 
     settings = dataclasses.replace(get_settings(), resend_api_key="re_test")
     app.dependency_overrides[get_settings] = lambda: settings
-    monkeypatch.setattr(routes, "get_settings", lambda: settings)
     try:
-        spot = join(wl, name="Leo Tran", email="leo@x.edu").json()
+        spot = join(wl, name="Leo <b>Tran</b>", email="leo@x.edu").json()
     finally:
         app.dependency_overrides.pop(get_settings, None)
-    assert len(sent) == 1 and sent[0][0] == "leo@x.edu"
-    assert spot["referralUrl"] in sent[0][1] and spot["friendCode"] in sent[0][1]
+    assert len(sent) == 1
+    to, text, page = sent[0]
+    assert to == "leo@x.edu" and "#2" in text
+    assert spot["referralUrl"] in text and spot["friendCode"] in page
+    assert "Leo" in page and "<b>Tran" not in page  # names are escaped in the HTML
+
+
+def test_welcome_is_recorded_only_when_sent(wl, monkeypatch):
+    settings = dataclasses.replace(get_settings(), resend_api_key="re_test")
+    app.dependency_overrides[get_settings] = lambda: settings
+    try:
+        monkeypatch.setattr(routes.mail, "send", lambda *a, **k: False)
+        join(wl, email="fail@x.edu")
+        monkeypatch.setattr(routes.mail, "send", lambda *a, **k: True)
+        join(wl, email="ok@x.edu")
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+    with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as conn:
+        rows = dict(conn.execute("select email, welcome_sent_at is not null from waitlist").fetchall())
+    assert rows == {"fail@x.edu": False, "ok@x.edu": True}
 
 
 def test_waitlist_page_is_served(wl):

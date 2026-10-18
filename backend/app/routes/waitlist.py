@@ -8,14 +8,16 @@ The page itself is the website's /waitlist.
 
 Public, so it is rate limited per visitor. Joining twice with the same email
 returns your existing spot instead of an error, so nobody loses their link.
-A welcome email goes out when Resend is configured (RESEND_API_KEY).
+A welcome email goes out when Resend is configured (RESEND_API_KEY); it is
+sent before the response, so it can't be lost when the host stops work.
 """
 
+import html
 import logging
 import secrets
 from typing import Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from psycopg import Connection
 from pydantic import StringConstraints
 
@@ -79,34 +81,69 @@ def _spot(conn: Connection, row: dict, base: str, already: bool = False) -> Spot
     )
 
 
-def _welcome(settings: Settings, to: str, name: str, url: str, friend_code: str) -> bool:
+def _welcome_html(first: str, position: int, url: str, friend_code: str) -> str:
+    """The welcome email, in the website's look: warm black, one orange accent."""
+    e = html.escape
+    perks = "".join(
+        f"<tr><td style='padding:6px 0;font-size:15px;color:#e8ddd3'>"
+        f"<span style='color:#ff8a3d;font-weight:700'>&#10022;</span>&nbsp;&nbsp;{p}</td></tr>"
+        for p in ("Early access before launch", "A founding member badge", "Nomi Premium, free",
+                  "A friend code that gives your friends a discount")
+    )
+    return f"""<!doctype html><html><body style="margin:0;padding:0;background:#080605">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#080605;padding:32px 12px">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:#15100d;border:1px solid #3a2a20;border-radius:24px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">
+<tr><td style="padding:32px 32px 8px">
+  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+    <td style="width:22px;height:22px;border-radius:11px;background:#ff6b1a"></td>
+    <td style="padding-left:10px;font-size:20px;font-weight:700;color:#fff6ee">Nomi</td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding:16px 32px 0">
+  <p style="margin:0 0 6px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#ff8a3d;font-weight:700">Founding member</p>
+  <h1 style="margin:0 0 12px;font-size:30px;line-height:1.15;color:#fff6ee">You're on the list, {e(first)}!</h1>
+  <p style="margin:0 0 20px;font-size:16px;line-height:1.55;color:#c9bdb2">You're <b style="color:#fff6ee">#{position}</b> on the Nomi waitlist. Nomi remembers everyone you meet, and as a founding member you get in first.</p>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0">{perks}</table>
+</td></tr>
+<tr><td style="padding:24px 32px 0">
+  <p style="margin:0 0 10px;font-size:15px;line-height:1.5;color:#c9bdb2">Share your invite link. The founding members who bring the most friends get in first.</p>
+  <a href="{e(url)}" style="display:inline-block;background:#ff6b1a;color:#1a0802;font-weight:700;font-size:16px;text-decoration:none;padding:14px 26px;border-radius:999px">Share your invite link</a>
+  <p style="margin:12px 0 0;font-size:13px;color:#8e8178;word-break:break-all">{e(url)}</p>
+</td></tr>
+<tr><td style="padding:24px 32px 0">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px dashed #5a4030;border-radius:16px">
+  <tr><td style="padding:16px 18px">
+    <p style="margin:0 0 4px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#ff8a3d;font-weight:700">Your friend code</p>
+    <p style="margin:0 0 6px;font-size:24px;font-weight:800;letter-spacing:2px;color:#fff6ee">{e(friend_code)}</p>
+    <p style="margin:0;font-size:14px;line-height:1.5;color:#c9bdb2">When Premium opens, friends who join with your code get a founding-friend discount.</p>
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding:24px 32px 32px">
+  <p style="margin:0;font-size:15px;line-height:1.55;color:#c9bdb2">We'll email you the moment your spot opens.<br>&mdash; Eisha &amp; Stephanie, the Nomi team</p>
+</td></tr>
+</table>
+<p style="margin:16px 0 0;font-size:12px;color:#6e625a;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif">You're getting this because you joined the waitlist at nomi-connect.vercel.app.</p>
+</td></tr></table></body></html>"""
+
+
+def _welcome(settings: Settings, to: str, name: str, position: int, url: str, friend_code: str) -> bool:
     first = name.split()[0]
     text = (
         f"Hi {first},\n\n"
-        "You're on the Nomi waitlist as a founding member. That means early access before anyone else, "
+        f"You're #{position} on the Nomi waitlist as a founding member. That means early access before anyone else, "
         "a founding badge in the app, and Nomi Premium free when it launches.\n\n"
-        f"Move up the list by sharing your link with friends: {url}\n\n"
+        f"Share your invite link; the founding members who bring the most friends get in first: {url}\n\n"
         f"Your friend code is {friend_code}. When Premium opens, friends who join with it get a founding-friend discount.\n\n"
         "We'll email you the moment your spot opens.\n\n"
-        "— The Nomi team"
+        "— Eisha & Stephanie, the Nomi team"
     )
-    return mail.send(settings, to, "You're on the Nomi waitlist", text, button=("Share your link", url))
-
-
-def _send_welcome(row_id, to: str, name: str, url: str, friend_code: str) -> None:
-    settings = get_settings()
-    if not _welcome(settings, to, name, url, friend_code):
-        return
-    # A fresh connection: the request's transaction is already committed.
-    try:
-        for conn in get_db():
-            repo.mark_welcomed(conn, row_id)
-    except Exception:  # noqa: BLE001 - the email went out; the timestamp is a nicety
-        logger.warning("Welcome email sent but not recorded for a waitlist signup")
+    return mail.send(settings, to, "You're on the Nomi waitlist", text,
+                     html_body=_welcome_html(first, position, url, friend_code))
 
 
 @router.post("/waitlist/join", response_model=Spot, status_code=status.HTTP_201_CREATED)
-def join(body: JoinRequest, request: Request, background: BackgroundTasks, conn: Connection = Depends(get_db),
+def join(body: JoinRequest, request: Request, conn: Connection = Depends(get_db),
          settings: Settings = Depends(get_settings)) -> Spot:
     per_hour.check(visitor(request))  # type: ignore[arg-type]
     base = _base_url(request, settings)
@@ -129,8 +166,10 @@ def join(body: JoinRequest, request: Request, background: BackgroundTasks, conn:
         return _spot(conn, existing, base, already=True)
 
     spot = _spot(conn, row, base)
-    if mail.can_send(settings):
-        background.add_task(_send_welcome, row["id"], row["email"], row["name"], spot.referral_url, row["friend_code"])
+    # Sent before responding: serverless hosts (Vercel) can stop work that
+    # runs after the response, so a background send could silently vanish.
+    if mail.can_send(settings) and _welcome(settings, row["email"], row["name"], spot.position, spot.referral_url, row["friend_code"]):
+        repo.mark_welcomed(conn, row["id"])
     return spot
 
 
