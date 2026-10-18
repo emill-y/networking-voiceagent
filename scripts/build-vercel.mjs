@@ -29,7 +29,7 @@ if (missing.length) {
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 
-const email = (process.env.SUPPORT_EMAIL || "nomiconnect@gmail.com").trim();
+const email = (process.env.SUPPORT_EMAIL || "nomi.officialteam@gmail.com").trim();
 const mailLink = /<a href="mailto:\{\{SUPPORT_EMAIL\}\}">\{\{SUPPORT_EMAIL\}\}<\/a>/g;
 for (const name of readdirSync(pages).filter((f) => f.endsWith(".html"))) {
   let html = readFileSync(join(pages, name), "utf8");

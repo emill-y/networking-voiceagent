@@ -12,6 +12,23 @@
       "excludeFiles": "{mobile/**,supabase/**,tests/**,backend/tests/**,backend/web/**,backend/.env,backend/prod.env.yaml,**/.venv/**,**/node_modules/**}"
     }
   },
+  "redirects": [
+    {
+      "source": "/app",
+      "destination": "/waitlist",
+      "permanent": false
+    },
+    {
+      "source": "/app/:path*",
+      "destination": "/waitlist",
+      "permanent": false
+    },
+    {
+      "source": "/demo",
+      "destination": "/waitlist",
+      "permanent": false
+    }
+  ],
   "rewrites": [
     {
       "source": "/waitlist",

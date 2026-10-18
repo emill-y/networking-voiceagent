@@ -87,6 +87,14 @@ class Settings:
     # shares still work through a link the sender copies.
     resend_api_key: str | None = None
     email_from: str = "Nomi <onboarding@resend.dev>"
+    # Free alternative to Resend: send through a Gmail account with an app
+    # password (Google Account -> Security -> App passwords). No domain needed.
+    gmail_address: str | None = None
+    gmail_app_password: str | None = None
+
+    # The spot number the first waitlist signup sees (WAITLIST_START, default 1).
+    # Only the displayed spot moves; counts and the database stay real.
+    waitlist_start: int = 1
 
     # Event providers for Plan Events (optional, free keys).
     ticketmaster_api_key: str | None = None
@@ -94,6 +102,13 @@ class Settings:
 
 
 @lru_cache
+def _waitlist_start(value: str | None) -> int:
+    try:
+        return max(1, int((value or "1").strip()))
+    except ValueError:
+        return 1
+
+
 def get_settings() -> Settings:
     _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     env = os.environ
@@ -129,6 +144,10 @@ def get_settings() -> Settings:
         public_url=(env.get("PUBLIC_URL") or "").rstrip("/") or None,
         resend_api_key=env.get("RESEND_API_KEY") or None,
         email_from=env.get("EMAIL_FROM") or "Nomi <onboarding@resend.dev>",
+        gmail_address=(env.get("GMAIL_ADDRESS") or "").strip() or None,
+        # Google shows app passwords in groups of four; spaces don't matter.
+        gmail_app_password=(env.get("GMAIL_APP_PASSWORD") or "").replace(" ", "") or None,
+        waitlist_start=_waitlist_start(env.get("WAITLIST_START")),
         ticketmaster_api_key=env.get("TICKETMASTER_API_KEY") or None,
         seatgeek_client_id=env.get("SEATGEEK_CLIENT_ID") or None,
         cors_origins=_csv(
