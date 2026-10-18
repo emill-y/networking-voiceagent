@@ -28,7 +28,7 @@ class FakeSMTP:
 
 
 def gmail_settings(**extra):
-    values = {"resend_api_key": None, "gmail_address": "nomiconnect@gmail.com", "gmail_app_password": "abcdabcdabcdabcd"}
+    values = {"resend_api_key": None, "gmail_address": "nomi.officialteam@gmail.com", "gmail_app_password": "abcdabcdabcdabcd"}
     return dataclasses.replace(get_settings(), **(values | extra))
 
 
@@ -39,9 +39,9 @@ def test_sends_through_gmail_without_a_domain(monkeypatch):
     assert mail.can_send(settings)
     assert mail.send(settings, "maya@berkeley.edu", "You're on the Nomi waitlist", "Hi Maya", html_body="<b>Hi</b>")
     user, password, message = FakeSMTP.sent[0]
-    assert (user, password) == ("nomiconnect@gmail.com", "abcdabcdabcdabcd")
+    assert (user, password) == ("nomi.officialteam@gmail.com", "abcdabcdabcdabcd")
     assert message["To"] == "maya@berkeley.edu"
-    assert message["From"] == "Nomi <nomiconnect@gmail.com>"
+    assert message["From"] == "Nomi <nomi.officialteam@gmail.com>"
     assert "<b>Hi</b>" in message.get_body(("html",)).get_content()
     assert "Hi Maya" in message.get_body(("plain",)).get_content()
 

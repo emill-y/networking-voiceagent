@@ -65,7 +65,7 @@ def send(settings: Settings, to: str, subject: str, text: str, button: tuple[str
         )
     page = (
         "<div style='font-family:-apple-system,Segoe UI,Roboto,sans-serif;font-size:15px;line-height:1.5;"
-        f"color:#18150F;max-width:520px'>{body}<p style='color:#8E877D;font-size:12px'>Nomi · nomiconnect@gmail.com</p></div>"
+        f"color:#18150F;max-width:520px'>{body}<p style='color:#8E877D;font-size:12px'>Nomi · nomi.officialteam@gmail.com</p></div>"
     )
     if html_body:
         page = html_body

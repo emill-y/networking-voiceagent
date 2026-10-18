@@ -27,7 +27,7 @@ def _render(name: str, email: str) -> str:
 
 
 def _page(name: str) -> HTMLResponse:
-    return HTMLResponse(_render(name, (os.environ.get("SUPPORT_EMAIL") or "nomiconnect@gmail.com").strip()))
+    return HTMLResponse(_render(name, (os.environ.get("SUPPORT_EMAIL") or "nomi.officialteam@gmail.com").strip()))
 
 
 SITE = PAGES / "site"
