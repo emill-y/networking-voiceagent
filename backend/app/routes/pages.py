@@ -1,4 +1,4 @@
-"""The public website: /, /product, /waitlist, /students, /demo, /privacy and /site/* assets.
+"""The public website: /, /waitlist, /privacy and /site/* assets (older pages redirect).
 
 On Vercel these are static files (scripts/build-vercel.mjs); serving them
 from the API too means the site also works locally and on Cloud Run.
@@ -10,7 +10,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, status
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 
 router = APIRouter()
 PAGES = Path(__file__).resolve().parent.parent / "pages"
@@ -31,7 +31,9 @@ def _page(name: str) -> HTMLResponse:
 
 
 SITE = PAGES / "site"
-NAMED_PAGES = ("product", "students", "waitlist", "demo", "privacy")
+NAMED_PAGES = ("waitlist", "privacy")
+# Older pages, folded into the home page.
+RETIRED_PAGES = {"product": "/", "students": "/", "demo": "/waitlist"}
 
 
 @router.get("/", include_in_schema=False)
@@ -48,6 +50,17 @@ def _named(name: str):
 
 for _name in NAMED_PAGES:
     router.add_api_route(f"/{_name}", _named(_name), methods=["GET"], include_in_schema=False)
+
+
+def _moved(target: str):
+    def page() -> RedirectResponse:
+        return RedirectResponse(target, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+    return page
+
+
+for _name, _target in RETIRED_PAGES.items():
+    router.add_api_route(f"/{_name}", _moved(_target), methods=["GET"], include_in_schema=False)
 
 
 @router.get("/site/{path:path}", include_in_schema=False)

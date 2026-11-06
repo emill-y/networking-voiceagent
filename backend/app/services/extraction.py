@@ -75,7 +75,13 @@ Rules:
 - followUp is a concrete next step that was agreed ("let's get coffee next week",
   "send me your resume"), written as the user's action. Else null.
 - Keep list items short, without duplicates. Use null and [] for unknowns.
-- Do not record sensitive traits (health, religion, sexuality, politics, ethnicity)."""
+- Do not record sensitive traits (health, religion, sexuality, politics, ethnicity).
+- Lines in parentheses at the top are context, not speech: the event name, who the
+  user is (never include them, even if their name is spoken), and people already met
+  earlier in the event. When a person from that list appears again, reuse their exact
+  name and add only the new details from this part.
+- Speech recognition misspells names. If a name here is clearly the same person as one
+  already met (same first name, same company or school), use the earlier spelling."""
 
 # A note this long that yields nothing but names probably lost its details.
 THIN_NOTE_WORDS = 12

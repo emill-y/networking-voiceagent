@@ -27,24 +27,22 @@
       "source": "/demo",
       "destination": "/waitlist",
       "permanent": false
+    },
+    {
+      "source": "/product",
+      "destination": "/",
+      "permanent": false
+    },
+    {
+      "source": "/students",
+      "destination": "/",
+      "permanent": false
     }
   ],
   "rewrites": [
     {
       "source": "/waitlist",
       "destination": "/waitlist.html"
-    },
-    {
-      "source": "/product",
-      "destination": "/product.html"
-    },
-    {
-      "source": "/students",
-      "destination": "/students.html"
-    },
-    {
-      "source": "/demo",
-      "destination": "/demo.html"
     },
     {
       "source": "/privacy",

@@ -280,10 +280,18 @@ export type EventFeed = { id: string; url: string; label: string; createdAt: str
 
 // ---------- Ambient sessions ----------
 
+export type SessionContact = {
+  id: string;
+  name: string;
+  role: string | null;
+  company: string | null;
+  school: string | null;
+};
+
 export type AmbientSession = {
   id: string;
   title: string | null;
-  status: "recording" | "ready";
+  status: "recording" | "ready" | "saved";
   chunks: number;
   audioSeconds: number;
   words: number;
@@ -292,4 +300,6 @@ export type AmbientSession = {
   endedAt: string | null;
   uploadToken?: string;
   transcript?: string;
+  // The people kept from a saved session.
+  contacts?: SessionContact[];
 };

@@ -5,101 +5,95 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · Join the waitlist</title>
 <meta name="description" content="Join the Nomi waitlist and become a founding member: early access, a founding badge, Premium free and a friend code.">
-<meta property="og:title" content="Nomi · Join the founding waitlist">
-<meta property="og:description" content="Never forget who you met. Founding members get early access to Nomi.">
+<meta property="og:title" content="Nomi · Join the waitlist">
+<meta property="og:description" content="Join the Nomi waitlist and become a founding member: early access, a founding badge, Premium free and a friend code.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#080605">
+<meta name="theme-color" content="#FAF9F6">
 <link rel="icon" href="/site/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/site/style.css">
 <link rel="stylesheet" href="/site/waitlist.css">
 </head>
 <body>
-<div class="ambient" aria-hidden="true"></div>
-<div class="grain" aria-hidden="true"></div>
 <header class="nav">
   <div class="wrap">
     <div class="nav-inner">
       <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
       <nav class="nav-links" aria-label="Main">
-        <a href="/product">Product</a>
-        <a href="/students">Students</a>
-        <a href="/waitlist">Waitlist</a>
+        <a href="/#how">How it works</a>
+        <a href="/#search">Search</a>
+        <a href="/#map">Map</a>
         <a href="/privacy">Privacy</a>
       </nav>
       <div class="nav-cta">
-        <a class="btn btn-hot btn-sm" href="/waitlist">Join the waitlist</a>
+        <a class="btn btn-dark btn-sm" href="/waitlist">Join the waitlist</a>
         <button class="menu-btn" aria-label="Menu" aria-expanded="false">☰</button>
       </div>
     </div>
   </div>
 </header>
 <main>
-  <section class="hero wl-hero">
-    <div class="wrap hero-grid">
-      <div>
-        <span class="pill reveal" id="invited" hidden><span class="dot">✦</span>A friend invited you</span>
-        <span class="pill reveal" id="founding"><span class="dot">✦</span>Founding members get in first</span>
-        <h1 class="reveal d1">Join the Nomi <span class="grad-text">waitlist.</span></h1>
-        <p class="lede reveal d2">Sign up to become a founding member. Here's what you get:</p>
-        <ul class="wl-perk-list reveal d2" aria-label="Founding member perks">
-          <li><span>🚀</span>Early access before launch</li>
-          <li><span>✦</span>Founding member badge</li>
-          <li><span>💎</span>Premium free for founding members</li>
-          <li><span>🎁</span>Friend code: your friends get a discount</li>
+  <section class="wl-hero">
+    <div class="wrap wl-grid">
+      <div class="wl-main">
+        <span class="pill" id="invited" hidden><span class="live-dot"></span>A friend invited you</span>
+        <span class="pill" id="founding"><span class="live-dot"></span>Founding members get in first</span>
+        <h1>Join the Nomi waitlist.</h1>
+        <p class="lede">Become a founding member. Here’s what you get:</p>
+        <ul class="wl-perk-list" aria-label="Founding member perks">
+          <li>Early access before launch</li>
+          <li>A founding member badge</li>
+          <li>Premium, free</li>
+          <li>A friend code with a discount</li>
         </ul>
 
-        <!-- Signup -->
-        <form class="card wl-card reveal d3" id="join" novalidate>
+        <form class="card wl-card" id="join" novalidate>
           <div class="wl-row">
-          <div class="wl-field">
-            <label for="name">Name</label>
-            <input id="name" name="name" autocomplete="name" placeholder="Maya Singh" maxlength="80" required>
-          </div>
-          <div class="wl-field">
-            <label for="school">School</label>
-            <div class="wl-combo">
-              <input id="school" name="school" placeholder="Your school" maxlength="120" required autocomplete="off"
-                role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="school-list">
-              <span class="wl-caret" aria-hidden="true">▾</span>
-              <ul class="wl-options" id="school-list" role="listbox" hidden></ul>
+            <div class="wl-field">
+              <label for="name">Name</label>
+              <input id="name" name="name" autocomplete="name" placeholder="Maya Singh" maxlength="80" required>
             </div>
-          </div>
+            <div class="wl-field">
+              <label for="school">School</label>
+              <div class="wl-combo">
+                <input id="school" name="school" placeholder="Your school" maxlength="120" required autocomplete="off"
+                  role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="school-list">
+                <span class="wl-caret" aria-hidden="true">▾</span>
+                <ul class="wl-options" id="school-list" role="listbox" hidden></ul>
+              </div>
+            </div>
           </div>
           <div class="wl-field">
             <label for="email">Email</label>
             <input id="email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@school.edu" maxlength="254" required>
           </div>
-          <button class="btn btn-hot wl-submit" type="submit" id="submit"><span>Claim my founding spot</span> <span class="arrow">→</span></button>
+          <button class="btn btn-dark btn-lg wl-submit" type="submit" id="submit"><span>Claim my founding spot</span></button>
           <p class="wl-error" id="error" role="alert" hidden></p>
           <p class="wl-fine">Free. One email when your spot opens, nothing else. <a href="/privacy">Privacy</a></p>
           <p class="wl-count" id="count" hidden></p>
         </form>
 
-        <!-- After joining -->
-        <section class="card hot wl-card" id="done" hidden aria-live="polite">
-          <span class="eyebrow">✦ Founding member</span>
-          <h2 class="wl-title" id="done-title">You're in!</h2>
-          <p class="wl-spot">You're <b id="position">#1</b> on the list<span id="of"></span>.</p>
-
+        <section class="card wl-card" id="done" hidden aria-live="polite">
+          <span class="eyebrow">Founding member</span>
+          <h2 class="wl-title" id="done-title">You’re in!</h2>
+          <p class="wl-spot">You’re <b id="position">#1</b> on the list<span id="of"></span>.</p>
           <div class="wl-field">
             <label for="link">Your invite link</label>
             <div class="wl-link-row">
               <input id="link" readonly>
-              <button type="button" class="btn btn-hot btn-sm" id="copy">Copy</button>
+              <button type="button" class="btn btn-dark" id="copy">Copy</button>
             </div>
           </div>
           <div class="wl-share">
-            <button type="button" class="btn btn-glass btn-sm" id="native-share" hidden>Share…</button>
-            <a class="btn btn-glass btn-sm" id="sms" href="#">Text a friend</a>
-            <a class="btn btn-glass btn-sm" id="x" href="#" target="_blank" rel="noopener">Post on X</a>
-            <a class="btn btn-glass btn-sm" id="li" href="#" target="_blank" rel="noopener">LinkedIn</a>
+            <button type="button" class="btn btn-light btn-sm" id="native-share" hidden>Share…</button>
+            <a class="btn btn-light btn-sm" id="sms" href="#">Text a friend</a>
+            <a class="btn btn-light btn-sm" id="x" href="#" target="_blank" rel="noopener">Post on X</a>
+            <a class="btn btn-light btn-sm" id="li" href="#" target="_blank" rel="noopener">LinkedIn</a>
           </div>
           <p class="wl-friends"><b id="referrals">0</b> <span id="friends-word">friends have</span> joined with your link. The founding members who bring the most friends get in first.</p>
-
           <div class="wl-code">
             <span class="eyebrow">Your friend code</span>
             <strong id="friend-code">NOMI-XXXXX</strong>
@@ -109,91 +103,36 @@
         </section>
       </div>
 
-      <!-- Nomi, the planet who never forgets a face -->
-      <div class="mascot-wrap reveal d2" aria-hidden="true">
-        <div class="orbit-ring"></div>
-        <div class="moon-track"><span class="moon"></span></div>
-        <svg class="mascot" viewBox="0 0 220 220">
-          <defs>
-            <radialGradient id="m-body" cx="34%" cy="28%" r="78%">
-              <stop offset="0" stop-color="#FFF0E0"/>
-              <stop offset="0.22" stop-color="#FFA066"/>
-              <stop offset="0.6" stop-color="#FF6B1A"/>
-              <stop offset="0.9" stop-color="#E2440C"/>
-              <stop offset="1" stop-color="#8A2106"/>
-            </radialGradient>
-            <radialGradient id="m-halo" cx="50%" cy="50%" r="50%">
-              <stop offset="0" stop-color="#FF6B1A" stop-opacity="0.5"/>
-              <stop offset="1" stop-color="#FF6B1A" stop-opacity="0"/>
-            </radialGradient>
-          </defs>
-          <circle cx="110" cy="110" r="108" fill="url(#m-halo)"/>
-          <g class="bob">
-            <path d="M110 46 Q 118 26 132 22" stroke="#FFD2B0" stroke-width="4" fill="none" stroke-linecap="round"/>
-            <path class="antenna-star" d="M134 12 l3.5 7 7.5 1 -5.5 5 1.5 7.5 -7 -3.5 -7 3.5 1.5 -7.5 -5.5 -5 7.5 -1z" fill="#FFD27A"/>
-            <circle cx="110" cy="112" r="66" fill="url(#m-body)"/>
-            <ellipse cx="78" cy="128" rx="11" ry="7" fill="#FF4F6E" opacity="0.4"/>
-            <ellipse cx="142" cy="128" rx="11" ry="7" fill="#FF4F6E" opacity="0.4"/>
-            <g class="eyes">
-              <ellipse cx="90" cy="106" rx="8.5" ry="11" fill="#1A0802"/>
-              <ellipse cx="130" cy="106" rx="8.5" ry="11" fill="#1A0802"/>
-              <circle cx="93" cy="102" r="3" fill="#fff"/>
-              <circle cx="133" cy="102" r="3" fill="#fff"/>
-            </g>
-            <g class="happy-eyes">
-              <path d="M80 108 Q 90 96 100 108" stroke="#1A0802" stroke-width="5" fill="none" stroke-linecap="round"/>
-              <path d="M120 108 Q 130 96 140 108" stroke="#1A0802" stroke-width="5" fill="none" stroke-linecap="round"/>
-            </g>
-            <path d="M98 132 Q 110 144 122 132" stroke="#1A0802" stroke-width="4.5" fill="none" stroke-linecap="round"/>
-            <g class="arm"><path d="M170 120 Q 190 104 192 84" stroke="#E2440C" stroke-width="10" fill="none" stroke-linecap="round"/></g>
-            <path d="M50 126 Q 34 134 32 150" stroke="#E2440C" stroke-width="10" fill="none" stroke-linecap="round"/>
-          </g>
-        </svg>
-        <div class="speech" id="speech">Hi! I'm Nomi. I remember everyone you meet.</div>
+      <aside class="mascot-wrap" aria-hidden="true">
+        <div class="wl-note card">
+          <div class="session-top"><span class="rec"><span class="live-dot"></span>Listening</span><span class="session-title">Career fair</span></div>
+          <div class="people">
+            <div class="person"><span class="av" style="background:#4F76B5">SK</span><div><b>Sarah Kim</b><span>PhD student at Berkeley · protein design</span></div></div>
+            <div class="person"><span class="av" style="background:#B05B4A">PS</span><div><b>Priya Shah</b><span>Recruiter at Stripe · offered a referral</span></div></div>
+          </div>
+          <p class="speech" id="speech">Hi! I’m Nomi. I remember everyone you meet.</p>
+        </div>
         <div class="confetti" id="confetti"></div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="wrap">
-      <div class="section-head reveal"><span class="eyebrow">Founding members</span><h2>Perks for the first in.</h2></div>
-      <div class="wl-perks">
-        <div class="card reveal"><div class="ico">🚀</div><h3>Early access</h3><p>Nomi on iPhone and the web before the public launch.</p></div>
-        <div class="card reveal d1"><div class="ico">✦</div><h3>Founding badge</h3><p>A founding member badge on your profile, for good.</p></div>
-        <div class="card reveal d2"><div class="ico">💎</div><h3>Premium, free</h3><p>Founding members get Nomi Premium free when it launches.</p></div>
-        <div class="card hot reveal d3"><div class="ico">🎁</div><h3>Friend codes</h3><p>Your own code that gives friends a founding-friend discount.</p></div>
-      </div>
+      </aside>
     </div>
   </section>
 </main>
-
 <footer>
   <div class="wrap">
     <div class="foot">
       <div>
         <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
-        <p>The private, voice-first memory for the people you meet.</p>
+        <p>Start a session. Remember everyone you meet.</p>
       </div>
-      <div>
-        <h4>Product</h4>
-        <a href="/product">Features</a>
-        <a href="/waitlist">Join the waitlist</a>
-      </div>
-      <div>
-        <h4>For</h4>
-        <a href="/students">Students</a>
-        <a href="/product#search">Founders</a>
-        <a href="/product#followups">Job seekers</a>
-      </div>
-      <div>
-        <h4>Company</h4>
+      <nav aria-label="Footer">
+        <a href="/#how">How it works</a>
+        <a href="/waitlist">Waitlist</a>
         <a href="/privacy">Privacy</a>
-        <a href="/#support">Support</a>
         <a href="/#faq">FAQ</a>
-      </div>
+        <a href="mailto:{{SUPPORT_EMAIL}}">Contact</a>
+      </nav>
     </div>
-    <div class="legal"><span>© 2026 Nomi</span><span>Made for people who meet people.</span></div>
+    <div class="legal">© 2026 Nomi</div>
   </div>
 </footer>
 <script src="/site/site.js"></script>

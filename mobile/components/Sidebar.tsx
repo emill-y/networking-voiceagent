@@ -9,7 +9,7 @@ import { Txt } from "@/components/Txt";
 import { useAccount } from "@/hooks/useAccount";
 import { layout, makeStyles, radius, space, useTheme } from "@/lib/theme";
 
-// Desktop navigation: brand, destinations, invite, and the signed-in account.
+// Desktop navigation: brand, the start button, destinations, and the account.
 export function Sidebar() {
   const s = useStyles();
   const router = useRouter();
@@ -34,7 +34,7 @@ export function Sidebar() {
         active && s.itemActive,
       ]}
     >
-      <Icon name={icon} size={17} color={active ? colors.accentText : colors.textSecondary} />
+      <Icon name={icon} size={17} color={active ? colors.text : colors.textSecondary} />
       <Txt variant="label" style={{ color: active ? colors.text : colors.textSecondary }}>{label}</Txt>
     </Pressable>
   );
@@ -42,17 +42,19 @@ export function Sidebar() {
   return (
     <View style={s.sidebar} role="navigation">
       <Pressable onPress={() => go("/")} accessibilityRole="link" accessibilityLabel="Nomi home" style={s.brand}>
-        <LogoMark size={24} />
-        <Txt variant="heading" style={s.wordmark}>Nomi</Txt>
+        <LogoMark size={22} />
+        <Txt variant="title" style={s.wordmark}>Nomi</Txt>
+      </Pressable>
+
+      <Pressable onPress={() => router.push("/session")} accessibilityRole="button" accessibilityLabel="Start a session"
+        style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [s.start, (hovered || pressed) && { backgroundColor: colors.accentHover }]}>
+        <Icon name="mic" size={16} color={colors.onAccent} />
+        <Txt variant="label" style={{ color: colors.onAccent }}>Start session</Txt>
       </Pressable>
 
       <View style={s.items}>{NAV.map((n) => item(n.label, n.icon, n.match(pathname), () => go(n.href)))}</View>
 
       <View style={s.spacer} />
-
-      <View style={s.items}>
-        {item("Invite friends", "gift", pathname.startsWith("/invite"), () => go("/invite"))}
-      </View>
       <Pressable
         onPress={() => go("/profile")}
         accessibilityRole="link"
@@ -85,7 +87,17 @@ const useStyles = makeStyles(({ colors }) =>
       backgroundColor: colors.chrome,
     },
     brand: { flexDirection: "row", alignItems: "center", gap: space.xs, paddingHorizontal: space.xs, marginBottom: space.lg },
-    wordmark: { fontSize: 19 },
+    wordmark: { fontSize: 21, lineHeight: 26 },
+    start: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: space.xs,
+      height: 38,
+      borderRadius: radius.sm,
+      backgroundColor: colors.accent,
+      marginBottom: space.md,
+    },
     items: { gap: 2 },
     item: {
       flexDirection: "row",

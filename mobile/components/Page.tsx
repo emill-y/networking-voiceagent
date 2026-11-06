@@ -3,7 +3,6 @@ import { useRouter } from "expo-router";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Backdrop } from "@/components/Backdrop";
 import { Icon } from "@/components/Icon";
 import { Reveal } from "@/components/Reveal";
 import { TAB_BAR_SPACE } from "@/components/TabBar";
@@ -27,7 +26,7 @@ type Props = {
   children: ReactNode;
 };
 
-// Every page: the same width, gutters, header and backdrop.
+// Every page: the same width, gutters, header.
 export function Page({ title, subtitle, actions, back, width = "page", scroll = true, tabBar = true, children }: Props) {
   const s = useStyles();
   const desktop = useDesktop();
@@ -69,7 +68,6 @@ export function Page({ title, subtitle, actions, back, width = "page", scroll = 
 
   return (
     <SafeAreaView style={s.safe} edges={["top", "left", "right"]}>
-      <Backdrop />
       {scroll ? (
         <ScrollView contentContainerStyle={frame} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {header && <Reveal>{header}</Reveal>}

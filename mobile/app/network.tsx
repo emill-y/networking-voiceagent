@@ -57,7 +57,7 @@ export default function Network() {
       options={[{ value: "map", label: "Map", icon: "map" }, { value: "list", label: "List", icon: "list" }]} />
   );
   const subtitle = data
-    ? `${data.people.length} ${data.people.length === 1 ? "contact" : "contacts"} · ${linkCount} ${linkCount === 1 ? "connection" : "connections"}`
+    ? `${data.people.length} ${data.people.length === 1 ? "person" : "people"} · ${linkCount} ${linkCount === 1 ? "connection" : "connections"}`
     : undefined;
 
   if (!data) {
@@ -73,8 +73,8 @@ export default function Network() {
       <Page title="Map">
         <Card padding="none">
           <EmptyState icon="map" title="Your network starts here"
-            body="Everyone you remember appears on the map, linked by where you met and what you share."
-            action={<Button title="Remember someone" icon="mic" variant="primary" onPress={() => router.push("/record")} />} />
+            body="Everyone you meet in a session appears here, linked by where you met and what you share."
+            action={<Button title="Start a session" icon="mic" variant="primary" onPress={() => router.push("/session")} />} />
         </Card>
       </Page>
     );

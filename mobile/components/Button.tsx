@@ -1,5 +1,4 @@
 import { ActivityIndicator, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
 
 import { Icon, type IconName } from "@/components/Icon";
 import { useDesktop } from "@/hooks/useDesktop";
@@ -66,7 +65,6 @@ export function Button({
         style,
       ]}
     >
-      {variant === "primary" && <MoltenFill />}
       <View style={[s.row, loading && s.hidden]}>
         {icon && <Icon name={icon} size={iconSize} color={fg} />}
         <Text style={[s.text, size === "sm" && s.textSm, size === "lg" && s.textLg, phone && s.textPhone, { color: fg }]} numberOfLines={1}>
@@ -76,26 +74,6 @@ export function Button({
       </View>
       {loading && <ActivityIndicator style={StyleSheet.absoluteFill} size="small" color={fg} />}
     </Pressable>
-  );
-}
-
-// The website's primary button: a molten orange gradient with a soft top
-// highlight, drawn behind the label.
-function MoltenFill() {
-  const s = useStyles();
-  return (
-    <View style={s.fill} pointerEvents="none">
-      <Svg width="100%" height="100%" preserveAspectRatio="none">
-        <Defs>
-          <LinearGradient id="molten" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#FFA066" />
-            <Stop offset="0.55" stopColor="#FF6B1A" />
-            <Stop offset="1" stopColor="#E2440C" />
-          </LinearGradient>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#molten)" />
-      </Svg>
-    </View>
   );
 }
 
@@ -139,7 +117,7 @@ export function IconButton({
   );
 }
 
-const useStyles = makeStyles(({ colors, mode }) =>
+const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     base: {
       borderRadius: radius.pill,
@@ -156,18 +134,11 @@ const useStyles = makeStyles(({ colors, mode }) =>
     mdPhone: { height: 46, paddingHorizontal: space.md + 2 },
     lgPhone: { height: 54 },
     fullWidth: { alignSelf: "stretch" },
-    primary: {
-      backgroundColor: colors.accent,
-      shadowColor: "#FF6B1A",
-      shadowOpacity: mode === "dark" ? 0.55 : 0.35,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 8 },
-    },
-    primaryHover: { shadowOpacity: mode === "dark" ? 0.8 : 0.5, transform: [{ translateY: -1 }] },
-    // Glass, like the website's secondary buttons.
-    secondary: { backgroundColor: mode === "dark" ? "rgba(255, 255, 255, 0.055)" : colors.surface, borderColor: colors.border },
-    secondaryHover: { backgroundColor: mode === "dark" ? "rgba(255, 255, 255, 0.09)" : colors.surfaceHover, borderColor: colors.borderStrong },
-    fill: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, borderRadius: radius.pill, overflow: "hidden" },
+    // Black ink for the one main action; quiet white for everything else.
+    primary: { backgroundColor: colors.accent },
+    primaryHover: { backgroundColor: colors.accentHover },
+    secondary: { backgroundColor: colors.surface, borderColor: colors.borderStrong },
+    secondaryHover: { backgroundColor: colors.surfaceHover },
     ghost: { backgroundColor: "transparent" },
     ghostHover: { backgroundColor: colors.sunken },
     danger: { backgroundColor: colors.dangerSoft },

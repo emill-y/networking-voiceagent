@@ -118,7 +118,7 @@
 
   function confetti() {
     const box = $("confetti");
-    const colors = ["#FF6B1A", "#FFA066", "#FFD27A", "#FFF0E0", "#E2440C", "#FF8A3D"];
+    const colors = ["#E8743B", "#1B1A17", "#2E7D52", "#5878B4", "#A88A3C", "#DCD8D0"];
     for (let i = 0; i < 46; i++) {
       const p = document.createElement("i");
       const angle = Math.random() * Math.PI * 2;

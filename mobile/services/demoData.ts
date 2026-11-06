@@ -1,17 +1,16 @@
-// The demo network behind /app/demo: made-up people, follow-ups, events and
-// a connected calendar, answering the same API calls the real backend does.
+// The demo network behind /app/demo: made-up people and the sessions where
+// they were met, answering the same API calls the real backend does.
 // Deterministic (dates are relative to today), kept in memory, and never
 // sent anywhere. Changes made during a demo last until the page reloads.
 import type { RequestOptions } from "@/lib/api";
 import type {
+  AmbientSession,
+  CapturedPerson,
   ContactDetail,
   ContactSummary,
   FollowUp,
   Interaction,
   NetworkResponse,
-  Plan,
-  PlansResponse,
-  RealEvent,
   SearchResponse,
 } from "@/types/api";
 
@@ -87,7 +86,6 @@ const iso = (daysFromNow: number, hour = 12) => {
   d.setHours(hour, 0, 0, 0);
   return d.toISOString();
 };
-const dateOnly = (daysFromNow: number) => iso(daysFromNow).slice(0, 10);
 
 let people = PEOPLE.map((p) => ({ ...p }));
 let followUps: FollowUp[] = [
@@ -183,7 +181,18 @@ function searchDemo(query: string): SearchResponse {
   const q = query.toLowerCase();
   const wanted = Object.entries(SYNONYMS).filter(([k]) => q.includes(k)).flatMap(([, v]) => v);
   const recentOnly = /recent|lately|this (week|month)|last (week|month)/.test(q);
-  const terms = wanted.length ? wanted : q.split(/\W+/).filter((w) => w.length > 3);
+  // "Who did I meet today / this week / at Cal Hacks?": answer by when and where.
+  const window = /today|tonight/.test(q) ? 0 : /this week|last week/.test(q) ? 7 : null;
+  const event = people.find((p) => p.event && q.includes(p.event.toLowerCase()))?.event ?? null;
+  if (window !== null || event) {
+    const found = people.filter((p) => (window === null || p.metDaysAgo <= window) && (!event || p.event === event)).slice(0, 8);
+    return {
+      interpreted: true,
+      results: found.map((p) => ({ contact: summary(p), reasons: [`Met at ${p.event}${p.metDaysAgo === 0 ? " today" : ""}`] })),
+    };
+  }
+  const stop = new Set(["who", "what", "did", "meet", "know", "about", "else", "works", "with", "that", "does", "should", "could"]);
+  const terms = wanted.length ? wanted : q.split(/\W+/).filter((w) => w.length > 2 && !stop.has(w));
   const scored = people
     .map((p) => {
       const text = [p.name, p.role, p.company, p.school, p.major, p.summary, p.said, ...p.interests, ...p.projects, ...p.needs, ...p.topics]
@@ -211,81 +220,6 @@ function reasonFor(p: Person, hits: string[]): string {
   return `${p.role ?? "Contact"}${where ? ` at ${where}` : ""}, ${about}${hits[0] ? ` · notes mention “${hits[0]}”` : ""}`;
 }
 
-const EVENTS: Omit<RealEvent, "people" | "where">[] = [
-  ev("e1", "Chemistry club mixer", 2, 18, "Latimer Hall, Berkeley", "students"),
-  ev("e2", "SF Tech Week: Founders & Funders", 5, 17, "Moscone West, San Francisco", "networking"),
-  ev("e3", "Intro to the pottery wheel", 6, 10, "Clay Studio SF, San Francisco", "learning"),
-  ev("e4", "Jazz at the Greek", 8, 20, "Greek Theatre, Berkeley", "music"),
-  ev("e5", "Bay Area beach cleanup", 9, 9, "Ocean Beach, San Francisco", "outdoors"),
-  ev("e6", "AI x Biology meetup", 11, 18, "Berkeley SkyDeck, Berkeley", "tech"),
-  ev("e7", "Thursday climbing night", 3, 19, "Mission Cliffs, San Francisco", "sports"),
-  ev("e8", "Night market food crawl", 13, 18, "Chinatown, San Francisco", "food"),
-  ev("e9", "Design portfolio workshop", 15, 14, "Figma HQ, San Francisco", "learning"),
-];
-
-function ev(id: string, title: string, inDays: number, hour: number, place: string, category: string): Omit<RealEvent, "people" | "where"> {
-  const [venue, city] = place.split(", ");
-  return {
-    id, title, start: iso(inDays, hour).slice(0, 19), end: null, allDay: false, city: city ?? venue, country: "US", online: false,
-    url: "https://nomi-connect.vercel.app", venue, imageUrl: null, category, source: "demo", sourceLabel: "Event", topics: [],
-  };
-}
-
-const PLAN_FOR: Record<string, { people: string[]; shared: string; why: string }> = {
-  e1: { people: ["p-annie"], shared: "chemistry", why: "You’re both into chemistry, and Annie is looking for a summer lab position." },
-  e2: { people: ["p-jason", "p-eli"], shared: "startups", why: "Jason is raising a seed round and Eli invests in robotics. Go together and make the intro in person." },
-  e3: { people: ["p-maya"], shared: "ceramics", why: "Maya mentioned she’s into ceramics, and Lena teaches this class." },
-  e4: { people: ["p-annie", "p-noah"], shared: "music", why: "Annie plays jazz piano and Noah is into live music." },
-  e7: { people: ["p-noah", "p-priya"], shared: "climbing", why: "Noah runs this night and Priya climbs too." },
-  e6: { people: ["p-sarah", "p-ravi"], shared: "ai and biotech", why: "Sarah is into biotech and ML; Ravi works on AI for biology." },
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  music: "Music", arts: "Arts & culture", food: "Food & drink", sports: "Sports & fitness", outdoors: "Outdoors",
-  learning: "Classes & workshops", networking: "Networking & career", tech: "Tech", community: "Community & volunteering",
-  social: "Nightlife & social", students: "Student events", other: "Other",
-};
-
-function plansDemo(params: URLSearchParams): PlansResponse {
-  const days = Number(params.get("days") ?? 30);
-  const picked = (params.get("categories") ?? "").split(",").filter(Boolean);
-  const inRange = EVENTS.filter((e) => new Date(e.start).getTime() <= now() + days * DAY);
-  const counts = new Map<string, number>();
-  inRange.forEach((e) => counts.set(e.category, (counts.get(e.category) ?? 0) + 1));
-  const shown = inRange.filter((e) => !picked.length || picked.includes(e.category));
-  const person = (id: string) => people.find((p) => p.id === id);
-  const events: RealEvent[] = shown.map((e) => ({
-    ...e,
-    where: "local",
-    people: (PLAN_FOR[e.id]?.people ?? []).map(person).filter(Boolean).map((p) => ({ contactId: p!.id, name: p!.name, why: null })),
-  }));
-  const plans: Plan[] = events
-    .filter((e) => PLAN_FOR[e.id])
-    .map((e) => ({ event: e, people: e.people, shared: PLAN_FOR[e.id].shared, why: PLAN_FOR[e.id].why }));
-  return {
-    plans,
-    events,
-    categories: [...counts.entries()].map(([key, count]) => ({ key, label: CATEGORY_LABELS[key] ?? key, count })),
-    sources: [],
-  };
-}
-
-function upcomingCalendar() {
-  const at = (days: number, hour: number) => iso(days, hour);
-  return {
-    connected: true,
-    state: "connected",
-    events: [
-      { id: "g1", title: "Chemistry 1A lecture", start: at(1, 10), allDay: false, location: "Pimentel Hall", link: null,
-        people: [{ contactId: "p-annie", name: "Annie Park", why: "Your notes mention “chemistry”" }] },
-      { id: "g2", title: "Coffee with Jason", start: at(2, 15), allDay: false, location: "Philz, Berkeley", link: null,
-        people: [{ contactId: "p-jason", name: "Jason Chen", why: "Named in the event" }] },
-      { id: "g3", title: "Design crit", start: at(4, 13), allDay: false, location: null, link: null,
-        people: [{ contactId: "p-maya", name: "Maya Singh", why: "Your notes mention “design”" }] },
-    ],
-  };
-}
-
 const CSV_HEADER = ["Name", "Email", "Company", "Role", "School", "Major", "Location", "Interests", "Working on", "Looking for", "Where you met", "Notes"];
 
 function exportDemo(ids: string[] | null, format: string): string {
@@ -297,8 +231,6 @@ function exportDemo(ids: string[] | null, format: string): string {
       p.interests.join("; "), p.projects.join("; "), p.needs.join("; "), p.event, p.notes.join("; ")].map(cell).join(sep));
   return [CSV_HEADER.map(cell).join(sep), ...rows].join("\n");
 }
-
-let calendarConnected = true;
 
 // A scripted session: people "join" as chunks arrive, details filling in.
 const SESSION_PEOPLE = [
@@ -314,7 +246,9 @@ const SESSION_PEOPLE = [
     interests: ["design", "music"], projects: [], needs: [], topicsDiscussed: ["portfolio reviews"], notes: ["Offered a portfolio review"],
     followUp: "Book a portfolio review with Kai next week", followUpDue: null } },
 ];
-let demoSession: { id: string; title: string | null; status: "recording" | "ready"; chunks: number; startedAt: string } | null = null;
+let demoSession: { id: string; title: string | null; status: "recording" | "ready" | "saved"; chunks: number; startedAt: string; endedAt: string | null; contactIds: string[] } | null = null;
+// Sessions saved during this demo, newest first.
+let savedSessions: AmbientSession[] = [];
 
 function sessionPeople(chunks: number, title: string | null) {
   const latest = new Map<string, (typeof SESSION_PEOPLE)[number]["person"]>();
@@ -322,12 +256,58 @@ function sessionPeople(chunks: number, title: string | null) {
   return [...latest.values()].map((p) => ({ ...p, metAt: p.metAt ?? title }));
 }
 
-function sessionOut(extra: Record<string, unknown> = {}) {
+const contactOf = (p: Person) => ({ id: p.id, name: p.name, role: p.role, company: p.company, school: p.school });
+
+function sessionOut(extra: Record<string, unknown> = {}): AmbientSession {
   const sess = demoSession!;
+  const saved = sess.status === "saved";
   return {
-    ...sess, audioSeconds: sess.chunks * 30, words: sess.chunks * 70, endedAt: sess.status === "ready" ? new Date().toISOString() : null,
-    people: sessionPeople(sess.chunks, sess.title), ...extra,
+    id: sess.id, title: sess.title, status: sess.status, chunks: sess.chunks, startedAt: sess.startedAt, endedAt: sess.endedAt,
+    audioSeconds: sess.chunks * 20, words: sess.chunks * 50,
+    people: saved ? [] : sessionPeople(sess.chunks, sess.title),
+    contacts: saved ? people.filter((p) => sess.contactIds.includes(p.id)).map(contactOf) : [],
+    ...extra,
   };
+}
+
+// Past sessions: everyone in the demo network, grouped by the event where you met.
+function history(): AmbientSession[] {
+  const byEvent = new Map<string, Person[]>();
+  for (const p of people) {
+    const key = `${p.event}|${p.metDaysAgo}`;
+    byEvent.set(key, [...(byEvent.get(key) ?? []), p]);
+  }
+  const past = [...byEvent.entries()].map(([key, group]) => {
+    const days = group[0].metDaysAgo;
+    return {
+      id: `s-${key.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`, title: group[0].event, status: "saved" as const,
+      chunks: 30 + group.length * 12, audioSeconds: (30 + group.length * 12) * 20, words: 1500 + group.length * 400, people: [],
+      startedAt: iso(-days, 18), endedAt: new Date(Date.parse(iso(-days, 18)) + (50 + group.length * 15) * 60_000).toISOString(),
+      contacts: group.map(contactOf),
+    };
+  });
+  const current = demoSession && demoSession.status !== "saved" ? [sessionOut()] : [];
+  return [...current, ...savedSessions, ...past.sort((a, b) => b.startedAt.localeCompare(a.startedAt))];
+}
+
+function saveDemoSession(captured: CapturedPerson[]): AmbientSession {
+  const sess = demoSession!;
+  const added: Person[] = [];
+  const ids = captured.map((c, i) => {
+    if (c.contactId) return c.contactId;
+    const id = `p-new-${Date.now()}-${i}`;
+    added.push({ ...PEOPLE[0], id, name: c.contact.name, role: c.contact.role, company: c.contact.company, school: c.contact.school,
+      major: c.contact.major, location: c.contact.location, email: null, interests: c.interaction.interests, projects: c.interaction.projects,
+      needs: c.interaction.needs, topics: c.interaction.topicsDiscussed, notes: c.interaction.notes, event: sess.title ?? "Session",
+      metDaysAgo: 0, summary: "", said: "" });
+    return id;
+  });
+  people = [...added, ...people];
+  sess.status = "saved";
+  sess.contactIds = ids;
+  const out = sessionOut();
+  savedSessions = [out, ...savedSessions];
+  return out;
 }
 
 export async function demoRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -337,7 +317,7 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
   const params = new URLSearchParams(queryString ?? "");
   const parts = route.split("/").filter(Boolean);
   // A short, steady delay so loading states look real on screen recordings.
-  await new Promise((resolve) => setTimeout(resolve, route === "/search" || route === "/plans" ? 650 : 180));
+  await new Promise((resolve) => setTimeout(resolve, route === "/search" ? 650 : 180));
 
   const reply = (value: unknown) => value as T;
   const findPerson = (id: string) => people.find((p) => p.id === id);
@@ -374,14 +354,6 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
     followUps = [...followUps, created];
     return reply(created);
   }
-  if (parts[0] === "follow-ups" && parts[2] === "calendar") {
-    const item = followUps.find((f) => f.id === parts[1]);
-    if (item) {
-      item.onCalendar = method === "POST";
-      item.calendarLink = method === "POST" ? "https://calendar.google.com" : null;
-    }
-    return reply({ ...item });
-  }
   if (parts[0] === "follow-ups" && parts[1] && method === "PATCH") {
     const item = followUps.find((f) => f.id === parts[1]);
     if (item) {
@@ -392,57 +364,36 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
   }
   if (route === "/search") return reply(searchDemo(String(body.query ?? "")));
   if (route === "/network") return reply(network());
-  if (route === "/calendar" && method === "GET") {
-    return reply({ available: true, state: calendarConnected ? "connected" : "disconnected", connected: calendarConnected,
-      email: calendarConnected ? "eisha@gmail.com" : null, pushFollowUps: true });
-  }
-  if (route === "/calendar" && method === "DELETE") {
-    calendarConnected = false;
-    return reply(undefined);
-  }
-  if (route === "/calendar/connect") {
-    calendarConnected = true;
-    return reply({ url: "" });
-  }
-  if (route === "/calendar" && method === "PATCH") return reply({ available: true, state: "connected", connected: true, email: "eisha@gmail.com", pushFollowUps: !!body.pushFollowUps });
-  if (route === "/calendar/upcoming") return reply(calendarConnected ? upcomingCalendar() : { connected: false, state: "disconnected", events: [] });
-  if (route === "/plans") return reply(plansDemo(params));
-  if (route === "/event-feeds") return reply(method === "GET" ? [] : { feed: { id: "feed", url: String(body.url), label: "Calendar", createdAt: new Date().toISOString() }, upcoming: 0 });
-  if (route === "/shares") return reply({ id: "share", link: "https://nomi-connect.vercel.app/app/shared/demo", emailed: true, count: (body.contactIds as string[]).length });
-  if (route === "/shares/incoming") return reply([]);
   if (route === "/me/profile") {
     return reply({ displayName: "Eisha Yadav", avatarUrl: null, inviteCode: "eisha123", inviteLink: "https://nomi-connect.vercel.app/?invite=eisha123", invitedCount: 2 });
   }
   if (route === "/invites/redeem") return reply({ redeemed: false });
   if (route === "/duplicate-check") return reply({ matches: ((body.people as unknown[]) ?? []).map(() => []) });
-  if (route === "/transcribe") return reply({ text: "Met Leo at the night market. He runs a ramen pop-up and wants help with branding. Follow up Friday.", language: "en", audioSeconds: 6, latencyMs: 400 });
-  if (route === "/extract") {
-    return reply({ people: [{ name: "Leo Tran", company: "Ramen Pop-up", role: "Chef", school: null, major: null, metAt: "Night market",
-      location: "San Francisco", interests: ["food"], projects: ["a ramen pop-up"], needs: ["branding help"], topicsDiscussed: [], notes: [],
-      followUp: "Send Leo branding ideas", followUpDue: dateOnly(3) }] });
-  }
-  if (route === "/captures") {
-    const saved = ((body.people as { contact: { name: string; role: string | null; company: string | null }; followUp: { action: string } | null }[]) ?? []).map((c, i) => {
-      const id = `p-new-${people.length + i}`;
-      people = [{ ...PEOPLE[0], id, name: c.contact.name, role: c.contact.role, company: c.contact.company, school: null, major: null,
-        email: null, interests: [], projects: [], needs: [], topics: [], notes: [], event: "Night market", metDaysAgo: 0, summary: "", said: "" }, ...people];
-      return { contactId: id, interactionId: `i-${id}`, followUpId: null, created: true };
-    });
-    return reply({ saved });
-  }
+  if (route === "/sessions" && method === "GET") return reply(history());
   if (route === "/sessions" && method === "POST") {
-    demoSession = { id: "demo-session", title: (body.title as string | null) || null, status: "recording", chunks: 0, startedAt: new Date().toISOString() };
+    demoSession = { id: `demo-session-${Date.now()}`, title: (body.title as string | null) || null, status: "recording", chunks: 0,
+      startedAt: new Date().toISOString(), endedAt: null, contactIds: [] };
     return reply(sessionOut({ uploadToken: "demo" }));
   }
   if (route === "/sessions/active") return reply(demoSession?.status === "recording" ? sessionOut() : null);
   if (parts[0] === "sessions" && demoSession && parts[1] === demoSession.id) {
     if (parts[2] === "chunks") demoSession.chunks += 1;
-    if (parts[2] === "finish") demoSession.status = "ready";
+    if (parts[2] === "finish") {
+      demoSession.status = "ready";
+      demoSession.endedAt = new Date().toISOString();
+    }
+    if (parts[2] === "save") return reply(saveDemoSession((body.people as CapturedPerson[]) ?? []));
     if (method === "DELETE") {
       demoSession = null;
       return reply(undefined);
     }
     return reply(sessionOut(parts[2] === "finish" ? { transcript: "" } : {}));
+  }
+  if (parts[0] === "sessions" && parts[1]) {
+    const found = history().find((x) => x.id === parts[1]);
+    if (method === "DELETE") return reply(undefined);
+    if (!found) throw new Error("Not found");
+    return reply(found);
   }
   if (route === "/me/export") return reply({ exportedAt: new Date().toISOString(), contacts: people.map(detail) });
   return reply(method === "GET" ? [] : undefined);

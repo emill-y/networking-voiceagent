@@ -1,6 +1,6 @@
 """Ambient sessions: a whole networking event, transcribed in short chunks.
 
-Each uploaded chunk (about 30 seconds) is transcribed and stored as a
+Each uploaded chunk (about 20 seconds) is transcribed and stored as a
 segment. The transcript is split into windows of a few chunks; when a chunk
 arrives, only its window is re-read by the model, so a two-hour event costs
 the same per minute as a two-minute one. People found in every window are
@@ -20,8 +20,8 @@ from app.services.llm import LLMClient, LLMUnavailable
 
 logger = logging.getLogger(__name__)
 
-WINDOW_CHUNKS = 4  # about two minutes of conversation per model read
-MAX_CHUNKS = 360  # three hours at 30-second chunks
+WINDOW_CHUNKS = 5  # about a minute and a half of conversation per model read
+MAX_CHUNKS = 720  # four hours at 20-second chunks
 LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes")
 TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due")
 
@@ -63,19 +63,46 @@ def full_transcript(segments: list[dict]) -> str:
     return "\n".join(s["text"] for s in segments if s["text"])
 
 
-def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, title: str | None) -> list[dict] | None:
-    """People in one window, or None if the model couldn't answer (try again next chunk)."""
+def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, title: str | None,
+                owner: str | None = None, known: list[str] | None = None) -> list[dict] | None:
+    """People in one window, or None if the model couldn't answer (try again next chunk).
+
+    The model is told who the user is (so they're never added) and who was
+    already found earlier in the event (so later details land on the same
+    person, under the same name)."""
     text = window_text(segments, window)
     if len(text.split()) < 8:
         return []
+    header = []
     if title:
-        text = f"(Event: {title})\n{text}"
+        header.append(f"Event: {title}")
+    if owner:
+        header.append(f"The user (wearing the recorder) is {owner}. Never include them.")
+    if known:
+        header.append("Already met earlier in this event: " + "; ".join(known[:40])
+                      + ". If this part adds details about one of them, use exactly that name.")
+    if header:
+        text = "\n".join(f"({line})" for line in header) + "\n" + text
     try:
         result = extract_people(text, llm, today, ambient=True)
     except (LLMUnavailable, ExtractionFailed) as exc:
         logger.warning("Ambient extraction failed for a window: %s", type(exc).__name__)
         return None
-    return [p.model_dump(mode="json") for p in result.people]
+    people = [p.model_dump(mode="json") for p in result.people]
+    if owner:
+        me = normalize(owner)
+        people = [p for p in people if not _same_person(normalize(p.get("name")) or "", me)]
+    return people
+
+
+def known_people(windows: dict[str, list[dict]], skip: int | None = None) -> list[str]:
+    """'Sarah Kim (Figma)' for everyone found outside window `skip`, for the model's context."""
+    others = {k: v for k, v in windows.items() if skip is None or k != str(skip)}
+    out = []
+    for person in merge_people(others, None):
+        about = ", ".join(x for x in (person.role, person.company or person.school) if x)
+        out.append(f"{person.name} ({about})" if about else person.name)
+    return out
 
 
 def _same_person(a: str, b: str) -> bool:

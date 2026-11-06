@@ -2,59 +2,21 @@
 import { File } from "expo-file-system";
 import { Platform } from "react-native";
 
-import type { ImportedPerson } from "@/lib/addressBook";
 import { request } from "@/lib/api";
 import { localToday } from "@/lib/dates";
 import type {
   AmbientSession,
-  CalendarState,
-  CalendarStatus,
   CapturedPerson,
   ContactDetail,
-  ContactExtractionResult,
   ContactSummary,
   ContactUpdate,
   DuplicateCandidate,
-  EventFeed,
   FollowUp,
-  FollowUpStatus,
-  IncomingShare,
   MyProfile,
   NetworkResponse,
-  PlansResponse,
   SavedPerson,
   SearchResponse,
-  ShareCreated,
-  Transcription,
-  UpcomingEvent,
 } from "@/types/api";
-
-export async function transcribe(audioUri: string): Promise<Transcription> {
-  const form = new FormData();
-  if (Platform.OS === "web") {
-    // On web the recorder gives a blob: URL; upload the Blob itself.
-    const blob = await (await fetch(audioUri)).blob();
-    form.append("audio", blob, blob.type.includes("mp4") ? "note.m4a" : "note.webm");
-  } else {
-    // Expo's fetch (the global fetch since SDK 57) needs a real file object;
-    // React Native's old { uri, name, type } shortcut isn't supported and
-    // fails before anything is sent.
-    form.append("audio", new File(audioUri) as unknown as Blob, "note.m4a");
-  }
-  // Whisper can take a while on a laptop CPU, especially on the first call.
-  return request<Transcription>("/transcribe", { method: "POST", body: form, timeoutMs: 180_000 });
-}
-
-export function extract(
-  transcript: string,
-  context?: { persona: string; school: string | null; major: string | null },
-) {
-  return request<ContactExtractionResult>("/extract", {
-    method: "POST",
-    body: { transcript, today: localToday(), context },
-    timeoutMs: 180_000,
-  });
-}
 
 export function duplicateCheck(people: { name: string | null; company: string | null; school: string | null }[]) {
   return request<{ matches: DuplicateCandidate[][] }>("/duplicate-check", {
@@ -97,24 +59,6 @@ export function deleteInteraction(id: string) {
   return request<void>(`/interactions/${encodeURIComponent(id)}`, { method: "DELETE" });
 }
 
-export function listFollowUps(status?: FollowUpStatus) {
-  return request<FollowUp[]>(`/follow-ups${status ? `?status=${status}` : ""}`);
-}
-
-export function createFollowUp(contactId: string, action: string, dueAt: string | null = null) {
-  return request<FollowUp>("/follow-ups", { method: "POST", body: { contactId, action, dueAt } });
-}
-
-export function updateFollowUp(
-  id: string,
-  changes: Partial<Pick<FollowUp, "action" | "dueAt" | "status">>,
-) {
-  return request<FollowUp>(`/follow-ups/${encodeURIComponent(id)}`, {
-    method: "PATCH",
-    body: changes,
-  });
-}
-
 export function search(query: string) {
   return request<SearchResponse>("/search", { method: "POST", body: { query, today: localToday() }, timeoutMs: 60_000 });
 }
@@ -133,89 +77,8 @@ export function deleteAccount() {
   return request<void>("/me", { method: "DELETE" });
 }
 
-export function importContacts(people: ImportedPerson[]) {
-  return request<{ created: number; updated: number; unchanged: number }>("/contacts/import", {
-    method: "POST",
-    body: { people },
-    timeoutMs: 60_000,
-  });
-}
-
 export function getNetwork() {
   return request<NetworkResponse>("/network");
-}
-
-// ---------- Google Calendar ----------
-
-export function calendarStatus() {
-  return request<CalendarStatus>("/calendar");
-}
-
-export function startCalendarConnect(returnTo: string) {
-  return request<{ url: string }>("/calendar/connect", { method: "POST", body: { returnTo } });
-}
-
-export function setCalendarPush(pushFollowUps: boolean) {
-  return request<CalendarStatus>("/calendar", { method: "PATCH", body: { pushFollowUps } });
-}
-
-export function disconnectCalendar() {
-  return request<void>("/calendar", { method: "DELETE" });
-}
-
-export function upcomingEvents(days = 7) {
-  return request<{ connected: boolean; state: CalendarState; events: UpcomingEvent[] }>(`/calendar/upcoming?days=${days}`, {
-    timeoutMs: 60_000,
-  });
-}
-
-export function addFollowUpToCalendar(id: string) {
-  return request<FollowUp>(`/follow-ups/${encodeURIComponent(id)}/calendar`, { method: "POST", timeoutMs: 30_000 });
-}
-
-export function removeFollowUpFromCalendar(id: string) {
-  return request<FollowUp>(`/follow-ups/${encodeURIComponent(id)}/calendar`, { method: "DELETE", timeoutMs: 30_000 });
-}
-
-// ---------- Plan Events ----------
-
-export type EventFilters = {
-  city: string;
-  interests: string[];
-  days: number;
-  categories: string[];
-  near?: { lat: number; lon: number; radiusKm: number } | null;
-};
-
-export function getPlans(f: EventFilters) {
-  const query = new URLSearchParams({
-    city: f.city,
-    interests: f.interests.join(","),
-    days: String(f.days),
-    categories: f.categories.join(","),
-  });
-  if (f.near) {
-    query.set("lat", f.near.lat.toFixed(4));
-    query.set("lon", f.near.lon.toFixed(4));
-    query.set("radius_km", String(f.near.radiusKm));
-  }
-  return request<PlansResponse>(`/plans?${query}`, { timeoutMs: 60_000 });
-}
-
-export function listEventFeeds() {
-  return request<EventFeed[]>("/event-feeds");
-}
-
-export function addEventFeed(url: string) {
-  return request<{ feed: EventFeed; upcoming: number }>("/event-feeds", {
-    method: "POST",
-    body: { url },
-    timeoutMs: 30_000,
-  });
-}
-
-export function removeEventFeed(id: string) {
-  return request<void>(`/event-feeds/${id}`, { method: "DELETE" });
 }
 
 // ---------- Contacts: export and sharing ----------
@@ -223,26 +86,6 @@ export function removeEventFeed(id: string) {
 // The contacts in the current view as CSV (download) or TSV (paste into Google Sheets).
 export function exportContacts(ids: string[] | null, format: "csv" | "tsv") {
   return request<string>("/contacts/export", { method: "POST", body: { ids, format }, text: true, timeoutMs: 60_000 });
-}
-
-export function shareContacts(contactIds: string[], email: string, message?: string) {
-  return request<ShareCreated>("/shares", { method: "POST", body: { contactIds, email, message: message || null } });
-}
-
-export function incomingShares() {
-  return request<IncomingShare[]>("/shares/incoming");
-}
-
-export function shareFromLink(token: string) {
-  return request<IncomingShare>(`/shares/link/${encodeURIComponent(token)}`);
-}
-
-export function acceptShare(id: string, token?: string) {
-  return request<{ added: number; skipped: number }>(`/shares/${id}/accept`, { method: "POST", body: { token: token ?? null } });
-}
-
-export function declineShare(id: string, token?: string) {
-  return request<void>(`/shares/${id}/decline`, { method: "POST", body: { token: token ?? null } });
 }
 
 // ---------- Profile and invites ----------
@@ -261,8 +104,18 @@ export function redeemInvite(code: string) {
 
 // ---------- Ambient sessions ----------
 
-export function startSession(title: string | null) {
-  return request<AmbientSession>("/sessions", { method: "POST", body: { title } });
+export function startSession(title: string | null, you: string | null = null) {
+  return request<AmbientSession>("/sessions", { method: "POST", body: { title, you } });
+}
+
+// Past sessions, newest first.
+export function listSessions() {
+  return request<AmbientSession[]>("/sessions");
+}
+
+// Keep the people you confirmed; the session stays in your history.
+export function saveSession(id: string, people: CapturedPerson[]) {
+  return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}/save`, { method: "POST", body: { people }, timeoutMs: 60_000 });
 }
 
 export function activeSession() {
@@ -295,4 +148,12 @@ export function finishSession(id: string) {
 
 export function deleteSession(id: string) {
   return request<void>(`/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function createFollowUp(contactId: string, action: string, dueAt: string | null = null) {
+  return request<FollowUp>("/follow-ups", { method: "POST", body: { contactId, action, dueAt } });
+}
+
+export function updateFollowUp(id: string, changes: Partial<Pick<FollowUp, "action" | "dueAt" | "status">>) {
+  return request<FollowUp>(`/follow-ups/${encodeURIComponent(id)}`, { method: "PATCH", body: changes });
 }

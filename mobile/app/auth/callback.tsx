@@ -4,7 +4,6 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import { Button } from "@/components/Button";
 import { Page } from "@/components/Page";
-import { profileFrom } from "@/lib/profile";
 import { supabase, withTimeout } from "@/lib/supabase";
 import { makeStyles, space, useTheme } from "@/lib/theme";
 
@@ -23,20 +22,15 @@ export default function AuthCallback() {
       if (!supabase) return;
       // On Android the browser sheet and this screen can both receive the
       // same code; if we're already signed in, there's nothing to do.
-      // New accounts go to the welcome step first; everyone else goes home.
-      const destination = async () => {
-        const { data } = await withTimeout(supabase!.auth.getSession());
-        return profileFrom(data.session) ? "/" : "/welcome";
-      };
       const { data } = await withTimeout(supabase.auth.getSession());
-      if (data.session) return router.replace(await destination());
+      if (data.session) return router.replace("/");
 
       const problem = params.error_description ?? params.error;
       if (problem) throw new Error(problem);
       if (!params.code) throw new Error("That sign-in link is incomplete.");
       const { error: exchangeError } = await withTimeout(supabase.auth.exchangeCodeForSession(params.code));
       if (exchangeError) throw exchangeError;
-      router.replace(await destination());
+      router.replace("/");
     }
     finish().catch((e) => {
       if (active) setError(e instanceof Error ? e.message : "Sign-in didn’t work.");

@@ -1,14 +1,7 @@
-// Nomi design tokens. Every screen reads colors through the theme (dark by
-// default, optional light) and sizes from the scales below, so spacing,
-// type and color stay consistent everywhere.
-//
-// Color follows 70-20-10:
-//   70% dominant: the neutral page (bg) and its starfield.
-//   20% support:  warm glass and peach (the website's look) for surfaces,
-//                 chrome, avatars, chips, selections and supporting text.
-//   10% accent:   Jupiter orange, only for primary actions, the record
-//                 button, "you", and the active place you are in.
-// Reach for `support` before `accent`; if a screen looks orange, it's wrong.
+// Nomi design tokens: a calm, paper-like look (in the spirit of Granola).
+// Warm white pages, near-black type, a serif for titles, hairline borders,
+// black primary buttons, and one live color: green, meaning "recording".
+// Every screen reads colors through the theme and sizes from the scales below.
 import { createContext, createElement, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -39,6 +32,9 @@ type Palette = {
   support: string;
   supportSoft: string;
   supportText: string;
+  // Live: a session is recording
+  live: string;
+  liveSoft: string;
   // Status
   success: string;
   successSoft: string;
@@ -61,79 +57,47 @@ type Palette = {
   mapBorder: string;
 };
 
-const dark: Palette = {
-  bg: "#080605",
-  chrome: "#0D0907",
-  surface: "#15100D",
-  surfaceHover: "#1D1612",
-  sunken: "#0F0B09",
-  overlay: "rgba(5, 3, 2, 0.74)",
-  border: "rgba(255, 220, 200, 0.10)",
-  borderStrong: "rgba(255, 200, 170, 0.20)",
-  text: "#FFF6EE",
-  textSecondary: "#C2B5AA",
-  textTertiary: "#857970",
-  accent: "#FF6B1A",
-  accentHover: "#FF8A3D",
-  accentSoft: "rgba(255, 107, 26, 0.14)",
-  accentText: "#FF8A3D",
-  onAccent: "#1A0802",
-  support: "#F2B48C",
-  supportSoft: "rgba(255, 170, 120, 0.12)",
-  supportText: "#F6C3A0",
-  success: "#5CC08C",
-  successSoft: "rgba(92, 192, 140, 0.13)",
-  warning: "#E6B450",
-  warningSoft: "rgba(230, 180, 80, 0.13)",
-  danger: "#F0705F",
-  dangerSoft: "rgba(240, 112, 95, 0.13)",
-  edgeWork: "#6FA0F6",
-  edgeEvent: "#FF6B1A",
-  edgeInterest: "#5CC08C",
-  edgeYou: "rgba(255, 107, 26, 0.24)",
-  glow: "rgba(255, 107, 26, 0.12)",
-  orbit: "rgba(255, 220, 200, 0.06)",
-  skeleton: "rgba(255, 230, 210, 0.06)",
-  mapSurface: "#0E1015",
-  mapBorder: "rgba(255, 255, 255, 0.07)",
-};
-
+// One light palette, used everywhere. (The "dark" key stays so older
+// call sites keep working; it is the same paper look.)
 const light: Palette = {
-  bg: "#F7F5F1",
-  chrome: "#F3EEE7",
+  bg: "#FAF9F6",
+  chrome: "#F5F3EF",
   surface: "#FFFFFF",
-  surfaceHover: "#FBF8F4",
-  sunken: "#EFE9E1",
-  overlay: "rgba(23, 20, 15, 0.38)",
-  border: "rgba(23, 20, 15, 0.08)",
-  borderStrong: "rgba(23, 20, 15, 0.15)",
-  text: "#18150F",
-  textSecondary: "#5E5850",
-  textTertiary: "#8E877D",
-  accent: "#D9682A",
-  accentHover: "#C85B20",
-  accentSoft: "rgba(217, 104, 42, 0.10)",
-  accentText: "#B8541C",
+  surfaceHover: "#F7F6F2",
+  sunken: "#F2F0EB",
+  overlay: "rgba(24, 22, 18, 0.28)",
+  border: "#ECE9E3",
+  borderStrong: "#DCD8D0",
+  text: "#1B1A17",
+  textSecondary: "#5E5B55",
+  textTertiary: "#8E8A82",
+  accent: "#1B1A17",
+  accentHover: "#33312C",
+  accentSoft: "rgba(27, 26, 23, 0.06)",
+  accentText: "#1B1A17",
   onAccent: "#FFFFFF",
-  support: "#B0582A",
-  supportSoft: "rgba(217, 104, 42, 0.10)",
-  supportText: "#8F4519",
-  success: "#2F9463",
-  successSoft: "rgba(47, 148, 99, 0.10)",
-  warning: "#B7811C",
-  warningSoft: "rgba(183, 129, 28, 0.11)",
-  danger: "#D24B3A",
-  dangerSoft: "rgba(210, 75, 58, 0.09)",
-  edgeWork: "#3F74D8",
-  edgeEvent: "#D9682A",
-  edgeInterest: "#2F9463",
-  edgeYou: "rgba(217, 104, 42, 0.22)",
-  glow: "rgba(217, 104, 42, 0.07)",
-  orbit: "rgba(23, 20, 15, 0.06)",
-  skeleton: "rgba(23, 20, 15, 0.06)",
-  mapSurface: "#EFECE6",
-  mapBorder: "rgba(23, 20, 15, 0.08)",
+  support: "#5E5B55",
+  supportSoft: "#F1EFEA",
+  supportText: "#3F3D38",
+  live: "#2E7D52",
+  liveSoft: "rgba(46, 125, 82, 0.10)",
+  success: "#2E7D52",
+  successSoft: "rgba(46, 125, 82, 0.10)",
+  warning: "#A2670F",
+  warningSoft: "rgba(162, 103, 15, 0.10)",
+  danger: "#BF3B2B",
+  dangerSoft: "rgba(191, 59, 43, 0.08)",
+  edgeWork: "#5878B4",
+  edgeEvent: "#C26B36",
+  edgeInterest: "#4C8A63",
+  edgeYou: "rgba(27, 26, 23, 0.14)",
+  glow: "rgba(0, 0, 0, 0)",
+  orbit: "rgba(27, 26, 23, 0.07)",
+  skeleton: "#EFECE6",
+  mapSurface: "#FFFFFF",
+  mapBorder: "#ECE9E3",
 };
+const dark: Palette = light;
 
 // Spacing scale (4pt grid). Use these, never ad-hoc numbers.
 export const space = {
@@ -163,8 +127,10 @@ export const layout = {
   desktopBreakpoint: 900,
 } as const;
 
-// Headings: Inter Tight. Body: the platform's UI font.
+// Titles: Newsreader (a quiet serif). UI headings: Inter Tight. Body: the
+// platform's UI font (San Francisco on iPhone).
 export const font = {
+  serif: "Newsreader_500Medium",
   heading: "InterTight_600SemiBold",
   headingBold: "InterTight_700Bold",
   medium: "InterTight_500Medium",
@@ -174,11 +140,11 @@ export const font = {
 // the phone layout gets its own, bigger scale with the same names.
 function typeScale(c: Palette, phone = false) {
   const z = phone
-    ? { display: [32, 38], title: [24, 30], heading: [19, 24], body: [17, 24], label: [16, 22], small: [15, 20], caption: [13, 18], overline: [12, 16] }
-    : { display: [30, 36], title: [22, 28], heading: [17, 22], body: [15, 22], label: [14, 20], small: [13, 18], caption: [12, 16], overline: [11, 14] };
+    ? { display: [34, 40], title: [26, 32], heading: [19, 24], body: [17, 24], label: [16, 22], small: [15, 20], caption: [13, 18], overline: [12, 16] }
+    : { display: [34, 40], title: [24, 30], heading: [17, 22], body: [15, 22], label: [14, 20], small: [13, 18], caption: [12, 16], overline: [11, 14] };
   return {
-    display: { fontFamily: font.heading, fontSize: z.display[0], lineHeight: z.display[1], letterSpacing: -0.7, color: c.text },
-    title: { fontFamily: font.heading, fontSize: z.title[0], lineHeight: z.title[1], letterSpacing: -0.4, color: c.text },
+    display: { fontFamily: font.serif, fontSize: z.display[0], lineHeight: z.display[1], letterSpacing: -0.6, color: c.text },
+    title: { fontFamily: font.serif, fontSize: z.title[0], lineHeight: z.title[1], letterSpacing: -0.3, color: c.text },
     heading: { fontFamily: font.heading, fontSize: z.heading[0], lineHeight: z.heading[1], letterSpacing: -0.2, color: c.text },
     body: { fontSize: z.body[0], lineHeight: z.body[1], color: c.text },
     bodySecondary: { fontSize: z.body[0], lineHeight: z.body[1], color: c.textSecondary },
@@ -193,22 +159,17 @@ function typeScale(c: Palette, phone = false) {
       textTransform: "uppercase" as const,
       color: c.textTertiary,
     },
-    stat: { fontFamily: font.heading, fontSize: 26, lineHeight: 30, letterSpacing: -0.6, color: c.text },
+    stat: { fontFamily: font.serif, fontSize: 28, lineHeight: 32, letterSpacing: -0.5, color: c.text },
   };
 }
 
 const phoneType = { dark: typeScale(dark, true), light: typeScale(light, true) };
 
-const shadows = {
-  dark: {
-    card: {},
-    raised: { shadowColor: "#000", shadowOpacity: 0.4, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 8 },
-  },
-  light: {
-    card: { shadowColor: "#2A2017", shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 2 }, elevation: 1 },
-    raised: { shadowColor: "#2A2017", shadowOpacity: 0.14, shadowRadius: 24, shadowOffset: { width: 0, height: 12 }, elevation: 8 },
-  },
-} as const;
+const paperShadow = {
+  card: { shadowColor: "#1B1A17", shadowOpacity: 0.04, shadowRadius: 6, shadowOffset: { width: 0, height: 1 }, elevation: 1 },
+  raised: { shadowColor: "#1B1A17", shadowOpacity: 0.1, shadowRadius: 24, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
+};
+const shadows = { dark: paperShadow, light: paperShadow };
 
 export type Theme = {
   mode: ThemeMode;
@@ -218,7 +179,7 @@ export type Theme = {
 };
 
 export const themes: Record<ThemeMode, Theme> = {
-  dark: { mode: "dark", colors: dark, type: typeScale(dark), shadow: shadows.dark },
+  dark: { mode: "light", colors: dark, type: typeScale(dark), shadow: shadows.dark },
   light: { mode: "light", colors: light, type: typeScale(light), shadow: shadows.light },
 };
 
@@ -228,30 +189,11 @@ const STORAGE_KEY = "nomi.theme";
 
 type ThemeContextValue = Theme & { setMode: (mode: ThemeMode) => void };
 
-const ThemeContext = createContext<ThemeContextValue>({ ...themes.dark, setMode: () => undefined });
-
-function storedModeSync(): ThemeMode | null {
-  if (Platform.OS !== "web") return null;
-  try {
-    const value = globalThis.localStorage?.getItem(STORAGE_KEY);
-    return value === "light" || value === "dark" ? value : null;
-  } catch {
-    return null;
-  }
-}
+const ThemeContext = createContext<ThemeContextValue>({ ...themes.light, setMode: () => undefined });
 
 export function ThemeProvider({ children, initial }: { children: ReactNode; initial?: ThemeMode }) {
-  // Dark is the default. Web reads the saved choice synchronously (no flash).
-  const [mode, setModeState] = useState<ThemeMode>(initial ?? storedModeSync() ?? "dark");
-
-  useEffect(() => {
-    if (initial || Platform.OS === "web") return;
-    AsyncStorage.getItem(STORAGE_KEY)
-      .then((value) => {
-        if (value === "light" || value === "dark") setModeState(value);
-      })
-      .catch(() => undefined);
-  }, [initial]);
+  // One look: light paper. (Kept as state so a dark look can return later.)
+  const [mode, setModeState] = useState<ThemeMode>(initial ?? "light");
 
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
@@ -295,11 +237,10 @@ export function makeStyles<T>(factory: (theme: Theme) => T): () => T {
 
 // ---------- People ----------
 
-// A personal color for each person, chosen by name so it's the same everywhere.
-const tints = {
-  dark: ["#F08A4B", "#E7B07A", "#D97757", "#C8A2F0", "#7FB2F2", "#6CC6A0", "#E6C25A", "#EE8FA8"],
-  light: ["#D9682A", "#B9803F", "#C0583A", "#8B63C9", "#3F74D8", "#2F9463", "#A5800F", "#C5507A"],
-} as const;
+// A personal color for each person, chosen by name so it's the same everywhere
+// (soft, ink-like tones that sit quietly on paper).
+const paperTints = ["#C2703E", "#A88A3C", "#B05B4A", "#7F68B4", "#4F76B5", "#3F8A5F", "#8E7B54", "#B25C7E"];
+const tints = { dark: paperTints, light: paperTints } as const;
 
 export function tintFor(name: string | null | undefined, mode: ThemeMode = "dark"): string {
   let hash = 0;
@@ -308,11 +249,11 @@ export function tintFor(name: string | null | undefined, mode: ThemeMode = "dark
   return list[hash % list.length];
 }
 
-// The planet: the record button's glossy orb, the same in both themes.
+// Nomi's one brand color: the small orange planet (logo, and "you" on the map).
 export const orb = {
-  light: "#FFE6CF",
-  mid: "#FF6B1A",
-  deep: "#E2440C",
-  shadow: "#5A1406",
-  glow: "#FF6B1A",
+  light: "#FFD3B0",
+  mid: "#E8743B",
+  deep: "#C9531E",
+  shadow: "#7A2E0D",
+  glow: "#E8743B",
 } as const;

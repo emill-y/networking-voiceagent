@@ -9,7 +9,6 @@ import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { OrbitLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
-import { SessionOrbit } from "@/components/SessionOrbit";
 import { Txt } from "@/components/Txt";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
@@ -18,8 +17,7 @@ import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 import { listContacts, search } from "@/services/nomi";
 import type { ContactSummary, SearchResult } from "@/types/api";
 
-// Questions about a network, answered by meaning (not keywords). Contacts is
-// the directory; this is where you ask.
+// Questions about everyone you've met, answered by meaning (not keywords).
 const EXAMPLES = [
   "Who do I know at Berkeley interested in AI?",
   "Who did I meet recently who works in design?",
@@ -83,7 +81,7 @@ export default function Search() {
           onSubmitEditing={() => void run(query)}
           returnKeyType="search"
           autoFocus
-          placeholder="Ask anything about your network"
+          placeholder="Who did I meet that…"
           placeholderTextColor={colors.textTertiary}
           selectionColor={colors.accent}
           accessibilityLabel="Ask about your network"
@@ -99,7 +97,7 @@ export default function Search() {
       ) : results ? (
         results.length === 0 ? (
           <NoResults asked={asked} tries={broaderTries(asked, suggestions)} onTry={(q) => void run(q)}
-            onClear={() => { setResults(null); setQuery(""); setAsked(""); }} onBrowse={() => router.push("/contacts")} />
+            onClear={() => { setResults(null); setQuery(""); setAsked(""); }} onBrowse={() => router.push("/network")} />
         ) : (
           <View style={s.results}>
             <Txt variant="small">{results.length} {results.length === 1 ? "person" : "people"}{smart ? "" : " · matched by keywords"}</Txt>
@@ -163,7 +161,6 @@ function NoResults({ asked, tries, onTry, onClear, onBrowse }: {
   const { colors } = useTheme();
   return (
     <View style={s.none}>
-      <SessionOrbit size={150} listening={false} people={[]} />
       <View style={s.noneText}>
         <Txt variant="title" align="center">No one matches “{asked}”</Txt>
         <Txt variant="small" align="center">Check the spelling, or try a broader question.</Txt>
@@ -179,7 +176,7 @@ function NoResults({ asked, tries, onTry, onClear, onBrowse }: {
       </View>
       <View style={s.noneActions}>
         <Button title="Clear search" icon="close" onPress={onClear} />
-        <Button title="Browse contacts" variant="ghost" onPress={onBrowse} />
+        <Button title="Look at the map" variant="ghost" onPress={onBrowse} />
       </View>
     </View>
   );

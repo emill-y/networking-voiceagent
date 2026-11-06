@@ -6,23 +6,21 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "nomi",
-    "userInterfaceStyle": "dark",
+    "userInterfaceStyle": "light",
     "ios": {
       "bundleIdentifier": "com.network.nomi",
       "usesAppleSignIn": true,
       "supportsTablet": false,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "Nomi uses the microphone while you record a note, or during a networking session you start, to remember the people you meet.",
-        "NSSpeechRecognitionUsageDescription": "Nomi turns your spoken notes into text, on your iPhone whenever possible.",
-        "NSContactsUsageDescription": "Nomi lets you choose people from your contacts to remember. Your address book stays on your phone.",
+        "NSMicrophoneUsageDescription": "Nomi uses the microphone only during a session you start, to remember the people you meet. Audio is transcribed and never stored.",
         "NSPhotoLibraryUsageDescription": "Nomi lets you choose a profile photo from your library. It never reads your photos otherwise.",
         "NSPhotoLibraryAddUsageDescription": "Nomi only saves an image to your library when you ask it to."
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#080605",
+        "backgroundColor": "#FAF9F6",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -43,8 +41,8 @@
       "favicon": "./assets/images/favicon.png",
       "name": "Nomi",
       "shortName": "Nomi",
-      "themeColor": "#080605",
-      "backgroundColor": "#080605",
+      "themeColor": "#FAF9F6",
+      "backgroundColor": "#FAF9F6",
       "description": "A private memory for the people you meet."
     },
     "plugins": [
@@ -52,7 +50,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#080605",
+          "backgroundColor": "#FAF9F6",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
@@ -60,37 +58,24 @@
       [
         "expo-audio",
         {
-          "microphonePermission": "Nomi uses the microphone while you record a note, or during a networking session you start, to remember the people you meet.",
+          "microphonePermission": "Nomi uses the microphone only during a session you start, to remember the people you meet. Audio is transcribed and never stored.",
           "recordAudioAndroid": true,
           "enableBackgroundRecording": true,
           "enableBackgroundPlayback": false
         }
       ],
-      [
-        "expo-contacts",
-        {
-          "contactsPermission": "Nomi lets you choose people from your contacts to remember. Your address book stays on your phone."
-        }
-      ],
-      "expo-apple-authentication",
-      [
-        "expo-speech-recognition",
-        {
-          "microphonePermission": "Nomi uses the microphone while you record a note, or during a networking session you start, to remember the people you meet.",
-          "speechRecognitionPermission": "Nomi turns your spoken notes into text, on your iPhone whenever possible."
-        }
-      ]
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true,
       "baseUrl": "/app"
     },
-    "backgroundColor": "#080605",
+    "backgroundColor": "#FAF9F6",
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#080605"
+      "backgroundColor": "#FAF9F6"
     },
     "extra": {
       "router": {},

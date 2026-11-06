@@ -1,340 +1,208 @@
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withSequence, withTiming } from "react-native-reanimated";
+import { useCallback, useState } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
-import { Button, IconButton } from "@/components/Button";
-import { CalendarBanner } from "@/components/CalendarBanner";
+import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
-import { EmptyState } from "@/components/EmptyState";
 import { Icon } from "@/components/Icon";
 import { Logo } from "@/components/Logo";
-import { NetworkGraph } from "@/components/NetworkGraph";
 import { Page } from "@/components/Page";
-import { Section } from "@/components/Section";
-import { SessionOrbit } from "@/components/SessionOrbit";
 import { SkeletonRows } from "@/components/Skeleton";
 import { Txt } from "@/components/Txt";
 import { useAccount } from "@/hooks/useAccount";
-import { useCalendar } from "@/hooks/useCalendar";
 import { useDesktop } from "@/hooks/useDesktop";
-import { eventDate } from "@/lib/calendar";
-import { toDateString } from "@/lib/dates";
-import { formatRelative } from "@/lib/format";
-import { dayHeading, dueLabel } from "@/lib/followUps";
-import { layoutNetwork } from "@/lib/networkLayout";
-import { firstName } from "@/lib/suggest";
+import { formatShortDate } from "@/lib/format";
+import { groupSessions, namesLine, sessionLength } from "@/lib/sessions";
 import { makeStyles, radius, space, useTheme } from "@/lib/theme";
-import { getNetwork, incomingShares, listContacts, listFollowUps, updateFollowUp, upcomingEvents } from "@/services/nomi";
-import type { ContactSummary, FollowUp, IncomingShare, NetworkResponse, UpcomingEvent } from "@/types/api";
+import { listSessions } from "@/services/nomi";
+import type { AmbientSession } from "@/types/api";
 
-function greeting(date = new Date()): string {
-  const hour = date.getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 18) return "Good afternoon";
-  return "Good evening";
-}
-
-type UpcomingItem =
-  | { kind: "followUp"; day: string; item: FollowUp }
-  | { kind: "event"; day: string; item: UpcomingEvent };
-
-export default function Home() {
+// Home is your sessions: start one, pick up one that's running, review one
+// that's finished, and look back at everyone you met at each.
+export default function Sessions() {
   const s = useStyles();
   const router = useRouter();
   const desktop = useDesktop();
-  const { colors } = useTheme();
   const account = useAccount();
-  const calendar = useCalendar("/");
-  const [people, setPeople] = useState<ContactSummary[] | null>(null);
-  const [followUps, setFollowUps] = useState<FollowUp[] | null>(null);
-  const [events, setEvents] = useState<UpcomingEvent[]>([]);
-  const [network, setNetwork] = useState<NetworkResponse | null>(null);
-  const [shares, setShares] = useState<IncomingShare[]>([]);
+  const { colors } = useTheme();
+  const [sessions, setSessions] = useState<AmbientSession[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  const load = useCallback(() => {
-    let active = true;
-    listContacts().then((p) => active && setPeople(p)).catch(() => active && setPeople((c) => c ?? []));
-    listFollowUps("open").then((f) => active && setFollowUps(f)).catch(() => active && setFollowUps((c) => c ?? []));
-    getNetwork().then((n) => active && setNetwork(n)).catch(() => undefined);
-    incomingShares().then((x) => active && setShares(x)).catch(() => undefined);
-    upcomingEvents(7).then((r) => active && setEvents(r.events)).catch(() => undefined);
-    return () => {
-      active = false;
-    };
-  }, []);
-  useFocusEffect(load);
-
-  const upcoming = useMemo<UpcomingItem[] | null>(() => {
-    if (!followUps) return null;
-    const horizon = toDateString(new Date(Date.now() + 7 * 86_400_000));
-    const items: UpcomingItem[] = [
-      ...followUps
-        .filter((f) => f.dueAt && toDateString(new Date(f.dueAt)) <= horizon)
-        .map((f) => ({ kind: "followUp" as const, day: toDateString(new Date(f.dueAt!)), item: f })),
-      ...events.map((e) => ({ kind: "event" as const, day: eventDate(e.start, e.allDay) ?? "", item: e })).filter((e) => e.day),
-    ];
-    return items.sort((a, b) => a.day.localeCompare(b.day) || (a.kind === "event" ? -1 : 1));
-  }, [followUps, events]);
-
-  async function complete(item: FollowUp) {
-    setFollowUps((current) => current?.filter((f) => f.id !== item.id) ?? null);
-    try {
-      await updateFollowUp(item.id, { status: "done" });
-    } catch {
-      load();
-    }
-  }
-
-  const layout = useMemo(() => (network && network.people.length ? layoutNetwork(network) : null), [network]);
-  const recent = (people ?? []).slice(0, 8);
-  // Brand new account: nothing to show yet, so show one clear way in.
-  const firstRun = people?.length === 0 && followUps?.length === 0 && events.length === 0;
-  const openPerson = (id: string) => router.push({ pathname: "/contacts/[id]", params: { id } });
-  const first = account.name.includes("@") ? "" : firstName(account.name);
-  const today = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-
-  const capture = (
-    <Card style={s.capture}>
-      <View style={s.captureText}>
-        <Txt variant="heading">Who did you meet?</Txt>
-        <Txt variant="small">Say it in a sentence, or start a session at an event and Nomi fills in everyone you meet.</Txt>
-      </View>
-      <View style={s.captureButtons}>
-        <Button title="Record" icon="mic" variant="primary" onPress={() => router.push("/record")} />
-        <Button title="Type" icon="pen" onPress={() => router.push("/write")} />
-        <Button title="Session" icon="radio" onPress={() => router.push("/session")} accessibilityLabel="Start a networking session" />
-      </View>
-    </Card>
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      listSessions()
+        .then((list) => {
+          if (!active) return;
+          setSessions(list);
+          setFailed(false);
+        })
+        .catch(() => {
+          if (!active) return;
+          setFailed(true);
+          setSessions((c) => c ?? []);
+        });
+      return () => {
+        active = false;
+      };
+    }, []),
   );
 
-  const upcomingPanel = (
-    <Section title="Upcoming" count={upcoming?.length} action={{ label: "Follow-ups", onPress: () => router.push("/follow-ups") }}>
-      <CalendarBanner calendar={calendar} prompt="Connect Google Calendar to see your meetings here." />
-      <Card padding="none">
-        {!upcoming ? (
-          <View style={s.pad}><SkeletonRows rows={4} avatar={false} /></View>
-        ) : upcoming.length === 0 ? (
-          <EmptyState compact icon="calendar" title="Nothing scheduled this week"
-            action={<Button title="Add a follow-up" icon="plus" size="sm" onPress={() => router.push({ pathname: "/follow-ups", params: { add: "1" } })} />} />
-        ) : (
-          upcoming.slice(0, 6).map((entry, i) => {
-            const heading = dayHeading(entry.day);
-            const showHeading = i === 0 || dayHeading(upcoming[i - 1].day) !== heading;
-            return (
-              <View key={`${entry.kind}-${entry.kind === "event" ? entry.item.id : entry.item.id}`}>
-                {showHeading && (
-                  <Txt variant="overline" style={[s.dayHeading, heading === "Overdue" && { color: colors.danger }]}>{heading}</Txt>
-                )}
-                {entry.kind === "followUp" ? (
-                  <FollowUpRow item={entry.item} onDone={() => void complete(entry.item)} onOpen={() => openPerson(entry.item.contactId)} />
-                ) : (
-                  <EventRow item={entry.item} onPerson={openPerson} />
-                )}
-              </View>
-            );
-          })
-        )}
-      </Card>
-    </Section>
-  );
-
-  // Phones: one direction per section. Upcoming stacks down; recently met
-  // scrolls sideways as cards, so the page never grows in two directions.
-  const recentStrip = (
-    <Section title="Recently met" action={{ label: "All", onPress: () => router.push("/contacts") }}>
-      {!people ? (
-        <SkeletonRows rows={2} />
-      ) : (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.stripScroll} contentContainerStyle={s.strip}>
-          {recent.map((p) => (
-            <Card key={p.id} onPress={() => openPerson(p.id)} accessibilityLabel={p.name} style={s.personCard}>
-              <Avatar name={p.name} size={44} />
-              <View style={s.personCardText}>
-                <Txt variant="label" numberOfLines={1}>{p.name}</Txt>
-                <Txt variant="caption" numberOfLines={2}>{p.role && p.company ? `${p.role}, ${p.company}` : p.role || p.company || p.school || "Contact"}</Txt>
-              </View>
-              <Txt variant="caption" tone="tertiary">{formatRelative(p.lastInteractionAt)}</Txt>
-            </Card>
-          ))}
-        </ScrollView>
-      )}
-    </Section>
-  );
-
-  const recentPanel = (
-    <Section title="Recently met" action={{ label: "Contacts", onPress: () => router.push("/contacts") }}>
-      <Card padding="none">
-        {!people ? (
-          <View style={s.pad}><SkeletonRows rows={4} /></View>
-        ) : recent.length === 0 ? (
-          <EmptyState compact icon="userPlus" title="No contacts yet"
-            body="Record a note after you meet someone."
-            action={<Button title="Remember someone" icon="mic" size="sm" variant="primary" onPress={() => router.push("/record")} />} />
-        ) : (
-          <View style={s.listPad}>
-            {recent.slice(0, 5).map((p) => (
-              <Pressable key={p.id} onPress={() => openPerson(p.id)} accessibilityRole="button" accessibilityLabel={p.name}
-                style={({ hovered }: { hovered?: boolean }) => [s.personRow, hovered && s.hover]}>
-                <Avatar name={p.name} size={32} />
-                <View style={s.flex}>
-                  <Txt variant="label" numberOfLines={1}>{p.name}</Txt>
-                  <Txt variant="caption" numberOfLines={1}>
-                    {[p.role && p.company ? `${p.role}, ${p.company}` : p.role || p.company || p.school, p.lastEvent].filter(Boolean).join(" · ") || "Contact"}
-                  </Txt>
-                </View>
-                <Txt variant="caption">{formatRelative(p.lastInteractionAt)}</Txt>
-              </Pressable>
-            ))}
-          </View>
-        )}
-      </Card>
-    </Section>
-  );
-
-  const networkPanel = (
-    <Section title="Network" action={{ label: "Open map", onPress: () => router.push("/network") }}>
-      <Card padding="none" onPress={() => router.push("/network")} accessibilityLabel="Open your network map">
-        {layout ? (
-          <NetworkGraph layout={layout} compact style={s.preview} />
-        ) : (
-          <View style={[s.preview, s.previewEmpty]}>
-            <Txt variant="small" tone="tertiary">{people?.length === 0 ? "Your network appears as you add contacts" : " "}</Txt>
-          </View>
-        )}
-      </Card>
-    </Section>
-  );
+  const live = sessions?.find((x) => x.status === "recording") ?? null;
+  const toReview = sessions?.filter((x) => x.status === "ready") ?? [];
+  const past = sessions?.filter((x) => x.status === "saved") ?? [];
+  const met = past.reduce((n, x) => n + (x.contacts?.length ?? 0), 0);
 
   return (
-    <Page
-      title={desktop ? `${greeting()}${first ? `, ${first}` : ""}` : undefined}
-      subtitle={desktop ? today : undefined}
-    >
+    <Page>
       {!desktop && (
-        <View style={s.phoneHeader}>
+        <View style={s.topBar}>
           <Logo size={24} />
-          <View style={s.phoneActions}>
-            <IconButton icon="search" label="Search" onPress={() => router.push("/search")} tone="plain" />
-            <Pressable onPress={() => router.push("/profile")} accessibilityRole="button" accessibilityLabel="Profile">
-              <Avatar name={account.name} uri={account.avatarUrl} size={40} />
-            </Pressable>
-          </View>
-        </View>
-      )}
-      {!desktop && (
-        <View style={s.phoneGreeting}>
-          <Txt variant="title">{greeting()}{first ? `, ${first}` : ""}</Txt>
-          <Txt variant="small">{today}</Txt>
+          <Pressable onPress={() => router.push("/profile")} accessibilityRole="button" accessibilityLabel="Profile and settings" hitSlop={8}>
+            <Avatar name={account.name} uri={account.avatarUrl} size={34} />
+          </Pressable>
         </View>
       )}
 
-      {shares.length > 0 && (
-        <Card onPress={() => router.push("/contacts")} style={s.share} accessibilityLabel="Review shared contacts">
-          <Icon name="inbox" size={18} color={colors.supportText} />
-          <Txt variant="label" style={s.flex}>
-            {shares[0].senderName} shared {shares[0].count} contact{shares[0].count === 1 ? "" : "s"} with you
-          </Txt>
-          <Txt variant="small" tone="support" weight="600">Review</Txt>
-        </Card>
-      )}
+      <View style={s.heading}>
+        <Txt variant="display" accessibilityRole="header">Sessions</Txt>
+        <Txt variant="bodySecondary">
+          {past.length
+            ? `${met} ${met === 1 ? "person" : "people"} from ${past.length} ${past.length === 1 ? "session" : "sessions"}`
+            : "Start one when you walk into an event. Nomi listens and remembers everyone you meet."}
+        </Txt>
+      </View>
 
-      {/* On phones the main action lives in the floating + button. */}
-      {desktop && capture}
-
-      {firstRun && !desktop ? (
-        <FirstRun />
-      ) : desktop ? (
-        <View style={s.columns}>
-          <View style={s.main}>{upcomingPanel}</View>
-          <View style={s.side}>
-            {recentPanel}
-            {networkPanel}
-          </View>
-        </View>
+      {live ? (
+        <LiveCard session={live} onPress={() => router.push("/session")} />
       ) : (
-        <View style={s.phoneSections}>
-          {upcomingPanel}
-          {recent.length > 0 && recentStrip}
-          {networkPanel}
+        <StartCard onPress={() => router.push("/session")} />
+      )}
+
+      {toReview.map((x) => (
+        <Card key={x.id} onPress={() => router.push(`/sessions/${x.id}/review`)} style={s.review} accessibilityLabel={`Review ${x.title ?? "session"}`}>
+          <View style={s.reviewDot} />
+          <View style={s.flex}>
+            <Txt variant="label">Ready to review · {x.title ?? "Untitled session"}</Txt>
+            <Txt variant="small" numberOfLines={1}>
+              {x.people.length
+                ? `${x.people.length} ${x.people.length === 1 ? "person" : "people"} found: ${namesLine(x.people.map((p) => p.name ?? "").filter(Boolean))}`
+                : "No one was found"}
+            </Txt>
+          </View>
+          <Icon name="chevron" size={18} color={colors.textTertiary} />
+        </Card>
+      ))}
+
+      {sessions === null ? (
+        <SkeletonRows rows={4} avatar={false} />
+      ) : past.length === 0 ? (
+        failed ? (
+          <Txt variant="small" align="center">Couldn’t load your sessions. Check your connection.</Txt>
+        ) : (
+          <HowItWorks />
+        )
+      ) : (
+        <View style={s.groups}>
+          {groupSessions(past).map(({ group, items }) => (
+            <View key={group} style={s.group}>
+              <Txt variant="overline">{group}</Txt>
+              <View style={s.list}>
+                {items.map((x, i) => (
+                  <SessionRow key={x.id} session={x} first={i === 0} onPress={() => router.push(`/sessions/${x.id}`)} />
+                ))}
+              </View>
+            </View>
+          ))}
         </View>
       )}
     </Page>
   );
 }
 
-// A brand new account on a phone: one calm screen and a pointer to the +
-// button, the one thing to do first.
-function FirstRun() {
+function StartCard({ onPress }: { onPress: () => void }) {
   const s = useStyles();
-  const bob = useSharedValue(0);
-  useEffect(() => {
-    bob.value = withRepeat(withSequence(withTiming(-6, { duration: 700, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 700, easing: Easing.inOut(Easing.sin) })), -1);
-  }, [bob]);
-  const bobStyle = useAnimatedStyle(() => ({ transform: [{ translateY: bob.value }] }));
+  const { colors } = useTheme();
   return (
-    <View style={s.firstRun}>
-      <View style={s.firstRunHero}>
-        <SessionOrbit size={220} listening={false} people={[]} />
-        <Txt variant="display" align="center">Your network starts here</Txt>
-        <Txt variant="bodySecondary" align="center" style={s.firstRunBody}>
-          Everyone you meet becomes part of your orbit, with what you talked about and when to follow up.
+    <Card padding="lg" style={s.start}>
+      <View style={s.startText}>
+        <View style={s.startIcon}>
+          <Icon name="mic" size={20} color={colors.text} />
+        </View>
+        <View style={s.flex}>
+          <Txt variant="heading">New session</Txt>
+          <Txt variant="small">Put your phone in your pocket and talk to people. You’ll review everyone at the end.</Txt>
+        </View>
+      </View>
+      <Button title="Start session" icon="mic" variant="primary" size="lg" onPress={onPress} fullWidth />
+    </Card>
+  );
+}
+
+function LiveCard({ session, onPress }: { session: AmbientSession; onPress: () => void }) {
+  const s = useStyles();
+  const { colors } = useTheme();
+  const names = session.people.map((p) => p.name ?? "").filter(Boolean);
+  return (
+    <Card onPress={onPress} padding="lg" style={s.live} accessibilityLabel="Return to the session that's recording">
+      <View style={s.livePill}>
+        <View style={s.liveDot} />
+        <Txt variant="caption" weight="600" style={{ color: colors.live }}>Recording</Txt>
+      </View>
+      <Txt variant="heading">{session.title ?? "Session in progress"}</Txt>
+      <Txt variant="small">
+        {names.length ? `${names.length} found so far: ${namesLine(names)}` : "Listening for introductions"}
+      </Txt>
+      <Button title="Return to session" variant="primary" onPress={onPress} fullWidth />
+    </Card>
+  );
+}
+
+function SessionRow({ session, first, onPress }: { session: AmbientSession; first: boolean; onPress: () => void }) {
+  const s = useStyles();
+  const contacts = session.contacts ?? [];
+  return (
+    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={session.title ?? "Session"}
+      style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [s.row, !first && s.rowBorder, (hovered || pressed) && s.rowHover]}>
+      <View style={s.flex}>
+        <Txt variant="label" numberOfLines={1}>{session.title ?? "Untitled session"}</Txt>
+        <Txt variant="small" numberOfLines={1}>
+          {formatShortDate(session.startedAt)} · {sessionLength(session)}
+          {contacts.length ? ` · ${namesLine(contacts.map((c) => c.name))}` : ""}
         </Txt>
       </View>
-      <Animated.View style={[s.tip, bobStyle]} accessibilityRole="text">
-        <Txt variant="label">Tap + after you meet someone</Txt>
-        <Txt variant="small">Say who they are in a sentence. Nomi fills in the rest.</Txt>
-        <View style={s.tipArrow} />
-      </Animated.View>
-    </View>
-  );
-}
-
-function FollowUpRow({ item, onDone, onOpen }: { item: FollowUp; onDone: () => void; onOpen: () => void }) {
-  const s = useStyles();
-  const { colors } = useTheme();
-  const label = dueLabel(item.dueAt);
-  const late = label.includes("late") || label === "Yesterday";
-  return (
-    <View style={s.row}>
-      <Pressable onPress={onDone} accessibilityRole="checkbox" accessibilityState={{ checked: false }}
-        accessibilityLabel={`Mark done: ${item.action}`} hitSlop={8}
-        style={({ hovered }: { hovered?: boolean }) => [s.check, hovered && { borderColor: colors.accent }]} />
-      {/* Just what to do and with whom; the day heading already says when. */}
-      <Pressable onPress={onOpen} style={s.flex} accessibilityRole="link">
-        <Txt variant="label" numberOfLines={1}>{item.action}</Txt>
-        {item.contactName ? <Txt variant="caption" numberOfLines={1}>{item.contactName}</Txt> : null}
-      </Pressable>
-      {item.onCalendar && <Icon name="calendarCheck" size={15} color={colors.success} />}
-      {late && <Txt variant="caption" style={{ color: colors.danger }}>{label}</Txt>}
-    </View>
-  );
-}
-
-function EventRow({ item, onPerson }: { item: UpcomingEvent; onPerson: (id: string) => void }) {
-  const s = useStyles();
-  const { colors } = useTheme();
-  const time = item.allDay || !item.start ? "All day"
-    : new Date(item.start).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-  return (
-    <View style={s.row}>
-      <View style={s.eventIcon}><Icon name="calendar" size={14} color={colors.supportText} /></View>
-      <View style={s.flex}>
-        <Txt variant="label" numberOfLines={1}>{item.title}</Txt>
-        <Txt variant="caption" numberOfLines={1}>{time}</Txt>
+      <View style={s.faces}>
+        {contacts.slice(0, 3).map((c, i) => (
+          <View key={c.id} style={[s.face, i > 0 && s.faceOverlap]}>
+            <Avatar name={c.name} size={26} />
+          </View>
+        ))}
+        {contacts.length > 3 && <Txt variant="caption" style={s.more}>+{contacts.length - 3}</Txt>}
       </View>
-      {/* Who to catch there, as faces; tap one to open them. */}
-      {item.people.length > 0 && (
-        <View style={s.faces}>
-          {item.people.slice(0, 3).map((p) => (
-            <Pressable key={p.contactId} onPress={() => onPerson(p.contactId)} accessibilityRole="link"
-              accessibilityLabel={`Talk to ${p.name}`} style={s.face}>
-              <Avatar name={p.name} size={22} />
-            </Pressable>
-          ))}
+    </Pressable>
+  );
+}
+
+function HowItWorks() {
+  const s = useStyles();
+  const steps = [
+    ["Start a session", "When you walk into an event, career fair or dinner."],
+    ["Just talk", "Nomi listens in the background and picks out each person you meet: name, what they do, what you talked about."],
+    ["Review at the end", "Check everyone in one list, fix anything, and save. Audio is never kept."],
+  ];
+  return (
+    <View style={s.how}>
+      <Txt variant="overline">How it works</Txt>
+      {steps.map(([title, body], i) => (
+        <View key={title} style={s.step}>
+          <Txt variant="title" style={s.stepNum}>{i + 1}</Txt>
+          <View style={s.flex}>
+            <Txt variant="label">{title}</Txt>
+            <Txt variant="small">{body}</Txt>
+          </View>
         </View>
-      )}
+      ))}
     </View>
   );
 }
@@ -342,59 +210,50 @@ function EventRow({ item, onPerson }: { item: UpcomingEvent; onPerson: (id: stri
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     flex: { flex: 1, minWidth: 0 },
-    pad: { padding: space.md },
-    listPad: { padding: space.xxs },
-    phoneHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-    phoneActions: { flexDirection: "row", alignItems: "center", gap: space.xs },
-    phoneGreeting: { gap: 2, marginTop: -space.xs },
-    capture: { flexDirection: "row", alignItems: "center", gap: space.md, flexWrap: "wrap" },
-    captureText: { flex: 1, minWidth: 200, gap: 2 },
-    captureButtons: { flexDirection: "row", gap: space.xs },
-    share: { flexDirection: "row", alignItems: "center", gap: space.sm, borderColor: colors.support },
-    columns: { flexDirection: "row", alignItems: "flex-start", gap: space.lg },
-    main: { flex: 1.5, minWidth: 0 },
-    side: { flex: 1, minWidth: 0, gap: space.lg },
-    phoneSections: { gap: space.xl },
-    stripScroll: { marginHorizontal: -space.md },
-    strip: { gap: space.sm, paddingHorizontal: space.md },
-    personCard: { width: 156, gap: space.sm },
-    personCardText: { gap: 2, minHeight: 56 },
-    firstRun: { flex: 1, justifyContent: "space-between", gap: space.xl, minHeight: 520 },
-    firstRunHero: { alignItems: "center", gap: space.md, paddingTop: space.lg },
-    firstRunBody: { maxWidth: 320 },
-    tip: {
-      alignSelf: "flex-end",
-      maxWidth: 270,
-      gap: 2,
-      padding: space.md,
+    topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+    heading: { gap: space.xxs },
+    start: { gap: space.md },
+    startText: { flexDirection: "row", gap: space.sm, alignItems: "flex-start" },
+    startIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: colors.sunken,
+    },
+    live: { gap: space.xs, borderColor: colors.live, backgroundColor: colors.surface },
+    livePill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      alignSelf: "flex-start",
+      paddingHorizontal: space.xs,
+      paddingVertical: 3,
+      borderRadius: radius.pill,
+      backgroundColor: colors.liveSoft,
+    },
+    liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.live },
+    review: { flexDirection: "row", alignItems: "center", gap: space.sm },
+    reviewDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: colors.warning },
+    groups: { gap: space.lg },
+    group: { gap: space.xs },
+    list: {
+      backgroundColor: colors.surface,
       borderRadius: radius.lg,
-      backgroundColor: colors.surface,
       borderWidth: 1,
-      borderColor: colors.support,
-      marginRight: 0,
+      borderColor: colors.border,
+      overflow: "hidden",
     },
-    // Points down at the + button (64pt wide, flush with the page edge).
-    tipArrow: {
-      position: "absolute",
-      bottom: -7,
-      right: 25,
-      width: 14,
-      height: 14,
-      backgroundColor: colors.surface,
-      borderRightWidth: 1,
-      borderBottomWidth: 1,
-      borderColor: colors.support,
-      transform: [{ rotate: "45deg" }],
-    },
-    dayHeading: { paddingHorizontal: space.md, paddingTop: space.md, paddingBottom: space.xxs },
-    row: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 52 },
-    check: { width: 18, height: 18, borderRadius: 9, borderWidth: 1.5, borderColor: colors.borderStrong },
-    eventIcon: { width: 18, alignItems: "center" },
-    faces: { flexDirection: "row" },
-    face: { marginLeft: -6, borderRadius: 12, borderWidth: 2, borderColor: colors.surface },
-    personRow: { flexDirection: "row", alignItems: "center", gap: space.sm, padding: space.xs, borderRadius: radius.md },
-    hover: { backgroundColor: colors.surfaceHover },
-    preview: { height: 220, borderWidth: 0, borderRadius: 0 },
-    previewEmpty: { alignItems: "center", justifyContent: "center" },
+    row: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm, minHeight: 64 },
+    rowBorder: { borderTopWidth: 1, borderTopColor: colors.border },
+    rowHover: { backgroundColor: colors.surfaceHover },
+    faces: { flexDirection: "row", alignItems: "center" },
+    face: { borderRadius: 14, borderWidth: 2, borderColor: colors.surface },
+    faceOverlap: { marginLeft: -8 },
+    more: { marginLeft: space.xxs },
+    how: { gap: space.md, paddingTop: space.xs },
+    step: { flexDirection: "row", gap: space.md, alignItems: "flex-start" },
+    stepNum: { width: 22, color: colors.textTertiary },
   }),
 );

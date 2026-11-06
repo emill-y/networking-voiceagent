@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { Backdrop } from "@/components/Backdrop";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Input } from "@/components/Input";
@@ -52,13 +51,12 @@ export default function SignIn() {
 
   return (
     <SafeAreaView style={s.safe}>
-      <Backdrop />
       <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
         <View style={s.column}>
           <View style={s.brand}>
             <LogoMark size={44} />
             <Txt variant="display" align="center">Welcome to Nomi</Txt>
-            <Txt variant="bodySecondary" align="center">Your second brain for the people you meet.</Txt>
+            <Txt variant="bodySecondary" align="center">Start a session at any event. Nomi remembers everyone you meet.</Txt>
           </View>
 
           <Card padding="lg" style={s.card}>
@@ -79,7 +77,7 @@ export default function SignIn() {
                 {appleAvailable && (
                   <AppleAuthentication.AppleAuthenticationButton
                     buttonType={AppleAuthentication.AppleAuthenticationButtonType.CONTINUE}
-                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+                    buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
                     cornerRadius={radius.md}
                     style={s.apple}
                     onPress={() => void run("apple", signInWithApple)}

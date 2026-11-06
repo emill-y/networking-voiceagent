@@ -1,14 +1,17 @@
 """Ambient sessions: record a networking event and find everyone you met.
 
     POST   /sessions                 start (returns an upload token for a paired watch)
+    GET    /sessions                 your sessions, newest first
     GET    /sessions/active          the session still recording, if any
     GET    /sessions/{id}            progress: chunks, people found so far
     POST   /sessions/{id}/chunks     upload ~30 s of audio (sign-in or X-Session-Token)
     POST   /sessions/{id}/finish     stop; final list of people to review
-    DELETE /sessions/{id}            discard (also after saving: the transcript goes)
+    POST   /sessions/{id}/save       add the reviewed people to your network
+    DELETE /sessions/{id}            discard (a saved session's contacts stay)
 
 Audio is transcribed and deleted within the request. Nothing is added to
-contacts here; the user reviews the people and saves them with /captures.
+contacts until the user reviews the people and saves; saving deletes the
+transcript and keeps the session as a record of who was met.
 """
 
 import logging
@@ -23,7 +26,9 @@ from app.core.db import get_db
 from app.core.rate_limit import ai_limiter
 from app.repositories import sessions as repo
 from app.routes.transcribe import transcribe_upload
-from app.schemas.sessions import SessionCreate, SessionCreated, SessionFinished, SessionOut
+from app.schemas.contacts import CaptureRequest
+from app.schemas.sessions import SessionContact, SessionCreate, SessionCreated, SessionFinished, SessionOut, SessionSave
+from app.services.captures import save_capture
 from app.services import sessions as svc
 from app.services.llm import LLMClient, get_llm_client
 from app.services.transcription import Transcriber, get_transcriber
@@ -32,9 +37,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _out(row: dict, model=SessionOut, **extra):
+def _out(row: dict, model=SessionOut, conn: Connection | None = None, **extra):
     segments = row["segments"] or []
+    contacts = repo.contacts(conn, row["user_id"], row["contact_ids"] or []) if conn and row["status"] == "saved" else []
     return model(
+        contacts=[SessionContact.model_validate(c) for c in contacts],
         id=row["id"],
         title=row["title"],
         status=row["status"],
@@ -60,8 +67,13 @@ def start(body: SessionCreate, conn: Connection = Depends(get_db), user_id: UUID
     if repo.active(conn, user_id):
         raise HTTPException(status.HTTP_409_CONFLICT, "A session is already recording. Finish it first.")
     token, token_hash = svc.new_upload_token()
-    row = repo.create(conn, user_id, body.title or None, token_hash)
+    row = repo.create(conn, user_id, body.title or None, token_hash, body.you or None)
     return _out(row, SessionCreated, upload_token=token)
+
+
+@router.get("/sessions", response_model=list[SessionOut])
+def history(conn: Connection = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
+    return [_out(row, conn=conn) for row in repo.recent(conn, user_id)]
 
 
 @router.get("/sessions/active", response_model=SessionOut | None)
@@ -77,7 +89,7 @@ def progress(
     user_id: UUID | None = Depends(get_optional_user_id),
     x_session_token: str | None = Header(default=None),
 ):
-    return _out(_authorized(conn, session_id, user_id, x_session_token))
+    return _out(_authorized(conn, session_id, user_id, x_session_token), conn=conn)
 
 
 def _authorized(conn: Connection, session_id: UUID, user_id: UUID | None, token: str | None, lock: bool = False) -> dict:
@@ -113,9 +125,11 @@ def upload_chunk(
     segments = svc.add_segment(row["segments"] or [], seq, result.text, result.audio_seconds)
     seconds = sum(s["seconds"] for s in segments)
     windows = dict(row["windows"] or {})
-    found = svc.read_window(segments, svc.window_of(seq), llm, today or date.today(), row["title"])
+    window = svc.window_of(seq)
+    found = svc.read_window(segments, window, llm, today or date.today(), row["title"],
+                            row["owner_name"], svc.known_people(windows, skip=window))
     if found is not None:
-        windows[str(svc.window_of(seq))] = found
+        windows[str(window)] = found
     repo.save_progress(conn, session_id, segments, seconds, windows)
     return _out({**row, "segments": segments, "audio_seconds": seconds, "windows": windows})
 
@@ -133,12 +147,29 @@ def finish(
     # Read any window the model missed (or that never got a chunk since it failed).
     for window in sorted({svc.window_of(s["seq"]) for s in segments}):
         if str(window) not in windows or window == max(svc.window_of(s["seq"]) for s in segments):
-            found = svc.read_window(segments, window, llm, date.today(), row["title"])
+            found = svc.read_window(segments, window, llm, date.today(), row["title"],
+                                    row["owner_name"], svc.known_people(windows, skip=window))
             if found is not None:
                 windows[str(window)] = found
     repo.finish(conn, session_id, windows)
     row = repo.get(conn, session_id)
     return _out(row, SessionFinished, transcript=svc.full_transcript(segments))
+
+
+@router.post("/sessions/{session_id}/save", response_model=SessionOut)
+def save(
+    session_id: UUID,
+    body: SessionSave,
+    conn: Connection = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    row = _own(conn, user_id, session_id, lock=True)
+    if row["status"] == "saved":
+        raise HTTPException(status.HTTP_409_CONFLICT, "This session is already saved.")
+    saved = save_capture(conn, user_id, CaptureRequest(transcript=None, source_type="voice", people=body.people))
+    ids = list(dict.fromkeys(p.contact_id for p in saved))
+    repo.save(conn, session_id, ids)
+    return _out(repo.get(conn, session_id), conn=conn)
 
 
 @router.delete("/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)

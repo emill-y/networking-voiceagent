@@ -12,12 +12,19 @@ def test_health_ok():
 def test_support_and_privacy_pages_are_public():
     client = TestClient(app)
     for path, text in (
-        ("/", "Support"), ("/product", "Nomi"), ("/students", "Nomi"), ("/demo", "Nomi"),
-        ("/privacy", "Privacy"), ("/site/style.css", "--orange"),
+        ("/", "Support"), ("/waitlist", "waitlist"), ("/privacy", "Privacy"), ("/site/style.css", "--orange"),
     ):
         response = client.get(path)
         assert response.status_code == 200
         assert text in response.text
+
+
+def test_retired_pages_redirect():
+    client = TestClient(app)
+    for path, target in (("/product", "/"), ("/students", "/"), ("/demo", "/waitlist")):
+        response = client.get(path, follow_redirects=False)
+        assert response.status_code == 307
+        assert response.headers["location"] == target
 
 
 def test_pages_show_the_configured_support_email(monkeypatch):

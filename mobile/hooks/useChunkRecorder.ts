@@ -1,8 +1,9 @@
-// Records continuously and hands over audio in short chunks (about 30 s), so a
+// Records continuously and hands over audio in short chunks (20 s), so a
 // long networking session is transcribed as it happens instead of at the end.
 // Web: MediaRecorder (a new recorder starts the moment the last one stops, so
 // nothing falls between chunks). Phones: expo-audio, which keeps recording
 // with the screen locked. Demo mode: no microphone, just a steady clock.
+// Also reports a live input level (0..1) so the screen can show it's hearing.
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -17,7 +18,7 @@ import { isDemo } from "@/lib/demo";
 export type RecorderState = "idle" | "starting" | "recording" | "denied" | "error";
 export type Chunk = { seq: number; audio: string | Blob; ms: number };
 
-const CHUNK_MS = 30_000;
+const CHUNK_MS = 20_000;
 const DEMO_CHUNK_MS = 4_000;
 
 function webMimeType(): string | undefined {
@@ -31,7 +32,11 @@ function webMimeType(): string | undefined {
 export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
   const [state, setState] = useState<RecorderState>("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
-  const native = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [level, setLevel] = useState(0);
+  const native = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
+  const audioCtx = useRef<AudioContext | null>(null);
+  const analyser = useRef<AnalyserNode | null>(null);
+  const wakeLock = useRef<{ release: () => Promise<void> } | null>(null);
   const running = useRef(false);
   const seq = useRef(0);
   const startedAt = useRef(0);
@@ -48,11 +53,47 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
     return () => clearInterval(tick);
   }, [state]);
 
+  // The input level, a few times a second.
+  useEffect(() => {
+    if (state !== "recording") {
+      setLevel(0);
+      return;
+    }
+    const buf = new Float32Array(1024);
+    const tick = setInterval(() => {
+      let next = 0;
+      if (isDemo()) {
+        const t = Date.now() / 260;
+        next = 0.25 + 0.2 * Math.abs(Math.sin(t)) * Math.abs(Math.sin(t / 2.7)) + 0.1 * Math.random();
+      } else if (Platform.OS === "web") {
+        if (analyser.current) {
+          analyser.current.getFloatTimeDomainData(buf);
+          let sum = 0;
+          for (const v of buf) sum += v * v;
+          next = Math.min(1, Math.sqrt(sum / buf.length) * 6);
+        }
+      } else {
+        const db = native.getStatus().metering;
+        if (typeof db === "number") next = Math.max(0, Math.min(1, (db + 55) / 50));
+      }
+      setLevel((prev) => prev * 0.4 + next * 0.6);
+    }, 120);
+    return () => clearInterval(tick);
+  }, [state, native]);
+
   const later = (fn: () => void, ms: number) => {
     timers.current.push(setTimeout(fn, ms));
   };
 
   // ---------- Web ----------
+  function releaseWeb() {
+    void audioCtx.current?.close().catch(() => undefined);
+    audioCtx.current = null;
+    analyser.current = null;
+    void wakeLock.current?.release().catch(() => undefined);
+    wakeLock.current = null;
+  }
+
   const webChunk = useCallback(() => {
     if (!stream.current) return;
     const mimeType = webMimeType();
@@ -73,14 +114,25 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
   }, []);
 
   // ---------- Phones ----------
+  // If the microphone is taken away for a moment (a phone call, Siri), try
+  // again shortly instead of ending the session.
   const nativeChunk = useCallback(async () => {
     const began = Date.now();
-    await native.prepareToRecordAsync();
-    native.record();
+    try {
+      await native.prepareToRecordAsync();
+      native.record();
+    } catch {
+      if (running.current) later(() => void nativeChunk(), 2_000);
+      return;
+    }
     later(async () => {
       const n = seq.current++;
-      await native.stop();
-      if (native.uri) emit.current({ seq: n, audio: native.uri, ms: Date.now() - began });
+      try {
+        await native.stop();
+        if (native.uri) emit.current({ seq: n, audio: native.uri, ms: Date.now() - began });
+      } catch {
+        // This chunk is lost; keep going.
+      }
       if (running.current) void nativeChunk();
     }, CHUNK_MS);
   }, [native]);
@@ -94,8 +146,9 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
     }, DEMO_CHUNK_MS);
   }, []);
 
-  const start = useCallback(async (firstSeq = 0) => {
-    if (running.current) return;
+  // Resolves with how it went: "recording", "denied" or "error".
+  const start = useCallback(async (firstSeq = 0): Promise<RecorderState> => {
+    if (running.current) return "recording";
     setState("starting");
     seq.current = firstSeq;
     try {
@@ -105,11 +158,27 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
         stream.current = await navigator.mediaDevices.getUserMedia({
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
         });
+        try {
+          const Ctx = window.AudioContext ?? (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          audioCtx.current = new Ctx();
+          analyser.current = audioCtx.current.createAnalyser();
+          analyser.current.fftSize = 1024;
+          audioCtx.current.createMediaStreamSource(stream.current).connect(analyser.current);
+        } catch {
+          // No level meter; recording still works.
+        }
+        try {
+          // Keep the screen awake: browsers pause the microphone when it locks.
+          const wl = (navigator as unknown as { wakeLock?: { request: (t: "screen") => Promise<{ release: () => Promise<void> }> } }).wakeLock;
+          if (wl) wakeLock.current = await wl.request("screen");
+        } catch {
+          // Not allowed here; recording still works while the screen is on.
+        }
       } else {
         const permission = await requestRecordingPermissionsAsync();
         if (!permission.granted) {
           setState("denied");
-          return;
+          return "denied";
         }
         // Keep recording with the screen locked or the app in the background.
         await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true, shouldPlayInBackground: true });
@@ -117,7 +186,7 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
     } catch (e) {
       const denied = e instanceof Error && /denied|not allowed|permission/i.test(e.name + e.message);
       setState(denied ? "denied" : "error");
-      return;
+      return denied ? "denied" : "error";
     }
     running.current = true;
     startedAt.current = Date.now();
@@ -126,6 +195,7 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
     if (isDemo()) demoChunk();
     else if (Platform.OS === "web") webChunk();
     else void nativeChunk();
+    return "recording";
   }, [demoChunk, nativeChunk, webChunk]);
 
   // Stop and hand over whatever was recorded since the last chunk.
@@ -140,6 +210,7 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
       if (current.current?.state === "recording") current.current.stop();
       stream.current?.getTracks().forEach((t) => t.stop());
       stream.current = null;
+      releaseWeb();
     } else {
       const n = seq.current++;
       try {
@@ -156,7 +227,8 @@ export function useChunkRecorder(onChunk: (chunk: Chunk) => void) {
     running.current = false;
     timers.current.forEach(clearTimeout);
     stream.current?.getTracks().forEach((t) => t.stop());
+    releaseWeb();
   }, []);
 
-  return { state, elapsedMs, start, stop };
+  return { state, elapsedMs, level, start, stop };
 }

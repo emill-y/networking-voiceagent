@@ -1,5 +1,5 @@
-// Shared behaviour for every page: menu, active link, scroll reveals,
-// the typing transcript in the hero and the small maps.
+// Shared behaviour for every page: menu, active link, scroll reveals and
+// the session preview's clock.
 (function () {
   const menu = document.querySelector(".menu-btn");
   const links = document.querySelector(".nav-links");
@@ -19,31 +19,29 @@
   }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
   document.querySelectorAll(".reveal").forEach((el) => io.observe(el));
 
-  // Hero: a note being spoken, word by word, on a loop.
-  const live = document.querySelector("[data-typing]");
-  if (live) {
-    const lines = JSON.parse(live.getAttribute("data-typing"));
-    let line = 0;
-    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const play = () => {
-      const words = lines[line].split(" ");
-      let i = 0;
-      const step = () => {
-        live.innerHTML = words.slice(0, i).join(" ") + ' <span class="dim">' + words.slice(i).join(" ") + "</span>";
-        if (i++ < words.length) setTimeout(step, still ? 0 : 170);
-        else setTimeout(() => { line = (line + 1) % lines.length; play(); }, 2600);
-      };
-      step();
-    };
-    play();
+  // Hairline under the nav once the page scrolls.
+  const nav = document.querySelector(".nav");
+  if (nav) {
+    const onScroll = () => nav.classList.toggle("scrolled", window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
   }
 
-  // Small decorative maps (home teaser, product page).
-  document.querySelectorAll("canvas[data-mini-graph]").forEach((canvas) => {
-    if (!window.NomiGraph) return;
-    const g = new NomiGraph(canvas, { zoom: Number(canvas.dataset.zoom || 0.95) });
-    window.NomiSample.forEach((p) => g.addPerson(p));
+  // Close the phone menu after choosing a link.
+  if (links) links.addEventListener("click", (e) => {
+    if (e.target.closest("a")) { links.classList.remove("open"); menu && menu.setAttribute("aria-expanded", "false"); }
   });
+
+  // The session preview: a steady clock.
+  const timer = document.getElementById("timer");
+  if (timer) {
+    let seconds = 42 * 60 + 18;
+    setInterval(() => {
+      seconds += 1;
+      const m = Math.floor(seconds / 60), s = seconds % 60;
+      timer.textContent = `${m}:${String(s).padStart(2, "0")}`;
+    }, 1000);
+  }
 })();
 
 // Invite links (/?invite=CODE): remember the code so the app can credit the

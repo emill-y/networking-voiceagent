@@ -1,31 +1,27 @@
-import {
-  InterTight_500Medium,
-  InterTight_600SemiBold,
-  InterTight_700Bold,
-  useFonts,
-} from "@expo-google-fonts/inter-tight";
-import { Stack, usePathname } from "expo-router";
+import { InterTight_500Medium, InterTight_600SemiBold, InterTight_700Bold, useFonts } from "@expo-google-fonts/inter-tight";
+import { Newsreader_500Medium } from "@expo-google-fonts/newsreader";
+import { Stack, usePathname, useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
-import { useEffect, useSyncExternalStore, type ReactNode } from "react";
-import { View } from "react-native";
-import Animated, { useAnimatedStyle, withTiming } from "react-native-reanimated";
+import { useEffect, useSyncExternalStore } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { EmptyState } from "@/components/EmptyState";
 import { Sidebar } from "@/components/Sidebar";
 import { showsTabBar, TabBar } from "@/components/TabBar";
 import { ToastProvider } from "@/components/Toast";
+import { Txt } from "@/components/Txt";
 import { AccountProvider } from "@/hooks/useAccount";
 import { useDesktop } from "@/hooks/useDesktop";
+import { LiveSessionProvider, useLiveSession } from "@/hooks/useLiveSession";
 import { SessionProvider, useSession } from "@/hooks/useSession";
 import { isDemo, subscribeDemo } from "@/lib/demo";
-import { openSheets, subscribeSheets } from "@/lib/sheetStack";
-import { profileFrom } from "@/lib/profile";
 import { openWithoutSignIn, signInMissing } from "@/lib/supabase";
-import { ThemeProvider, useTheme } from "@/lib/theme";
+import { radius, space, ThemeProvider, useTheme } from "@/lib/theme";
 
-// Keep the splash screen up until fonts and any saved session are ready, so
+// Keep the splash screen up until fonts and any saved sign-in are ready, so
 // signed-in users never see the sign-in screen flicker.
 void SplashScreen.preventAutoHideAsync();
 
@@ -54,9 +50,9 @@ function Root() {
 }
 
 function RootNavigator() {
-  const [fontsLoaded, fontError] = useFonts({ InterTight_500Medium, InterTight_600SemiBold, InterTight_700Bold });
+  const [fontsLoaded, fontError] = useFonts({ InterTight_500Medium, InterTight_600SemiBold, InterTight_700Bold, Newsreader_500Medium });
   const { session, loading } = useSession();
-  const { colors, mode } = useTheme();
+  const { colors } = useTheme();
   const desktop = useDesktop();
   const pathname = usePathname();
   const demo = useSyncExternalStore(subscribeDemo, isDemo, isDemo);
@@ -71,45 +67,31 @@ function RootNavigator() {
   if (signInMissing && !demo && pathname !== "/demo") {
     return (
       <View style={{ flex: 1, backgroundColor: colors.bg, justifyContent: "center" }}>
-        <StatusBar style={mode === "dark" ? "light" : "dark"} />
+        <StatusBar style="dark" />
         <EmptyState icon="clock" title="Nomi is being set up" body="Sign-in isn’t available on this build yet." />
       </View>
     );
   }
 
   // Without Supabase configured (local development only), everything is open.
-  const signedIn = openWithoutSignIn || demo || !!session;
-  // New accounts answer one welcome question before the app opens.
-  const onboarded = openWithoutSignIn || demo || !!profileFrom(session);
-  const inApp = signedIn && onboarded;
+  const inApp = openWithoutSignIn || demo || !!session;
 
   const stack = (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.bg }, animation: "fade" }}>
       {/* Protected screens are only reachable when their guard is true;
           Expo Router redirects to the first allowed screen otherwise. */}
-      <Stack.Protected guard={signedIn && !onboarded}>
-        <Stack.Screen name="welcome" />
-      </Stack.Protected>
       <Stack.Protected guard={inApp}>
         <Stack.Screen name="index" />
-        <Stack.Screen name="record" />
         <Stack.Screen name="session" />
-        <Stack.Screen name="write" />
-        <Stack.Screen name="review" />
-        <Stack.Screen name="contacts/index" />
+        <Stack.Screen name="sessions/[id]/index" />
+        <Stack.Screen name="sessions/[id]/review" />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="network" />
         <Stack.Screen name="contacts/[id]/index" />
         <Stack.Screen name="contacts/[id]/edit" />
-        <Stack.Screen name="follow-ups" />
-        <Stack.Screen name="events" />
-        <Stack.Screen name="search" />
         <Stack.Screen name="profile" />
-        <Stack.Screen name="invite" />
-        <Stack.Screen name="shared/[token]" />
-        <Stack.Screen name="import-contacts" />
-        <Stack.Screen name="network" />
-        <Stack.Screen name="edit-profile" />
       </Stack.Protected>
-      <Stack.Protected guard={!signedIn}>
+      <Stack.Protected guard={!inApp}>
         <Stack.Screen name="sign-in" />
       </Stack.Protected>
       {/* Reachable either way: sign-in links and the demo arrive here. */}
@@ -118,35 +100,55 @@ function RootNavigator() {
     </Stack>
   );
 
+  // The session keeps recording above every screen, so it lives here.
   return (
-    <>
-      <StatusBar style={mode === "dark" ? "light" : "dark"} />
+    <LiveSessionProvider>
+      <StatusBar style="dark" />
       {desktop && inApp ? (
         // Wide windows: persistent sidebar next to the current screen.
         <View style={{ flex: 1, flexDirection: "row", backgroundColor: colors.bg }}>
           <Sidebar />
-          <View style={{ flex: 1 }}>{stack}</View>
+          <View style={{ flex: 1 }}>
+            {stack}
+            <RecordingPill />
+          </View>
         </View>
       ) : (
-        <View style={{ flex: 1, backgroundColor: "#000" }}>
-          <StepBack>
-            {stack}
-            {inApp && showsTabBar(pathname) && <TabBar />}
-          </StepBack>
+        <View style={{ flex: 1, backgroundColor: colors.bg }}>
+          {stack}
+          {inApp && showsTabBar(pathname) && <TabBar />}
+          {inApp && <RecordingPill />}
         </View>
       )}
-    </>
+    </LiveSessionProvider>
   );
 }
 
-// Phones: while a bottom sheet is up, the app behind it steps back a little
-// (scales down with rounded corners), so it's clear the sheet sits on top.
-function StepBack({ children }: { children: ReactNode }) {
-  const { colors } = useTheme();
-  const sheets = useSyncExternalStore(subscribeSheets, openSheets, openSheets);
-  const style = useAnimatedStyle(() => ({
-    transform: [{ scale: withTiming(sheets > 0 ? 0.94 : 1, { duration: 260 }) }],
-    borderRadius: withTiming(sheets > 0 ? 18 : 0, { duration: 260 }),
-  }));
-  return <Animated.View style={[{ flex: 1, overflow: "hidden", backgroundColor: colors.bg }, style]}>{children}</Animated.View>;
+// While a session records and you're elsewhere in the app, a small pill at
+// the top takes you back to it.
+function RecordingPill() {
+  const live = useLiveSession();
+  const router = useRouter();
+  const pathname = usePathname();
+  const insets = useSafeAreaInsets();
+  const { colors, shadow } = useTheme();
+  if (live.stage !== "live" || pathname === "/session" || pathname === "/") return null;
+  const n = live.people.filter((p) => p.name).length;
+  return (
+    <View pointerEvents="box-none" style={[pill.wrap, { top: insets.top + space.xs }]}>
+      <Pressable onPress={() => router.push("/session")} accessibilityRole="button" accessibilityLabel="Return to the session that's recording"
+        style={[pill.pill, { backgroundColor: colors.text }, shadow.raised]}>
+        <View style={[pill.dot, { backgroundColor: "#5FD08F" }]} />
+        <Txt variant="caption" weight="600" style={{ color: colors.onAccent }}>
+          Recording{live.session?.title ? ` · ${live.session.title}` : ""}{n ? ` · ${n} ${n === 1 ? "person" : "people"}` : ""}
+        </Txt>
+      </Pressable>
+    </View>
+  );
 }
+
+const pill = StyleSheet.create({
+  wrap: { position: "absolute", left: 0, right: 0, alignItems: "center" },
+  pill: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: space.sm, paddingVertical: 6, borderRadius: radius.pill },
+  dot: { width: 7, height: 7, borderRadius: 4 },
+});

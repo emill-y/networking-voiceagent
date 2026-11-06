@@ -86,7 +86,7 @@ class CaptureRequest(ApiModel):
 
     transcript: Annotated[str, StringConstraints(max_length=20_000)] | None = None
     source_type: Literal["voice", "manual"] = "voice"
-    people: Annotated[list[CapturedPerson], Field(min_length=1, max_length=10)]
+    people: Annotated[list[CapturedPerson], Field(min_length=1, max_length=60)]
 
 
 class SavedPerson(ApiModel):

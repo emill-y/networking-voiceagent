@@ -4,135 +4,105 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nomi · Privacy</title>
-<meta name="description" content="How Nomi handles your account, your voice and the notes you keep about people.">
+<meta name="description" content="How Nomi handles your account, your sessions and the notes you keep about people.">
 <meta property="og:title" content="Nomi · Privacy">
-<meta property="og:description" content="How Nomi handles your account, your voice and the notes you keep about people.">
+<meta property="og:description" content="How Nomi handles your account, your sessions and the notes you keep about people.">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#080605">
+<meta name="theme-color" content="#FAF9F6">
 <link rel="icon" href="/site/favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/site/style.css">
 </head>
 <body>
-<div class="ambient" aria-hidden="true"></div>
-<div class="grain" aria-hidden="true"></div>
 <header class="nav">
   <div class="wrap">
     <div class="nav-inner">
       <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
       <nav class="nav-links" aria-label="Main">
-        <a href="/product">Product</a>
-        <a href="/students">Students</a>
-        <a href="/waitlist">Waitlist</a>
+        <a href="/#how">How it works</a>
+        <a href="/#search">Search</a>
+        <a href="/#map">Map</a>
         <a href="/privacy">Privacy</a>
       </nav>
       <div class="nav-cta">
-        <a class="btn btn-hot btn-sm" href="/waitlist">Join the waitlist</a>
+        <a class="btn btn-dark btn-sm" href="/waitlist">Join the waitlist</a>
         <button class="menu-btn" aria-label="Menu" aria-expanded="false">☰</button>
       </div>
     </div>
   </div>
 </header>
 <main>
-<section class="page-head" style="padding-bottom:10px"><div class="wrap" style="display:grid;gap:18px;justify-items:center">
-<span class="pill"><span class="dot">✦</span>Privacy</span>
-<h1 style="font-size:clamp(44px,6vw,76px)">Privacy policy</h1>
-<p class="muted" style="font-size:15px">Last updated: September 28, 2026</p>
+<section class="page-head"><div class="narrow" style="display:grid;gap:14px">
+<span class="eyebrow">Privacy</span>
+<h1 style="font-size:clamp(40px,6vw,64px)">Privacy policy</h1>
+<p class="muted" style="font-size:15px">Last updated: November 6, 2026</p>
 </div></section>
-<section style="padding-top:20px"><div class="wrap"><article class="prose"><p>Nomi exists to help you remember people, so it holds personal information about you and about the people you meet. We treat that as a responsibility. In short: you decide what goes in, it's only used to provide Nomi to you, we never sell it or use it for ads, and you can delete all of it at any time.</p>
+<section style="padding-top:24px"><div class="narrow"><article class="prose">
+<p>Nomi exists to help you remember the people you meet, so it holds personal information about you and about them. We treat that as a responsibility. In short: you decide what goes in, it is only used to provide Nomi to you, we never sell it or use it for ads, and you can delete all of it at any time.</p>
 
 <h2>The waitlist</h2>
-<p>If you join the waitlist we store your name, school and email, your personal invite code, and who invited you (if anyone). We use them only to let you in when your spot opens, to count the friends who joined with your link, and to send you a welcome email. We never sell them. To be removed, email us at <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+<p>If you join the waitlist we store your name, school and email, your personal invite code, and who invited you (if anyone). We use them only to let you in when your spot opens, to count the friends who joined with your link, and to send you a welcome email. To be removed, email us at <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
 
 <h2>What we collect</h2>
 <ul>
-<li><strong>Your account.</strong> Your email address, and your name if you sign in with Apple and choose to share it. Sign-in is handled by Supabase.</li>
-<li><strong>What you save.</strong> The notes you record or type about people you meet: their names and details, what you talked about, follow-ups, and the text of your notes.</li>
-<li><strong>Contacts you choose.</strong> If you import from your phone's contacts, only the people you select (name, company, job title, phone number and email) are sent to Nomi. Your address book is read and matched on your phone and is never uploaded as a whole.</li>
+<li><strong>Your account.</strong> Your email address, and your name if you sign in with Apple or Google and choose to share it. Sign-in is handled by Supabase.</li>
+<li><strong>What you save.</strong> The people you confirm after a session: their names and details, what you talked about, and the session they came from (its name, date and length).</li>
 </ul>
 <p>We don't collect your location, don't use advertising or tracking SDKs, and don't build profiles about you for anyone else.</p>
 
-<h2>Your voice</h2>
-<p>Nomi only listens while you're recording, and shows that it's listening. Speech is turned into text on your iPhone using Apple's speech recognition. On devices that support it, this happens entirely on the phone; on older devices, Apple may process the audio under <a href="https://www.apple.com/legal/privacy/">Apple's privacy policy</a>. Nomi does not store your recordings.</p>
-<p>In the rare cases where on-phone transcription isn't available, the recording is sent to our server, transcribed by our speech-recognition provider, and deleted as soon as the text is returned.</p>
+<h2>Sessions</h2>
+<p>A session is something you start yourself, on your phone, in the web app or on your Apple Watch, for example when you walk into an event. Nomi only listens while a session you started is running, and always shows that it is listening. Before your first session Nomi asks you to confirm that you'll let people know you're taking notes: in some places, including California, everyone in a conversation must agree to be recorded.</p>
+<p>While a session runs, Nomi records in pieces of about 20 seconds. Each piece is sent to our server, turned into text by our speech-recognition provider, and the audio is deleted as soon as the text comes back. <strong>Nomi never stores session audio.</strong></p>
+<p>The text is used only to find the people you were introduced to and what they said. Nothing is added to your network until you review the session. When you save or discard a session its transcript is deleted; a saved session keeps only its name, date, length and the people you chose to keep. A session left unfinished is deleted after 7 days.</p>
 
-<h2>Sessions (ambient recording at events)</h2>
-<p>A session is something you start yourself, on your phone, in the web app or on your Apple Watch, for example when you walk into a networking event. Before the first session Nomi asks you to confirm that you'll let people know you're taking notes: in some places, including California, everyone in a conversation must agree to be recorded.</p>
-<p>While a session runs, Nomi records in short pieces of about 30 seconds and shows that it's listening. Each piece is sent to our server, turned into text by our speech-recognition provider, and the audio is deleted as soon as the text comes back. Nomi never stores session audio.</p>
-<p>The text is used only to find the people you were introduced to and what they said about themselves. Nothing is added to your contacts until you review it. When you save or discard a session its transcript is deleted, and any session left unfinished is deleted after 7 days.</p>
-
-<h2>On the web</h2>
-<p>In the web app and in the live demo on our website, speech is turned into text by your browser's own speech recognition; depending on your browser this may happen on its maker's servers (for example Google for Chrome). Nomi receives only the resulting text. The demo works without an account: its text is sent to our AI provider to show you the result, and nothing from the demo is stored: the sample network lives only in your browser tab and disappears when you close it.</p>
-
-<h2>Google Calendar</h2>
-<p>Connecting Google Calendar is optional. If you connect it, Nomi asks Google for your email address and permission to view and edit events on your calendars. Nomi uses this only to show your upcoming events next to the people you might talk to there, and to add, update or remove the follow-ups you choose to date as events on your calendar. To suggest people for an event, its title and location are sent to our AI provider, the same way your searches are. Nomi does not store your calendar events, does not share or sell calendar data, and does not use it for advertising or to train AI models. The access Google gives Nomi is stored encrypted, and you can disconnect anytime under <em>You → Google Calendar</em> or in your Google Account settings; disconnecting revokes Nomi's access.</p>
-<p>Nomi's use and transfer of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.</p>
-
-<h2>Events and "Plan Events"</h2>
-<p>To suggest real events, Nomi reads public event listings: the open tech-conference data published on GitHub, and any public calendar links (iCal feeds) you add yourself. Nomi's server fetches those links for you and keeps the links you added until you remove them or delete your data. To match events with your people, event titles and short descriptions and a summary of your notes are sent to our AI provider, the same way your searches are. The city and interests you enter are stored with your account. Nothing about your people is shared with event organizers; invites are only sent if you send them yourself.</p>
-
-<h2>Profile photo, sharing and invites</h2>
-<p>If you add a profile photo, a small copy is stored with your account and shown only to you. When you share contacts, Nomi stores a copy of their name, role, company, school, location, contact details, links and interests (never your private notes) for the email address you enter, until that person accepts or declines. If email sending is set up, Nomi emails that address once to tell them. Invite links carry a short code so we can count who joined through your invite.</p>
-<h2>Event providers</h2>
-<p>To find events near you, Plan Events sends the city you enter (or, if you choose "Near me", an approximate location), the dates and the categories you pick to event providers such as Ticketmaster and SeatGeek. Nothing about your contacts is sent to them.</p>
-
-<h2>How your notes are processed</h2>
-<p>To pull out names, details and follow-ups, the text of a note is sent to our AI provider (currently Groq, Inc.) and the structured result is shown to you to confirm. Nothing is saved until you confirm it. Searching your people in plain language sends the question the same way. We use the provider only to process your request, not to train models on your notes.</p>
+<h2>How text is processed</h2>
+<p>To find people and their details, session text is sent to our AI provider (currently Groq, Inc.), and the result is shown to you to confirm. Searching in plain language sends your question and a summary of your notes the same way. We use the provider only to process your request, not to train models on your data.</p>
 
 <h2>Where it's stored</h2>
-<p>Your account and memories are stored with Supabase (hosted PostgreSQL in Canada), protected by row-level security so each account can only ever read its own data. Our website, web app and API are hosted on Vercel. Data is encrypted in transit (HTTPS) and at rest by these providers.</p>
+<p>Your account and notes are stored with Supabase (hosted PostgreSQL in Canada), protected by row-level security so each account can only ever read its own data. Our website, web app and API are hosted on Vercel. Data is encrypted in transit (HTTPS) and at rest by these providers.</p>
 
 <h2>What we never do</h2>
 <ul>
 <li>Sell or rent your data, or share it for advertising.</li>
-<li>Look people up or enrich their profiles behind your back.</li>
-<li>Contact anyone on your behalf. Call, Text and Email buttons open your phone's own apps.</li>
-<li>Record in the background.</li>
+<li>Keep recordings of anyone's voice.</li>
+<li>Listen when you haven't started a session.</li>
+<li>Look people up or contact anyone on your behalf.</li>
 </ul>
 
 <h2>Your choices</h2>
 <ul>
-<li><strong>Edit or delete</strong> any person or moment in the app.</li>
-<li><strong>Export</strong> everything: <em>You → Export my memories</em>.</li>
-<li><strong>Delete your account</strong>: <em>You → Delete my account</em>. This permanently removes your account and everything in it.</li>
-<li>Turn off microphone, speech recognition or contacts access at any time in iOS Settings.</li>
+<li><strong>Edit or delete</strong> any person or session in the app. Removing a session keeps the people you saved from it; delete a person from their page.</li>
+<li><strong>Export</strong> everyone you've met as a spreadsheet: <em>Profile → Export</em>.</li>
+<li><strong>Delete everything</strong> or <strong>delete your account</strong> under <em>Profile</em>. This permanently removes your data.</li>
+<li>Turn off microphone access any time in your phone's or browser's settings.</li>
 </ul>
 
 <h2>Children</h2>
 <p>Nomi isn't directed to children under 13, and we don't knowingly collect their information.</p>
 
 <h2>Changes and contact</h2>
-<p>If this policy changes in a meaningful way we'll update the date above and tell you in the app. Questions: <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p></article></div></section>
+<p>If this policy changes in a meaningful way we'll update the date above and tell you in the app. Questions: <a href="mailto:{{SUPPORT_EMAIL}}">{{SUPPORT_EMAIL}}</a>.</p>
+</article></div></section>
 </main>
 <footer>
   <div class="wrap">
     <div class="foot">
       <div>
         <a class="logo" href="/"><span class="logo-orb"></span>Nomi</a>
-        <p>The private, voice-first memory for the people you meet.</p>
+        <p>Start a session. Remember everyone you meet.</p>
       </div>
-      <div>
-        <h4>Product</h4>
-        <a href="/product">Features</a>
-        <a href="/waitlist">Join the waitlist</a>
-      </div>
-      <div>
-        <h4>For</h4>
-        <a href="/students">Students</a>
-        <a href="/product#search">Founders</a>
-        <a href="/product#followups">Job seekers</a>
-      </div>
-      <div>
-        <h4>Company</h4>
+      <nav aria-label="Footer">
+        <a href="/#how">How it works</a>
+        <a href="/waitlist">Waitlist</a>
         <a href="/privacy">Privacy</a>
-        <a href="/#support">Support</a>
         <a href="/#faq">FAQ</a>
-      </div>
+        <a href="mailto:{{SUPPORT_EMAIL}}">Contact</a>
+      </nav>
     </div>
-    <div class="legal"><span>© 2026 Nomi</span><span>Made for people who meet people.</span></div>
+    <div class="legal">© 2026 Nomi</div>
   </div>
 </footer>
 <script src="/site/site.js"></script>
