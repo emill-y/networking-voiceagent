@@ -200,11 +200,12 @@ function Live({ onEnd }: { onEnd: () => void }) {
   }, []);
 
   const elapsed = now - Date.parse(session.startedAt);
-  const people = live.people.filter((p) => p.name);
+  const people = live.people.filter((p) => p.name || p.label);
   const micProblem = live.recorder === "denied" ? "Microphone access is off" : live.recorder === "error" ? "The microphone stopped" : null;
   const status = micProblem ?? "Listening";
   const sync =
-    live.failed > 0 ? `${live.failed} ${live.failed === 1 ? "piece is" : "pieces are"} waiting for a connection. They’ll be sent before the session ends.`
+    live.problem && (live.failed > 0 || live.pending > 0) ? `Having trouble sending audio: ${live.problem} Still recording; it’ll keep retrying.`
+    : live.failed > 0 ? `${live.failed} ${live.failed === 1 ? "piece is" : "pieces are"} waiting for a connection. They’ll be sent before the session ends.`
     : live.pending > 1 ? "Catching up…"
     : null;
 
@@ -225,6 +226,9 @@ function Live({ onEnd }: { onEnd: () => void }) {
         <Txt variant="display" style={s.timer} accessibilityLabel={`Recording for ${formatDuration(elapsed)}`}>{clock(elapsed)}</Txt>
         <Txt variant="bodySecondary" align="center">{session.title ?? "Untitled session"}</Txt>
         <Level level={micProblem ? 0 : live.level} />
+        <Txt variant="caption">
+          {live.words > 0 ? `Heard ${live.words.toLocaleString()} words` : "Waiting for the first 20 seconds of audio…"}
+        </Txt>
       </View>
 
       <View style={s.found}>
@@ -235,13 +239,13 @@ function Live({ onEnd }: { onEnd: () => void }) {
         {people.length === 0 ? (
           <Card style={s.waiting}>
             <Txt variant="small" align="center">
-              When someone introduces themselves, they’ll appear here within a minute. Names, what they do and what you talked about fill in as you go.
+              People appear here within a minute of talking to them, even if you never catch their name. What they do and what you talked about fill in as you go.
             </Txt>
           </Card>
         ) : (
           <View style={s.list}>
             {people.map((p, i) => (
-              <Reveal key={p.name}>
+              <Reveal key={p.name ?? p.label ?? String(i)}>
                 <PersonRow person={p} first={i === 0} />
               </Reveal>
             ))}
@@ -286,9 +290,13 @@ function PersonRow({ person, first }: { person: ExtractedPerson; first: boolean 
   const line = [work, person.school, person.projects[0], person.needs[0] && `looking for ${person.needs[0]}`].filter(Boolean).join(" · ");
   return (
     <View style={[s.person, !first && s.personBorder]}>
-      <Avatar name={person.name} size={36} />
+      <Avatar name={person.name ?? "?"} size={36} />
       <View style={s.flex}>
-        <Txt variant="label">{person.name}</Txt>
+        {person.name ? (
+          <Txt variant="label">{person.name}</Txt>
+        ) : (
+          <Txt variant="label">{person.label} <Txt variant="caption">· name not heard</Txt></Txt>
+        )}
         <Txt variant="small" numberOfLines={2}>{line || "Listening for details…"}</Txt>
       </View>
     </View>

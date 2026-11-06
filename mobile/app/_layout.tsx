@@ -133,7 +133,7 @@ function RecordingPill() {
   const insets = useSafeAreaInsets();
   const { colors, shadow } = useTheme();
   if (live.stage !== "live" || pathname === "/session" || pathname === "/") return null;
-  const n = live.people.filter((p) => p.name).length;
+  const n = live.people.filter((p) => p.name || p.label).length;
   return (
     <View pointerEvents="box-none" style={[pill.wrap, { top: insets.top + space.xs }]}>
       <Pressable onPress={() => router.push("/session")} accessibilityRole="button" accessibilityLabel="Return to the session that's recording"

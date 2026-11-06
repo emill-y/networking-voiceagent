@@ -22,6 +22,10 @@ type LiveSession = {
   // Chunks waiting to upload, and chunks that couldn't be uploaded yet.
   pending: number;
   failed: number;
+  // Words transcribed so far, so you can see it's actually hearing.
+  words: number;
+  // Why the last upload failed (shown while it keeps retrying), or null.
+  problem: string | null;
   // A session still recording on the server that this device isn't recording (app was closed).
   orphan: AmbientSession | null;
   start: (title: string | null, you: string | null) => Promise<void>;
@@ -43,6 +47,8 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
   const [pending, setPending] = useState(0);
   const [failed, setFailed] = useState(0);
   const [orphan, setOrphan] = useState<AmbientSession | null>(null);
+  const [words, setWords] = useState(0);
+  const [problem, setProblem] = useState<string | null>(null);
   const sessionRef = useRef<AmbientSession | null>(null);
   const queue = useRef<Promise<void>>(Promise.resolve());
   const leftovers = useRef<Chunk[]>([]);
@@ -53,10 +59,15 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
     for (let attempt = 0; attempt < attempts; attempt++) {
       try {
         const progress = await uploadSessionChunk(id, chunk.seq, chunk.audio);
-        if (sessionRef.current?.id === id) setPeople(progress.people);
+        if (sessionRef.current?.id === id) {
+          setPeople(progress.people);
+          setWords(progress.words);
+          setProblem(null);
+        }
         return true;
       } catch (e) {
         const status = e instanceof ApiError ? e.status : null;
+        setProblem(e instanceof Error && e.message ? e.message : "Couldn’t reach Nomi.");
         if (status === 409 || status === 404) {
           stopped.current = true;
           return true; // nothing more to do for this session
@@ -100,6 +111,8 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
     sessionRef.current = next;
     setSession(next);
     setPeople(next.people);
+    setWords(next.words);
+    setProblem(null);
     setOrphan(null);
     const mic = await recStart(firstSeq);
     if (mic !== "recording") {
@@ -202,9 +215,9 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
   }), [start]);
 
   const value = useMemo<LiveSession>(() => ({
-    stage, session, people, recorder: rec.state, level: rec.level, pending, failed, orphan,
+    stage, session, people, recorder: rec.state, level: rec.level, pending, failed, words, problem, orphan,
     start, resume, end, discard, refreshOrphan,
-  }), [stage, session, people, rec.state, rec.level, pending, failed, orphan, start, resume, end, discard, refreshOrphan]);
+  }), [stage, session, people, rec.state, rec.level, pending, failed, words, problem, orphan, start, resume, end, discard, refreshOrphan]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

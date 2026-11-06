@@ -7,6 +7,8 @@ from app.schemas.base import ApiModel
 
 class ExtractedPerson(ApiModel):
     name: str | None = None
+    # Sessions: when their name was never said, a few words to recognize them by.
+    label: str | None = None
     company: str | None = None
     role: str | None = None
     school: str | None = None
@@ -62,6 +64,9 @@ EXTRACTION_JSON_SCHEMA: dict = {
                 "type": "object",
                 "properties": {
                     "name": _nullable_string("Full name as spoken, or null if not said."),
+                    "label": _nullable_string(
+                        "Only when name is null: a few words to recognize them by, e.g. 'Airbnb designer who climbs'."
+                    ),
                     "company": _nullable_string("Company or organization they work at."),
                     "role": _nullable_string("Job title or role, e.g. 'Founder'."),
                     "school": _nullable_string("School or university."),
@@ -76,7 +81,7 @@ EXTRACTION_JSON_SCHEMA: dict = {
                     "followUp": _nullable_string("What the user intends to do next with them."),
                 },
                 "required": [
-                    "name", "company", "role", "school", "major", "metAt", "location",
+                    "name", "label", "company", "role", "school", "major", "metAt", "location",
                     "interests", "projects", "needs", "topicsDiscussed", "notes", "followUp",
                 ],
             },

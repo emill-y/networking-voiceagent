@@ -13,6 +13,7 @@ export type Draft = {
   decision: Decision;
   contactId: string | null;
   name: string;
+  label: string; // when the name wasn't heard: "Airbnb designer who climbs"
   role: string;
   company: string;
   school: string;
@@ -41,6 +42,7 @@ export function emptyDraft(): Draft {
     decision: "new",
     contactId: null,
     name: "",
+    label: "",
     role: "",
     company: "",
     school: "",
@@ -61,6 +63,7 @@ export function draftFromExtracted(person: ExtractedPerson): Draft {
   return {
     ...emptyDraft(),
     name: person.name ?? "",
+    label: person.name ? "" : (person.label ?? ""),
     role: person.role ?? "",
     company: person.company ?? "",
     school: person.school ?? "",
@@ -112,7 +115,7 @@ export function splitLines(value: string): string[] {
 // Why a draft can't be saved yet, or null if it's ready.
 export function draftProblem(draft: Draft): string | null {
   if (!draft.include) return null;
-  if (!text(draft.name)) return "Add a name, or a few words to recognize them by.";
+  if (!text(draft.name) && !text(draft.label)) return "Add a name, or a few words to recognize them by.";
   if (draft.decision === "undecided") return "Is this someone you already know?";
   const due = draft.followUpDue.trim();
   if (text(draft.followUp) && due && !isDateString(due)) return "Write the due date as YYYY-MM-DD.";
@@ -124,7 +127,8 @@ export function toCapturedPerson(draft: Draft): CapturedPerson {
   return {
     contactId: draft.decision === "existing" ? draft.contactId : null,
     contact: {
-      name: text(draft.name) ?? "",
+      // No name heard and none typed: save them under their label; rename any time.
+      name: text(draft.name) ?? text(draft.label) ?? "",
       company: text(draft.company),
       role: text(draft.role),
       school: text(draft.school),

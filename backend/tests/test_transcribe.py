@@ -215,3 +215,11 @@ def test_openai_compatible_transcriber_selection():
 
     hosted = build_transcriber(replace(get_settings(), transcription_provider="openai_compatible", llm_api_key="k"))
     assert isinstance(hosted, OpenAICompatibleTranscriber)
+
+
+def test_hosted_transcription_is_the_default_with_a_model_key(monkeypatch):
+    monkeypatch.delenv("TRANSCRIPTION_PROVIDER", raising=False)
+    monkeypatch.setenv("LLM_API_KEY", "k")
+    assert get_settings().transcription_provider == "openai_compatible"
+    monkeypatch.setenv("TRANSCRIPTION_PROVIDER", "local")
+    assert get_settings().transcription_provider == "local"

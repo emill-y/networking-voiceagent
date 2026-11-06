@@ -242,6 +242,9 @@ const SESSION_PEOPLE = [
   { at: 3, person: { name: "Ines Moreau", role: "PhD student", company: null, school: "Stanford", major: "Materials science", metAt: null,
     location: null, interests: ["climate"], projects: ["solar coatings"], needs: ["a design partner"], topicsDiscussed: [], notes: [],
     followUp: null, followUpDue: null } },
+  { at: 4, person: { name: null, label: "CS student building a drone startup", role: "Student", company: null, school: null, major: "Computer science",
+    metAt: null, location: null, interests: ["drones"], projects: ["a drone delivery startup"], needs: ["a hardware co-founder"],
+    topicsDiscussed: ["Cal Hacks projects"], notes: [], followUp: null, followUpDue: null } },
   { at: 5, person: { name: "Kai Johnson", role: "Product designer", company: "Airbnb", school: null, major: null, metAt: null, location: null,
     interests: ["design", "music"], projects: [], needs: [], topicsDiscussed: ["portfolio reviews"], notes: ["Offered a portfolio review"],
     followUp: "Book a portfolio review with Kai next week", followUpDue: null } },
@@ -252,7 +255,7 @@ let savedSessions: AmbientSession[] = [];
 
 function sessionPeople(chunks: number, title: string | null) {
   const latest = new Map<string, (typeof SESSION_PEOPLE)[number]["person"]>();
-  for (const { at, person } of SESSION_PEOPLE) if (chunks >= at) latest.set(person.name, person);
+  for (const { at, person } of SESSION_PEOPLE) if (chunks >= at) latest.set(person.name ?? person.label ?? "", person);
   return [...latest.values()].map((p) => ({ ...p, metAt: p.metAt ?? title }));
 }
 

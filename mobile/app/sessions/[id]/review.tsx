@@ -133,7 +133,7 @@ export default function ReviewSession() {
           <Txt variant="display" accessibilityRole="header">
             {drafts.length === 1 ? "You met 1 person" : `You met ${drafts.length} people`}
           </Txt>
-          <Txt variant="bodySecondary">Check what Nomi heard. Tap someone to fix a detail, or uncheck anyone you don’t want to keep.</Txt>
+          <Txt variant="bodySecondary">Check what Nomi heard. Tap someone to fix a detail, add a name it didn’t catch, or uncheck anyone you don’t want to keep.</Txt>
         </View>
 
         <View style={s.list}>
@@ -166,7 +166,9 @@ export default function ReviewSession() {
 function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: number; first: boolean; onChange: (c: (d: Draft) => Draft) => void }) {
   const s = useStyles();
   const { colors } = useTheme();
-  const [open, setOpen] = useState(!draft.name.trim());
+  const [open, setOpen] = useState(!draft.name.trim() && !draft.label.trim());
+  // Someone whose name wasn't heard: ask for it right on the card.
+  const [unnamed] = useState(!draft.name.trim() && !!draft.label.trim());
   const set = (field: keyof Draft) => (value: string) => onChange((d) => ({ ...d, [field]: value }));
   const work = draft.role && draft.company ? `${draft.role} at ${draft.company}` : draft.role || draft.company;
   const firstLine = (v: string) => v.split("\n")[0];
@@ -184,14 +186,22 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
         </Pressable>
         <Pressable onPress={() => setOpen((v) => !v)} accessibilityRole="button" accessibilityLabel={`${open ? "Close" : "Edit"} ${draft.name || "this person"}`}
           style={s.personMain}>
-          <Avatar name={draft.name || "?"} size={36} />
+          <Avatar name={draft.name || draft.label || "?"} size={36} />
           <View style={s.flex}>
-            <Txt variant="label" numberOfLines={1}>{draft.name.trim() || `Person ${index + 1}`}</Txt>
+            <Txt variant="label" numberOfLines={1}>{draft.name.trim() || draft.label.trim() || `Person ${index + 1}`}</Txt>
+            {unnamed && !draft.name.trim() ? <Txt variant="caption">Name not heard</Txt> : null}
             <Txt variant="small" numberOfLines={open ? undefined : 2}>{facts || "Tap to add details"}</Txt>
           </View>
           <Icon name={open ? "chevronUp" : "chevronDown"} size={18} color={colors.textTertiary} />
         </Pressable>
       </View>
+
+      {draft.include && unnamed && !open && (
+        <View style={s.fields}>
+          <Input value={draft.name} onChangeText={set("name")} autoCapitalize="words" accessibilityLabel={`Name for ${draft.label}`}
+            placeholder="Add their name (optional)" />
+        </View>
+      )}
 
       {draft.include && draft.candidates.length > 0 && (
         <View style={s.match}>
@@ -219,7 +229,9 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
 
       {open && draft.include && (
         <View style={s.fields}>
-          <Input label="Name" value={draft.name} onChangeText={set("name")} autoCapitalize="words" placeholder="Or a few words to recognize them by" />
+          <Input label="Name" value={draft.name} onChangeText={set("name")} autoCapitalize="words"
+            placeholder={draft.label ? "Add it now or later" : "Or a few words to recognize them by"} />
+          {unnamed && <Input label="Recognize them by" value={draft.label} onChangeText={set("label")} />}
           {FIELDS.map((f) => (
             <Input key={f.key} label={f.label} value={draft[f.key]} onChangeText={set(f.key)} multiline={f.multiline}
               hint={f.multiline ? "One per line" : undefined} />

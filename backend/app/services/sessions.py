@@ -100,6 +100,9 @@ def known_people(windows: dict[str, list[dict]], skip: int | None = None) -> lis
     others = {k: v for k, v in windows.items() if skip is None or k != str(skip)}
     out = []
     for person in merge_people(others, None):
+        if not person.name:
+            out.append(f'unnamed, label "{person.label}"')
+            continue
         about = ", ".join(x for x in (person.role, person.company or person.school) if x)
         out.append(f"{person.name} ({about})" if about else person.name)
     return out
@@ -113,19 +116,31 @@ def _same_person(a: str, b: str) -> bool:
     return " " not in short and long_.split()[0] == short
 
 
+def _matches(entry: dict, person: dict) -> bool:
+    """Same person: by name, or (for someone whose name wasn't heard) by label."""
+    name, other = normalize(person.get("name")), normalize(entry.get("name"))
+    if name and other:
+        return _same_person(other, name)
+    label, other_label = normalize(person.get("label")), normalize(entry.get("label"))
+    return bool(label and other_label and label == other_label)
+
+
 def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[ExtractedPerson]:
-    """One entry per person across all windows, in the order they were met."""
+    """One entry per person across all windows, in the order they were met.
+
+    People whose name was never said are kept, recognized by their label, so
+    the user can name them at review. When an unnamed person later says their
+    name (same label), the name is filled in."""
     merged: list[dict] = []
     for key in sorted(windows, key=int):
         for person in windows[key]:
-            name = normalize(person.get("name"))
-            if not name:
+            if not normalize(person.get("name")) and not normalize(person.get("label")):
                 continue
-            match = next((m for m in merged if _same_person(normalize(m["name"]), name)), None)
+            match = next((m for m in merged if _matches(m, person)), None)
             if match is None:
                 merged.append(dict(person))
                 continue
-            if len(person["name"]) > len(match["name"]):
+            if person.get("name") and len(person["name"]) > len(match.get("name") or ""):
                 match["name"] = person["name"]  # the fuller name wins
             for field in TEXT_FIELDS:
                 if not match.get(field) and person.get(field):
@@ -133,7 +148,12 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
             for field in LIST_FIELDS:
                 seen = {x.lower() for x in match.get(field) or []}
                 match[field] = list(match.get(field) or []) + [x for x in person.get(field) or [] if x.lower() not in seen]
+            if not match.get("label") and person.get("label"):
+                match["label"] = person["label"]
     people = [ExtractedPerson.model_validate(p) for p in merged]
+    for person in people:
+        if person.name:
+            person.label = None
     for person in people:
         if event and not person.met_at:
             person.met_at = event

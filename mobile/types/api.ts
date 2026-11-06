@@ -9,6 +9,8 @@ export type Transcription = {
 
 export type ExtractedPerson = {
   name: string | null;
+  // Sessions: when their name wasn't heard, a few words to recognize them by.
+  label?: string | null;
   company: string | null;
   role: string | null;
   school: string | null;

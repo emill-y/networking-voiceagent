@@ -218,3 +218,22 @@ def test_saving_a_session_keeps_it_and_drops_the_transcript(session_client):
 
     client.act_as(OTHER_USER_ID)
     assert client.get("/sessions").json() == []
+
+
+def test_people_whose_name_wasnt_said_are_kept_by_label():
+    windows = {
+        "0": [{"name": None, "label": "Airbnb designer who climbs", "role": "Designer"}],
+        "1": [{"name": None, "label": "Airbnb designer who climbs", "interests": ["climbing"]},
+              {"name": None, "label": None, "notes": ["said hi"]}],
+        "2": [{"name": "Kai", "label": "Airbnb designer who climbs", "company": "Airbnb"}],
+    }
+    people = svc.merge_people(windows, "Mixer")
+    assert len(people) == 1
+    kai = people[0]
+    assert (kai.name, kai.label, kai.role, kai.company, kai.interests) == ("Kai", None, "Designer", "Airbnb", ["climbing"])
+
+    unnamed = svc.merge_people({"0": [{"name": None, "label": "CS student with a drone startup"}]}, None)
+    assert [(p.name, p.label) for p in unnamed] == [(None, "CS student with a drone startup")]
+    assert svc.known_people({"0": [{"name": None, "label": "CS student with a drone startup"}]}) == [
+        'unnamed, label "CS student with a drone startup"'
+    ]

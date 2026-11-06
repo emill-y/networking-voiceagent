@@ -113,7 +113,10 @@ def get_settings() -> Settings:
     _load_dotenv(Path(__file__).resolve().parents[2] / ".env")
     env = os.environ
     return Settings(
-        transcription_provider=env.get("TRANSCRIPTION_PROVIDER", "local").strip().lower(),
+        # With a hosted-model key (Groq), transcribe there too unless told otherwise:
+        # the local Whisper model isn't installed on Vercel.
+        transcription_provider=(env.get("TRANSCRIPTION_PROVIDER") or "").strip().lower()
+        or ("openai_compatible" if env.get("LLM_API_KEY") else "local"),
         stt_model=env.get("STT_MODEL", "whisper-large-v3-turbo"),
         hf_token=env.get("HF_TOKEN") or None,
         hf_inference_provider=env.get("HF_INFERENCE_PROVIDER", "fal-ai"),

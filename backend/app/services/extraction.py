@@ -68,7 +68,13 @@ Rules:
 - Never include the user (the person wearing the recorder; they often ask the
   questions and introduce themselves first). If you can't tell who someone is, skip them.
 - Skip people who are only mentioned and weren't there ("my professor said...").
-- Never invent a name. A person without a stated name is skipped.
+- Never invent a name. If someone clearly talked with the user but their name was
+  never said ("hey bro", "nice to meet you"), still include them with name null and a
+  label: a few words to recognize them by, from what they said ("Airbnb designer who
+  climbs", "CS student building a drone startup"). Include an unnamed person only if
+  they had a real exchange with the user or shared something about themselves; skip
+  passersby and bare greetings. If their name comes up later, use it.
+- label is null whenever name is known.
 - Only record facts that are stated. Hedged facts go in notes, starting with "Unsure:".
 - company is only a named organization; descriptions go in role or projects.
 - metAt is the event if it's named in the recording, else null.
@@ -79,7 +85,9 @@ Rules:
 - Lines in parentheses at the top are context, not speech: the event name, who the
   user is (never include them, even if their name is spoken), and people already met
   earlier in the event. When a person from that list appears again, reuse their exact
-  name and add only the new details from this part.
+  name (or, for "unnamed" people, their exact label) and add only the new details from
+  this part. If an unnamed person from that list now says their name, give the name and
+  keep the same label.
 - Speech recognition misspells names. If a name here is clearly the same person as one
   already met (same first name, same company or school), use the earlier spelling."""
 
@@ -93,7 +101,7 @@ RETRY_NUDGE = (
 
 def _only_names(people: list[ExtractedPerson]) -> bool:
     return bool(people) and all(
-        not any(v for k, v in person if k not in {"name", "follow_up_due"}) for person in people
+        not any(v for k, v in person if k not in {"name", "label", "follow_up_due"}) for person in people
     )
 
 

@@ -169,3 +169,16 @@ test("briefing is grounded in stored moments and follow-ups", () => {
   ]);
   assert.equal(briefing({ ...person, interactions: [] }), null);
 });
+
+test("someone whose name wasn't heard can be saved by their label", () => {
+  const draft = draftFromExtracted({
+    name: null, label: "Airbnb designer who climbs", company: "Airbnb", role: null, school: null, major: null, metAt: null,
+    location: null, interests: [], projects: [], needs: [], topicsDiscussed: [], notes: [], followUp: null, followUpDue: null,
+  });
+  assert.equal(draft.name, "");
+  assert.equal(draft.label, "Airbnb designer who climbs");
+  assert.equal(draftProblem(draft), null);
+  assert.equal(toCapturedPerson(draft).contact.name, "Airbnb designer who climbs");
+  assert.equal(toCapturedPerson({ ...draft, name: "Kai" }).contact.name, "Kai");
+  assert.notEqual(draftProblem({ ...draft, label: "" }), null);
+});

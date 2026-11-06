@@ -87,7 +87,7 @@ export default function Sessions() {
             <Txt variant="label">Ready to review · {x.title ?? "Untitled session"}</Txt>
             <Txt variant="small" numberOfLines={1}>
               {x.people.length
-                ? `${x.people.length} ${x.people.length === 1 ? "person" : "people"} found: ${namesLine(x.people.map((p) => p.name ?? "").filter(Boolean))}`
+                ? `${x.people.length} ${x.people.length === 1 ? "person" : "people"} found: ${namesLine(x.people.map((p) => p.name ?? p.label ?? "").filter(Boolean))}`
                 : "No one was found"}
             </Txt>
           </View>
@@ -143,7 +143,7 @@ function StartCard({ onPress }: { onPress: () => void }) {
 function LiveCard({ session, onPress }: { session: AmbientSession; onPress: () => void }) {
   const s = useStyles();
   const { colors } = useTheme();
-  const names = session.people.map((p) => p.name ?? "").filter(Boolean);
+  const names = session.people.map((p) => p.name ?? p.label ?? "").filter(Boolean);
   return (
     <Card onPress={onPress} padding="lg" style={s.live} accessibilityLabel="Return to the session that's recording">
       <View style={s.livePill}>
