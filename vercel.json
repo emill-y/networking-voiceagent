@@ -16,12 +16,24 @@
     {
       "source": "/app",
       "destination": "/waitlist",
-      "permanent": false
+      "permanent": false,
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "nomi_beta"
+        }
+      ]
     },
     {
       "source": "/app/:path*",
       "destination": "/waitlist",
-      "permanent": false
+      "permanent": false,
+      "missing": [
+        {
+          "type": "cookie",
+          "key": "nomi_beta"
+        }
+      ]
     },
     {
       "source": "/demo",
@@ -40,6 +52,10 @@
     }
   ],
   "rewrites": [
+    {
+      "source": "/nomi-beta",
+      "destination": "/nomi-beta.html"
+    },
     {
       "source": "/waitlist",
       "destination": "/waitlist.html"

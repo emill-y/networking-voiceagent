@@ -31,7 +31,7 @@ def _page(name: str) -> HTMLResponse:
 
 
 SITE = PAGES / "site"
-NAMED_PAGES = ("waitlist", "privacy")
+NAMED_PAGES = ("waitlist", "privacy", "nomi-beta")
 # Older pages, folded into the home page.
 RETIRED_PAGES = {"product": "/", "students": "/", "demo": "/waitlist"}
 
