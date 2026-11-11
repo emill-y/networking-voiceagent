@@ -1,6 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
@@ -35,6 +35,18 @@ export default function SessionScreen() {
   const live = useLiveSession();
   const router = useRouter();
   const toast = useToast();
+  // "End" on the lock screen or Dynamic Island opens nomi://session?end=1.
+  const params = useLocalSearchParams<{ end?: string }>();
+  const ending = useRef(false);
+  useEffect(() => {
+    if (params.end !== "1" || live.stage !== "live" || ending.current) return;
+    ending.current = true;
+    router.setParams({ end: undefined });
+    void end().finally(() => {
+      ending.current = false;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.end, live.stage]);
 
   async function end() {
     try {
@@ -71,12 +83,26 @@ function Setup() {
   const { colors } = useTheme();
   const [title, setTitle] = useState("");
   const [consent, setConsent] = useState(false);
+  // The home screen widget opens nomi://session?start=1: start right away
+  // if you've already agreed to the consent note (otherwise, show it first).
+  const params = useLocalSearchParams<{ start?: string }>();
+  const autoStarted = useRef(false);
 
   useEffect(() => {
-    AsyncStorage.getItem(CONSENT_KEY).then((v) => v === "1" && setConsent(true)).catch(() => undefined);
+    AsyncStorage.getItem(CONSENT_KEY)
+      .then((v) => {
+        if (v !== "1") return;
+        setConsent(true);
+        if (params.start === "1" && !autoStarted.current && !live.orphan && live.stage === "idle") {
+          autoStarted.current = true;
+          router.setParams({ start: undefined });
+          void start();
+        }
+      })
+      .catch(() => undefined);
     live.refreshOrphan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [params.start]);
 
   function toggleConsent() {
     const next = !consent;

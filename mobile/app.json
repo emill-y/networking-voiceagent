@@ -15,7 +15,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSMicrophoneUsageDescription": "Nomi uses the microphone only during a session you start, to remember the people you meet. Audio is transcribed and never stored.",
         "NSPhotoLibraryUsageDescription": "Nomi lets you choose a profile photo from your library. It never reads your photos otherwise.",
-        "NSPhotoLibraryAddUsageDescription": "Nomi only saves an image to your library when you ask it to."
+        "NSPhotoLibraryAddUsageDescription": "Nomi only saves an image to your library when you ask it to.",
+        "NSSupportsLiveActivities": true
       }
     },
     "android": {

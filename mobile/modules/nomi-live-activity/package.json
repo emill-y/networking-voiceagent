@@ -1,0 +1,8 @@
+{
+  "name": "nomi-live-activity",
+  "version": "1.0.0",
+  "description": "Shows a recording Nomi session on the iPhone lock screen and Dynamic Island.",
+  "main": "index.ts",
+  "license": "MIT",
+  "private": true
+}

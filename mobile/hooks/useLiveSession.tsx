@@ -8,6 +8,7 @@ import { useChunkRecorder, type Chunk, type RecorderState } from "@/hooks/useChu
 import { ApiError } from "@/lib/api";
 import { MAX_ATTEMPTS, retryable, retryDelay } from "@/lib/sessions";
 import { onWatchStart, shareSessionWithWatch } from "@/lib/watch";
+import { endLiveActivity, startLiveActivity, updateLiveActivity } from "@/modules/nomi-live-activity";
 import { activeSession, deleteSession, finishSession, startSession, uploadSessionChunk } from "@/services/nomi";
 import type { AmbientSession, ExtractedPerson } from "@/types/api";
 
@@ -125,6 +126,9 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
       );
     }
     shareSessionWithWatch(next);
+    // The lock screen and Dynamic Island show it's recording (iPhone).
+    const found = next.people.filter((p) => p.name || p.label);
+    startLiveActivity(next.title, next.startedAt, found.length, found.at(-1)?.name ?? found.at(-1)?.label ?? null);
   }, [recStart]);
 
   const start = useCallback(async (title: string | null, you: string | null) => {
@@ -162,6 +166,7 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
   }, [begin]);
 
   const clear = useCallback(() => {
+    endLiveActivity();
     sessionRef.current = null;
     setSession(null);
     setPeople([]);
@@ -208,6 +213,13 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
     setOrphan(null);
     if (current) await deleteSession(current.id).catch(() => undefined);
   }, [clear, orphan, recStop]);
+
+  // Keep the lock screen up to date as people are found.
+  useEffect(() => {
+    if (stage !== "live") return;
+    const found = people.filter((p) => p.name || p.label);
+    updateLiveActivity(found.length, found.at(-1)?.name ?? found.at(-1)?.label ?? null, rec.state === "recording");
+  }, [people, stage, rec.state]);
 
   // "Start" pressed on the Apple Watch while the app is open.
   useEffect(() => onWatchStart(() => {
