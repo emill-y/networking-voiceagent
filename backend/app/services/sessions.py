@@ -9,6 +9,7 @@ merged by name into one list for the user to review and save.
 
 import hashlib
 import hmac
+import json
 import logging
 import secrets
 from datetime import date
@@ -158,3 +159,45 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
         if event and not person.met_at:
             person.met_at = event
     return people
+
+
+# A conversation where the model found no one: kept as one unnamed person, so
+# nothing the user recorded goes to waste. They add the name at review.
+MIN_FALLBACK_WORDS = 15
+FALLBACK_KEY = str(MAX_CHUNKS)  # sorts after every real window
+FALLBACK_PROMPT = """You read an ambient recording transcript from a networking event where no
+one's name was clearly said. Return JSON only: a short label to recognize who the user
+talked with (a few words from what they said, e.g. "Designer who just moved to SF"; use
+"Someone you talked to" if nothing fits), the topics discussed (short items, at most 6),
+and anything they said about themselves (role, school, company, projects), only if stated.
+Never invent names or facts. Skip sensitive traits."""
+FALLBACK_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "label": {"type": "string"},
+        "topics": {"type": "array", "items": {"type": "string"}},
+        "about": {"type": "array", "items": {"type": "string"}},
+    },
+    "required": ["label", "topics", "about"],
+}
+
+
+def conversation_fallback(segments: list[dict], llm: LLMClient, title: str | None) -> dict | None:
+    """One unnamed person for a session where nobody was found, or None if
+    there's hardly any speech to keep."""
+    text = full_transcript(segments)
+    if len(text.split()) < MIN_FALLBACK_WORDS:
+        return None
+    default = f"Someone from {title}" if title else "Someone you talked to"
+    person = {"name": None, "label": default, "met_at": title, "topics_discussed": [], "notes": []}
+    try:
+        raw = llm.chat_json(FALLBACK_PROMPT, f"Transcript:\n\"\"\"\n{text[-12000:]}\n\"\"\"", FALLBACK_SCHEMA)
+        data = json.loads(raw)
+        label = str(data.get("label") or "").strip()
+        if label and len(label) <= 80:
+            person["label"] = label
+        person["topics_discussed"] = [str(t).strip() for t in data.get("topics") or [] if str(t).strip()][:6]
+        person["notes"] = [str(t).strip() for t in data.get("about") or [] if str(t).strip()][:6]
+    except (LLMUnavailable, ValueError, TypeError, AttributeError) as exc:
+        logger.warning("Conversation fallback failed: %s", type(exc).__name__)
+    return person

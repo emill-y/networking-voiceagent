@@ -31,8 +31,9 @@ type LiveSession = {
   orphan: AmbientSession | null;
   start: (title: string | null, you: string | null) => Promise<void>;
   resume: (existing: AmbientSession) => Promise<void>;
-  // Stops recording and reads the whole session. Returns the session id if anyone was found.
-  end: () => Promise<{ id: string; found: number } | null>;
+  // Stops recording and reads the whole session. `id` is null when there was
+  // nothing to keep (no speech heard), and `words` says how much was heard.
+  end: () => Promise<{ id: string | null; found: number; words: number } | null>;
   discard: () => Promise<void>;
   refreshOrphan: () => void;
 };
@@ -193,11 +194,13 @@ export function LiveSessionProvider({ children }: { children: ReactNode }) {
     try {
       const finished = await finishSession(current.id);
       clear();
+      // A conversation is never thrown away: the server keeps it as someone to
+      // name if nobody was introduced. Only an empty session is removed.
       if (!finished.people.length) {
         await deleteSession(current.id).catch(() => undefined);
-        return null;
+        return { id: null, found: 0, words: finished.words };
       }
-      return { id: current.id, found: finished.people.length };
+      return { id: current.id, found: finished.people.length, words: finished.words };
     } catch (e) {
       // Couldn't reach the server: keep the session so "End" can be tried again.
       setStage("live");

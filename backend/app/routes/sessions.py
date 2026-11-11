@@ -151,6 +151,11 @@ def finish(
                                     row["owner_name"], svc.known_people(windows, skip=window))
             if found is not None:
                 windows[str(window)] = found
+    # Nobody found, but there was a conversation: keep it rather than lose it.
+    if not svc.merge_people(windows, row["title"]):
+        fallback = svc.conversation_fallback(segments, llm, row["title"])
+        if fallback:
+            windows[svc.FALLBACK_KEY] = [fallback]
     repo.finish(conn, session_id, windows)
     row = repo.get(conn, session_id)
     return _out(row, SessionFinished, transcript=svc.full_transcript(segments))

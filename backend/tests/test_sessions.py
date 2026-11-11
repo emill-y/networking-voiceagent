@@ -237,3 +237,33 @@ def test_people_whose_name_wasnt_said_are_kept_by_label():
     assert svc.known_people({"0": [{"name": None, "label": "CS student with a drone startup"}]}) == [
         'unnamed, label "CS student with a drone startup"'
     ]
+
+
+SPEECH[b"nameless"] = ("hey bro how's it going yeah I'm building a drone delivery thing for campus "
+                       "we need someone who knows hardware honestly it's been a wild semester")
+
+
+def test_a_conversation_without_names_is_kept_not_lost(session_client):
+    client = session_client
+    session = client.post("/sessions", json={"title": "Mixer"}).json()
+    upload(client, session["id"], 0, b"nameless")
+
+    class Summarizer:
+        def chat_json(self, system, user, schema):
+            if "label" in schema["properties"] and "people" not in schema["properties"]:
+                return json.dumps({"label": "Drone startup founder", "topics": ["drone delivery"], "about": ["needs hardware help"]})
+            return json.dumps({"people": []})
+
+    app.dependency_overrides[get_llm_client] = lambda: Summarizer()
+    finished = client.post(f"/sessions/{session['id']}/finish").json()
+    assert [(p["name"], p["label"], p["topicsDiscussed"]) for p in finished["people"]] == [
+        (None, "Drone startup founder", ["drone delivery"])
+    ]
+
+    # The model being down still keeps the conversation, just without a summary.
+    class Down:
+        def chat_json(self, *a):
+            raise LLMUnavailable("down")
+
+    assert svc.conversation_fallback([{"seq": 0, "text": SPEECH[b"nameless"], "seconds": 20}], Down(), "Mixer")["label"] == "Someone from Mixer"
+    assert svc.conversation_fallback([{"seq": 0, "text": "um yeah", "seconds": 20}], Down(), None) is None

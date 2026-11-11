@@ -25,6 +25,13 @@ import type { AmbientSession, ExtractedPerson } from "@/types/api";
 
 const CONSENT_KEY = "nomi.sessionConsent";
 
+// Why a session ended with nothing to review.
+function emptyMessage(words: number): string {
+  return words === 0
+    ? "Nomi didn’t hear any speech. Check that the microphone is allowed and try again."
+    : "That session was too short to keep. Talk for a little longer next time.";
+}
+
 function message(e: unknown, fallback: string): string {
   return e instanceof ApiError || e instanceof Error ? e.message || fallback : fallback;
 }
@@ -51,9 +58,9 @@ export default function SessionScreen() {
   async function end() {
     try {
       const result = await live.end();
-      if (result) router.replace(`/sessions/${result.id}/review`);
+      if (result?.id) router.replace(`/sessions/${result.id}/review`);
       else {
-        toast.show("No one was clearly introduced, so there’s nothing to save.");
+        toast.show(emptyMessage(result?.words ?? 0), "danger");
         router.replace("/");
       }
     } catch (e) {
@@ -135,7 +142,7 @@ function Setup() {
       if (finished.people.length) router.replace(`/sessions/${existing.id}/review`);
       else {
         await deleteSession(existing.id).catch(() => undefined);
-        toast.show("No one was clearly introduced, so there’s nothing to save.");
+        toast.show(emptyMessage(finished.words), "danger");
         router.replace("/");
       }
     } catch (e) {
