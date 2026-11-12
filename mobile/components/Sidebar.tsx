@@ -9,7 +9,7 @@ import { Txt } from "@/components/Txt";
 import { useAccount } from "@/hooks/useAccount";
 import { layout, makeStyles, radius, space, useTheme } from "@/lib/theme";
 
-// Desktop navigation: brand, the start button, destinations, and the account.
+// Desktop navigation: brand, destinations, and the account.
 export function Sidebar() {
   const s = useStyles();
   const router = useRouter();
@@ -44,12 +44,6 @@ export function Sidebar() {
       <Pressable onPress={() => go("/")} accessibilityRole="link" accessibilityLabel="Nomi home" style={s.brand}>
         <LogoMark size={22} />
         <Txt variant="title" style={s.wordmark}>Nomi</Txt>
-      </Pressable>
-
-      <Pressable onPress={() => router.push("/session")} accessibilityRole="button" accessibilityLabel="Start a session"
-        style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [s.start, (hovered || pressed) && { backgroundColor: colors.accentHover }]}>
-        <Icon name="mic" size={16} color={colors.onAccent} />
-        <Txt variant="label" style={{ color: colors.onAccent }}>Start session</Txt>
       </Pressable>
 
       <View style={s.items}>{NAV.map((n) => item(n.label, n.icon, n.match(pathname), () => go(n.href)))}</View>
@@ -88,16 +82,6 @@ const useStyles = makeStyles(({ colors }) =>
     },
     brand: { flexDirection: "row", alignItems: "center", gap: space.xs, paddingHorizontal: space.xs, marginBottom: space.lg },
     wordmark: { fontSize: 21, lineHeight: 26 },
-    start: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: space.xs,
-      height: 38,
-      borderRadius: radius.sm,
-      backgroundColor: colors.accent,
-      marginBottom: space.md,
-    },
     items: { gap: 2 },
     item: {
       flexDirection: "row",
