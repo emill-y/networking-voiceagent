@@ -19,7 +19,7 @@ import logging
 import os
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.core.config import get_settings
@@ -43,6 +43,9 @@ class Transcript:
     language: str | None
     audio_seconds: float
     latency_ms: int
+    # Timestamped pieces (start s, end s, text), when the model gives them.
+    # Sessions use them to tell which voice said what (services/diarization.py).
+    pieces: tuple[tuple[float, float, str], ...] = field(default=())
 
 
 class Transcriber(Protocol):
@@ -126,7 +129,8 @@ class WhisperTranscriber:
         # vad_filter trims silence, which speeds things up and reduces
         # Whisper's tendency to hallucinate text during long pauses.
         segments, info = model.transcribe(audio, beam_size=5, vad_filter=True)
-        text = " ".join(segment.text.strip() for segment in segments).strip()
+        pieces = tuple((round(s.start, 2), round(s.end, 2), s.text.strip()) for s in segments)
+        text = " ".join(piece[2] for piece in pieces).strip()
         latency_ms = int((time.perf_counter() - started) * 1000)
         audio_seconds = round(audio.size / SAMPLE_RATE, 2)
         # Log timings, never the transcript itself (it is personal data).
@@ -136,6 +140,7 @@ class WhisperTranscriber:
             language=getattr(info, "language", None),
             audio_seconds=audio_seconds,
             latency_ms=latency_ms,
+            pieces=pieces,
         )
 
 
@@ -201,12 +206,18 @@ class OpenAICompatibleTranscriber:
                 response = httpx.post(
                     self._url,
                     headers={"Authorization": f"Bearer {self._api_key}"},
-                    data={"model": self._model, "language": "en", "response_format": "json", "temperature": "0"},
+                    # verbose_json adds timestamped segments, used to label who spoke.
+                    data={"model": self._model, "language": "en", "response_format": "verbose_json", "temperature": "0"},
                     files={"file": (os.path.basename(audio_path), file)},
                     timeout=self._timeout,
                 )
             response.raise_for_status()
-            text = response.json()["text"]
+            body = response.json()
+            text = body["text"]
+            pieces = tuple(
+                (round(float(s["start"]), 2), round(float(s["end"]), 2), str(s.get("text") or "").strip())
+                for s in body.get("segments") or []
+            )
         except (httpx.HTTPError, KeyError, ValueError) as exc:
             status = getattr(getattr(exc, "response", None), "status_code", None)
             logger.warning("Hosted transcription failed (%s, status %s)", type(exc).__name__, status)
@@ -215,7 +226,7 @@ class OpenAICompatibleTranscriber:
         audio_seconds = round(audio.size / SAMPLE_RATE, 2)
         logger.info("Hosted transcription of %.1fs took %dms", audio_seconds, latency_ms)
         return Transcript(text=(text or "").strip(), language="en",
-                          audio_seconds=audio_seconds, latency_ms=latency_ms)
+                          audio_seconds=audio_seconds, latency_ms=latency_ms, pieces=pieces)
 
 
 _transcriber: Transcriber | None = None

@@ -9,6 +9,7 @@ import { Icon } from "@/components/Icon";
 import { Input } from "@/components/Input";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
+import { SessionTitle } from "@/components/SessionTitle";
 import { useToast } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
 import { useDesktop } from "@/hooks/useDesktop";
@@ -36,9 +37,15 @@ const FIELDS: { key: TextField; label: string; multiline?: boolean }[] = [
   { key: "notes", label: "Notes", multiline: true },
 ];
 
+// The name the user gave the session is where they met; a title Nomi made up
+// from the conversation ("Hawaii trip plans") isn't a place.
+function eventOf(session: AmbientSession): string | null {
+  return session.titleAuto ? null : session.title;
+}
+
 // Sessions don't create follow-up tasks; a next step is kept as a note.
-function toDraft(person: ExtractedPerson, title: string | null): Draft {
-  const draft = draftFromExtracted({ ...person, metAt: person.metAt ?? title });
+function toDraft(person: ExtractedPerson, event: string | null): Draft {
+  const draft = draftFromExtracted({ ...person, metAt: person.metAt ?? event });
   if (!draft.followUp.trim()) return draft;
   const note = `Next step: ${draft.followUp.trim()}`;
   return { ...draft, notes: draft.notes ? `${draft.notes}\n${note}` : note, followUp: "", followUpDue: "" };
@@ -67,7 +74,7 @@ export default function ReviewSession() {
         if (found.status === "saved") return router.replace(`/sessions/${id}`);
         if (found.status === "recording") return router.replace("/session");
         setSession(found);
-        let next = found.people.map((p) => toDraft(p, found.title));
+        let next = found.people.map((p) => toDraft(p, eventOf(found)));
         try {
           const { matches } = await duplicateCheck(found.people.map((p) => ({ name: p.name, company: p.company, school: p.school })));
           next = next.map((d, i) => withCandidates(d, matches[i] ?? []));
@@ -129,7 +136,11 @@ export default function ReviewSession() {
     <View style={s.fill}>
       <Page tabBar={false} width="narrow" back={{ label: "Sessions", href: "/" }}>
         <View style={s.intro}>
-          <Txt variant="overline">{session.title ?? "Session"} · {sessionLength(session)}</Txt>
+          <View style={s.titleRow}>
+            <SessionTitle variant="overline" session={session}
+              onRenamed={(next) => setSession((c) => (c ? { ...c, title: next.title, titleAuto: next.titleAuto } : c))} />
+            <Txt variant="overline">· {sessionLength(session)}</Txt>
+          </View>
           <Txt variant="display" accessibilityRole="header">
             {drafts.length === 1 ? "You met 1 person" : `You met ${drafts.length} people`}
           </Txt>
@@ -140,7 +151,7 @@ export default function ReviewSession() {
           {drafts.map((d, i) => (
             <PersonCard key={d.key} draft={d} index={i} first={i === 0} onChange={(c) => update(d.key, c)} />
           ))}
-          <Pressable onPress={() => setDrafts((all) => [...all!, { ...emptyDraft(), metAt: session.title ?? "" }])} accessibilityRole="button"
+          <Pressable onPress={() => setDrafts((all) => [...all!, { ...emptyDraft(), metAt: eventOf(session) ?? "" }])} accessibilityRole="button"
             style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [s.add, drafts.length > 0 && s.border, (hovered || pressed) && s.hover]}>
             <Icon name="plus" size={16} color={colors.textSecondary} />
             <Txt variant="label" tone="secondary">Add someone Nomi missed</Txt>
@@ -245,6 +256,7 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
 const useStyles = makeStyles(({ colors, shadow }) =>
   StyleSheet.create({
     fill: { flex: 1, backgroundColor: colors.bg },
+    titleRow: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.xxs },
     flex: { flex: 1, minWidth: 0 },
     center: { alignSelf: "center" },
     intro: { gap: space.xs },

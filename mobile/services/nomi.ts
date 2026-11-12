@@ -146,6 +146,11 @@ export function finishSession(id: string) {
   return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}/finish`, { method: "POST", timeoutMs: 120_000 });
 }
 
+// Name a session (or rename it after it ended). null clears the name.
+export function renameSession(id: string, title: string | null) {
+  return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}`, { method: "PATCH", body: { title } });
+}
+
 export function deleteSession(id: string) {
   return request<void>(`/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

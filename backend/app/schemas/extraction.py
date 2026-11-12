@@ -23,6 +23,8 @@ class ExtractedPerson(ApiModel):
     follow_up: str | None = None
     # Resolved by the backend from follow_up's wording, not by the model.
     follow_up_due: date | None = None
+    # Sessions with voice differentiation: which voice is this person ("Speaker 2").
+    speaker: str | None = None
 
 
 class ContactExtractionResult(ApiModel):
@@ -84,6 +86,27 @@ EXTRACTION_JSON_SCHEMA: dict = {
                     "name", "label", "company", "role", "school", "major", "metAt", "location",
                     "interests", "projects", "needs", "topicsDiscussed", "notes", "followUp",
                 ],
+            },
+        }
+    },
+    "required": ["people"],
+}
+
+# Sessions also say which voice each person is (see services/diarization.py).
+AMBIENT_JSON_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "people": {
+            "type": "array",
+            "items": {
+                **EXTRACTION_JSON_SCHEMA["properties"]["people"]["items"],
+                "properties": {
+                    **EXTRACTION_JSON_SCHEMA["properties"]["people"]["items"]["properties"],
+                    "speaker": _nullable_string(
+                        "The voice label of this person's own lines, e.g. 'Speaker 2'. Null if lines have no labels."
+                    ),
+                },
+                "required": EXTRACTION_JSON_SCHEMA["properties"]["people"]["items"]["required"] + ["speaker"],
             },
         }
     },

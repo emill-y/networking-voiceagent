@@ -24,6 +24,7 @@ export type ExtractedPerson = {
   notes: string[];
   followUp: string | null;
   followUpDue: string | null; // "YYYY-MM-DD", resolved by the backend
+  speaker?: string | null; // sessions: which voice this person is, e.g. "Speaker 2"
 };
 
 export type ContactExtractionResult = {
@@ -293,6 +294,8 @@ export type SessionContact = {
 export type AmbientSession = {
   id: string;
   title: string | null;
+  // True when Nomi made the title up from the conversation.
+  titleAuto?: boolean;
   status: "recording" | "ready" | "saved";
   chunks: number;
   audioSeconds: number;

@@ -1,3 +1,5 @@
 # Adds local speech-to-text (faster-whisper) for development on your machine.
 -r requirements.txt
 faster-whisper==1.2.1
+# Voice differentiation in sessions (models: python -m scripts.download_diarization_models).
+sherpa-onnx==2.0.1

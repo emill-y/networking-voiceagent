@@ -7,6 +7,7 @@ import { Button } from "@/components/Button";
 import { ListRow } from "@/components/ListRow";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
+import { SessionTitle } from "@/components/SessionTitle";
 import { useToast } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
 import { ApiError } from "@/lib/api";
@@ -67,7 +68,7 @@ export default function SessionDetail() {
     <Page tabBar={false} width="narrow" back={{ label: "Sessions", href: "/" }}>
       <View style={s.intro}>
         <Txt variant="overline">{when} · {sessionLength(session)}</Txt>
-        <Txt variant="display" accessibilityRole="header">{session.title ?? "Untitled session"}</Txt>
+        <SessionTitle session={session} onRenamed={(next) => setSession((c) => (c ? { ...c, title: next.title, titleAuto: next.titleAuto } : c))} />
         <Txt variant="bodySecondary">
           {contacts.length ? `You met ${contacts.length} ${contacts.length === 1 ? "person" : "people"}.` : "No one from this session is in your network anymore."}
         </Txt>

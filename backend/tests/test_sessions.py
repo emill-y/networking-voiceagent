@@ -7,6 +7,7 @@ import pytest
 from app.core.auth import get_optional_user_id
 from app.main import app
 from app.services import sessions as svc
+from app.services.diarization import ChunkVoices, Turn, get_diarizer, label_transcript, match_voices
 from app.services.llm import LLMUnavailable, get_llm_client
 from app.services.transcription import Transcript, get_transcriber
 from tests.conftest import OTHER_USER_ID, USER_ID
@@ -36,6 +37,8 @@ class ConversationLLM:
 
     def chat_json(self, system, user, schema):
         self.calls.append(user)
+        if "title" in schema["properties"]:  # naming an untitled session
+            return json.dumps({"title": "robotics startup chat"})
         assert "ambient recording" in system.lower()
         # Context lines (event, who the user is, people already met) aren't speech.
         user = "\n".join(line for line in user.splitlines() if not line.startswith("("))
@@ -67,6 +70,7 @@ def session_client(db_client):
     app.dependency_overrides[get_transcriber] = lambda: ChunkTranscriber()
     app.dependency_overrides[get_llm_client] = lambda: llm
     app.dependency_overrides[get_optional_user_id] = lambda: state["user"]
+    app.dependency_overrides[get_diarizer] = lambda: None  # voice tests below opt in
     db_client.llm = llm
     return db_client
 
@@ -267,3 +271,151 @@ def test_a_conversation_without_names_is_kept_not_lost(session_client):
 
     assert svc.conversation_fallback([{"seq": 0, "text": SPEECH[b"nameless"], "seconds": 20}], Down(), "Mixer")["label"] == "Someone from Mixer"
     assert svc.conversation_fallback([{"seq": 0, "text": "um yeah", "seconds": 20}], Down(), None) is None
+
+
+def test_an_untitled_session_is_named_from_the_conversation_and_can_be_renamed(session_client):
+    client = session_client
+    session = client.post("/sessions", json={}).json()
+    upload(client, session["id"], 0, b"c2")
+    finished = client.post(f"/sessions/{session['id']}/finish").json()
+    assert finished["title"] == "Robotics startup chat" and finished["titleAuto"] is True
+    # A made-up title is a topic, not a place: it's never "where you met".
+    assert all(p["metAt"] is None for p in finished["people"])
+
+    renamed = client.patch(f"/sessions/{session['id']}", json={"title": "  Lab open house "}).json()
+    assert renamed["title"] == "Lab open house" and renamed["titleAuto"] is False
+    assert all(p["metAt"] == "Lab open house" for p in renamed["people"])
+
+    # Saved sessions can still be renamed; an empty name clears it.
+    person = {"contact": {"name": "Jason Chen"}}
+    assert client.post(f"/sessions/{session['id']}/save", json={"people": [person]}).status_code == 200
+    assert client.patch(f"/sessions/{session['id']}", json={"title": ""}).json()["title"] is None
+
+    # Only your own sessions.
+    client.act_as(OTHER_USER_ID)
+    assert client.patch(f"/sessions/{session['id']}", json={"title": "Mine now"}).status_code == 404
+
+
+def test_a_named_session_keeps_its_name():
+    class NoCall:
+        def chat_json(self, *a):
+            raise AssertionError("should not be called")
+
+    # Too little speech to name: no model call, no title.
+    assert svc.suggest_title([{"seq": 0, "text": "um yeah ok", "seconds": 20}], NoCall()) is None
+
+    class Rambling:
+        def chat_json(self, *a):
+            return json.dumps({"title": "x" * 200})
+
+    long_talk = [{"seq": 0, "text": "we talked for a while about many different things today", "seconds": 20}]
+    assert svc.suggest_title(long_talk, Rambling()) is None  # an essay isn't a title
+
+    class Down:
+        def chat_json(self, *a):
+            raise LLMUnavailable("down")
+
+    assert svc.suggest_title(long_talk, Down()) is None
+
+
+
+# ---------- Voice differentiation ----------
+
+A, B = [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]  # two clearly different voiceprints
+
+
+def test_voices_keep_their_number_across_chunks():
+    first = ChunkVoices([Turn(0, 5, 0), Turn(5, 9, 1)], {0: A, 1: B}, {0: 5.0, 1: 4.0})
+    mapping, known = match_voices(first, [])
+    assert mapping == {0: 1, 1: 2} and [v["seconds"] for v in known] == [5.0, 4.0]
+
+    # Next chunk: the sides swap (B speaks first, as chunk voice 0).
+    second = ChunkVoices([Turn(0, 3, 0), Turn(3, 9, 1)], {0: [0.1, 0.99, 0.0], 1: [0.98, 0.05, 0.0]}, {0: 3.0, 1: 6.0})
+    mapping, known = match_voices(second, known)
+    assert mapping == {0: 2, 1: 1} and len(known) == 2
+    assert known[0]["seconds"] == 11.0
+
+    # A new voice talking long enough is new; a half-second blip isn't.
+    third = ChunkVoices([Turn(0, 4, 0), Turn(4, 4.5, 1)], {0: [0.0, 0.0, 1.0], 1: [0.5, 0.5, -0.7]}, {0: 4.0, 1: 0.5})
+    mapping, known = match_voices(third, known)
+    assert mapping == {0: 3} and len(known) == 3
+
+
+def test_transcript_lines_are_labeled_by_who_was_talking():
+    pieces = [(0.0, 2.0, "hi I'm Sam"), (2.0, 4.5, "I just moved here"), (5.0, 8.0, "nice I'm Jun"), (8.0, 8.4, "yeah")]
+    turns = [Turn(0.0, 4.8, 0), Turn(4.9, 8.0, 1)]
+    assert label_transcript(pieces, turns, {0: 1, 1: 2}) == (
+        "[Speaker 1] hi I'm Sam I just moved here\n[Speaker 2] nice I'm Jun yeah"
+    )
+    assert label_transcript(pieces, [], {}) == "hi I'm Sam I just moved here nice I'm Jun yeah"
+
+
+class FakeDiarizer:
+    """Two voices: the user (A) and one friend (B), who mentions other names."""
+
+    def chunk_voices(self, path):
+        with open(path, "rb") as f:
+            data = f.read()
+        if data == b"silence":
+            return ChunkVoices([], {}, {})
+        return ChunkVoices([Turn(0, 10, 0), Turn(10, 20, 1)], {0: A, 1: B}, {0: 10.0, 1: 10.0})
+
+
+FRIEND_TALK = {
+    b"talk": [(0.0, 10.0, "hey how was your week"),
+              (10.0, 20.0, "good I'm Jun my sister Lien is visiting and Lucida says hi we're going to Hawaii in December")],
+    b"silence": [(0.0, 3.0, "thank you for watching")],
+}
+
+
+class PiecesTranscriber:
+    def transcribe(self, path):
+        with open(path, "rb") as f:
+            pieces = FRIEND_TALK.get(f.read(), [])
+        return Transcript(" ".join(p[2] for p in pieces), "en", 20.0, 5, tuple(pieces))
+
+
+class OverEagerLLM:
+    """Adds everyone it hears named, like the model did before; only Jun has a voice."""
+
+    def __init__(self):
+        self.calls = []
+
+    def chat_json(self, system, user, schema):
+        self.calls.append(user)
+        if "title" in schema["properties"]:
+            return json.dumps({"title": "Hawaii trip plans"})
+        assert "speaker" in schema["properties"]["people"]["items"]["properties"]
+        return json.dumps({"people": [
+            {"name": "Jun", "speaker": "Speaker 2", "notes": ["Plans: Hawaii trip in December"]},
+            {"name": "Lien", "speaker": None},           # only talked about
+            {"name": "Lucida", "speaker": "Speaker 7"},  # no such voice
+            {"name": "June", "speaker": "speaker 2"},    # same voice as Jun
+        ]})
+
+
+def test_one_voice_is_one_person_and_names_without_a_voice_are_dropped(session_client):
+    client = session_client
+    llm = OverEagerLLM()
+    app.dependency_overrides[get_transcriber] = lambda: PiecesTranscriber()
+    app.dependency_overrides[get_llm_client] = lambda: llm
+    app.dependency_overrides[get_diarizer] = lambda: FakeDiarizer()
+
+    session = client.post("/sessions", json={}).json()
+    assert upload(client, session["id"], 0, b"talk").status_code == 200
+    assert upload(client, session["id"], 1, b"silence").status_code == 200
+
+    # The model saw labeled lines and a summary of the voices.
+    assert "[Speaker 2] good I'm Jun" in llm.calls[-1]
+    assert "Speaker 1 (10 s), Speaker 2 (10 s)" in llm.calls[-1]
+    # "thank you for watching" over silence was dropped.
+    assert "watching" not in llm.calls[-1]
+
+    finished = client.post(f"/sessions/{session['id']}/finish").json()
+    assert [(p["name"], p["speaker"]) for p in finished["people"]] == [("Jun", "Speaker 2")]
+    assert "Unsure: also heard as June" in finished["people"][0]["notes"]
+    assert finished["title"] == "Hawaii trip plans"
+
+    # Voiceprints are gone once the session ends.
+    with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as conn:
+        assert conn.execute("select voices from ambient_sessions where id = %s", (session["id"],)).fetchone()[0] == []

@@ -16,6 +16,11 @@ class SessionCreate(ApiModel):
     you: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] | None = None
 
 
+class SessionUpdate(ApiModel):
+    # A new name for the session; empty clears it.
+    title: Annotated[str, StringConstraints(strip_whitespace=True, max_length=120)] | None = None
+
+
 class SessionContact(ApiModel):
     id: UUID
     name: str
@@ -27,6 +32,8 @@ class SessionContact(ApiModel):
 class SessionOut(ApiModel):
     id: UUID
     title: str | None
+    # True when Nomi made the title up from the conversation (the user didn't name it).
+    title_auto: bool = False
     status: str  # recording | ready | saved
     chunks: int
     audio_seconds: float

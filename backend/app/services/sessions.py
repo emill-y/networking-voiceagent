@@ -5,16 +5,24 @@ segment. The transcript is split into windows of a few chunks; when a chunk
 arrives, only its window is re-read by the model, so a two-hour event costs
 the same per minute as a two-minute one. People found in every window are
 merged by name into one list for the user to review and save.
+
+With voice differentiation on (services/diarization.py), each line of the
+transcript starts with "[Speaker N]", the same N for the same voice all
+session. The model ties each person to one voice, and two rules hold in code:
+someone with no voice in the recording (only talked about) is dropped, and
+one voice is one person.
 """
 
 import hashlib
 import hmac
 import json
 import logging
+import re
 import secrets
 from datetime import date
 
 from app.schemas.extraction import ExtractedPerson
+from app.services.diarization import ChunkVoices, label_transcript, match_voices
 from app.services.extraction import ExtractionFailed, extract_people
 from app.services.identity import normalize
 from app.services.llm import LLMClient, LLMUnavailable
@@ -24,7 +32,37 @@ logger = logging.getLogger(__name__)
 WINDOW_CHUNKS = 5  # about a minute and a half of conversation per model read
 MAX_CHUNKS = 720  # four hours at 20-second chunks
 LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes")
-TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due")
+TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due", "speaker")
+SPEAKER = re.compile(r"\[Speaker (\d+)\]")
+# Whisper sometimes writes a few words when there's only silence or noise. If
+# voice analysis heard no one at all, text this short is treated as made up.
+MAX_UNHEARD_WORDS = 12
+
+
+def label_chunk(result, heard: ChunkVoices | None, voices: list[dict]) -> tuple[str, list[dict] | None]:
+    """(text to store, the session's voices updated) for one transcribed chunk.
+
+    Without voice analysis (off, or it failed) the text is kept as it is."""
+    if heard is None:
+        return result.text, None
+    if not heard.turns:
+        if len(result.text.split()) <= MAX_UNHEARD_WORDS:
+            return "", voices
+        return result.text, voices
+    if not result.pieces:
+        return result.text, voices
+    mapping, voices = match_voices(heard, voices)
+    return label_transcript(list(result.pieces), heard.turns, mapping), voices
+
+
+def _speaker(value) -> str | None:
+    """'Speaker 2', 'speaker 2', '2', '[Speaker 2]' -> 'Speaker 2'."""
+    digits = re.search(r"\d+", str(value or ""))
+    return f"Speaker {int(digits.group())}" if digits else None
+
+
+def _seconds(value: float) -> str:
+    return f"{round(value)} s" if value < 90 else f"{round(value / 60)} min"
 
 
 def new_upload_token() -> tuple[str, str]:
@@ -65,7 +103,8 @@ def full_transcript(segments: list[dict]) -> str:
 
 
 def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, title: str | None,
-                owner: str | None = None, known: list[str] | None = None) -> list[dict] | None:
+                owner: str | None = None, known: list[str] | None = None,
+                voices: list[dict] | None = None) -> list[dict] | None:
     """People in one window, or None if the model couldn't answer (try again next chunk).
 
     The model is told who the user is (so they're never added) and who was
@@ -82,6 +121,10 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
     if known:
         header.append("Already met earlier in this event: " + "; ".join(known[:40])
                       + ". If this part adds details about one of them, use exactly that name.")
+    if voices:
+        heard = sorted(voices, key=lambda v: -v["seconds"])
+        header.append("Voices heard so far: " + ", ".join(f"Speaker {v['id']} ({_seconds(v['seconds'])})" for v in heard)
+                      + f". Speaker {heard[0]['id']}, heard most, is probably the user wearing the recorder.")
     if header:
         text = "\n".join(f"({line})" for line in header) + "\n" + text
     try:
@@ -90,6 +133,12 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
         logger.warning("Ambient extraction failed for a window: %s", type(exc).__name__)
         return None
     people = [p.model_dump(mode="json") for p in result.people]
+    labels = {f"Speaker {n}" for n in SPEAKER.findall(text)}
+    if labels:
+        # Voices were labeled: only people with a voice in this part count.
+        for person in people:
+            person["speaker"] = _speaker(person.get("speaker"))
+        people = [p for p in people if p["speaker"] in labels]
     if owner:
         me = normalize(owner)
         people = [p for p in people if not _same_person(normalize(p.get("name")) or "", me)]
@@ -118,7 +167,10 @@ def _same_person(a: str, b: str) -> bool:
 
 
 def _matches(entry: dict, person: dict) -> bool:
-    """Same person: by name, or (for someone whose name wasn't heard) by label."""
+    """Same person: same voice, or by name, or (for someone whose name wasn't
+    heard) by label."""
+    if person.get("speaker") and person.get("speaker") == entry.get("speaker"):
+        return True  # one voice is one person
     name, other = normalize(person.get("name")), normalize(entry.get("name"))
     if name and other:
         return _same_person(other, name)
@@ -141,7 +193,13 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
             if match is None:
                 merged.append(dict(person))
                 continue
-            if person.get("name") and len(person["name"]) > len(match.get("name") or ""):
+            new, old = normalize(person.get("name")), normalize(match.get("name"))
+            if new and old and not _same_person(new, old):
+                # Same voice, different name: keep the first, flag the other.
+                note = f"Unsure: also heard as {person['name']}"
+                if note not in (match.get("notes") or []):
+                    match["notes"] = list(match.get("notes") or []) + [note]
+            elif person.get("name") and len(person["name"]) > len(match.get("name") or ""):
                 match["name"] = person["name"]  # the fuller name wins
             for field in TEXT_FIELDS:
                 if not match.get(field) and person.get(field):
@@ -180,6 +238,34 @@ FALLBACK_SCHEMA = {
     },
     "required": ["label", "topics", "about"],
 }
+
+
+TITLE_PROMPT = """You name a recorded conversation so the user can find it later in a list.
+Return JSON only: a title of 2 to 5 words about what the conversation was mainly about,
+in sentence case, with no quotes or ending punctuation.
+Good titles: "Hawaii trip plans", "Cal Hacks team chat", "Coffee about design jobs".
+Prefer the main topic or plan over small talk. Use a named event if one is clearly stated.
+Don't use people's names unless the conversation was only about one person.
+If there's too little to tell, return an empty title."""
+TITLE_SCHEMA = {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}
+MIN_TITLE_WORDS = 8
+MAX_TITLE_CHARS = 60
+
+
+def suggest_title(segments: list[dict], llm: LLMClient) -> str | None:
+    """A short title made up from the conversation ("Hawaii trip plans"), or None."""
+    text = full_transcript(segments)
+    if len(text.split()) < MIN_TITLE_WORDS:
+        return None
+    try:
+        raw = llm.chat_json(TITLE_PROMPT, f"Transcript:\n\"\"\"\n{text[:12000]}\n\"\"\"", TITLE_SCHEMA)
+        title = " ".join(str(json.loads(raw).get("title") or "").split()).strip(" \"'.")
+    except (LLMUnavailable, ValueError, TypeError, AttributeError) as exc:
+        logger.warning("Session title failed: %s", type(exc).__name__)
+        return None
+    if not title or len(title) > MAX_TITLE_CHARS:
+        return None
+    return title[0].upper() + title[1:]
 
 
 def conversation_fallback(segments: list[dict], llm: LLMClient, title: str | None) -> dict | None:
