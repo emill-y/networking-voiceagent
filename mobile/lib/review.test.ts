@@ -93,7 +93,7 @@ test("possible matches default to a new person", () => {
   assert.equal(toCapturedPerson(draft).contactId, null);
 });
 
-import { briefing, joinList, memoryLines, subtitle } from "./memory.ts";
+import { joinList, memoryLines, plansWith, subtitle } from "./memory.ts";
 
 test("memory lines read like sentences", () => {
   const lines = memoryLines({
@@ -138,36 +138,32 @@ test("due dates are validated and grouped", () => {
   assert.equal(dueGroup(new Date(2026, 9, 10, 12).toISOString(), now), "later");
 });
 
-test("briefing is grounded in stored moments and follow-ups", () => {
-  const moment = (date: string, event: string | null, extra = {}) => ({
-    id: date, contactId: "c1", event, location: null, summary: null, rawTranscript: null,
-    interests: [], projects: [], needs: [], topicsDiscussed: [], notes: [],
-    interactionDate: date, sourceType: "voice", ...extra,
+test("plans are only the ones you made with them", () => {
+  const moment = (date: string, notes: string[] = []) => ({
+    id: date, contactId: "c1", event: null, location: null, summary: null, rawTranscript: null,
+    interests: [], projects: ["a robotics startup"], needs: [], topicsDiscussed: [], notes,
+    interactionDate: date, sourceType: "voice",
+  });
+  const followUp = (action: string, status: "open" | "done", dueAt: string | null = null) => ({
+    id: action, contactId: "c1", contactName: "Jason Chen", interactionId: null, action,
+    dueAt, status, createdAt: "2026-08-13T12:00:00Z", completedAt: null,
   });
   const person = {
     id: "c1", name: "Jason Chen", company: null, role: null, school: null, major: null,
     location: null, email: null, phone: null, linkedinUrl: null, websiteUrl: null, summary: null,
     lastInteractionAt: null, createdAt: "2026-01-01T00:00:00Z",
     interactions: [
-      moment("2026-08-13T12:00:00", "Cal Hacks", {
-        projects: ["a robotics startup"], needs: ["ML engineers"], notes: ["Unsure: raised a seed round"],
-      }),
-      moment("2026-07-01T12:00:00", "Founders mixer"),
+      moment("2026-08-13T12:00:00", ["Next step: get coffee next week", "Plans: Hawaii trip in December"]),
+      moment("2026-07-01T12:00:00", ["Next step: introduce him to Maya"]),
     ],
-    followUps: [
-      { id: "f1", contactId: "c1", contactName: "Jason Chen", interactionId: null, action: "Introduce him to Maya",
-        dueAt: null, status: "open" as const, createdAt: "2026-08-13T12:00:00Z", completedAt: null },
-    ],
+    followUps: [followUp("introduce him to Maya", "open", "2026-08-20"), followUp("Send my resume", "done")],
   };
-  const result = briefing(person, new Date(2026, 8, 24, 9));
-  assert.equal(result?.headline, "You last saw Jason 6 weeks ago at Cal Hacks. That was the second time you’ve met.");
-  assert.deepEqual(result?.remember, [
-    "You planned to: introduce him to Maya.",
-    "Ask how the robotics startup is going.",
-    "Ask whether they found ML engineers.",
-    "Check: raised a seed round.",
+  assert.deepEqual(plansWith(person), [
+    { text: "Introduce him to Maya.", dueAt: "2026-08-20" },
+    { text: "Get coffee next week.", dueAt: null },
   ]);
-  assert.equal(briefing({ ...person, interactions: [] }), null);
+  // No plans made: nothing to show.
+  assert.deepEqual(plansWith({ ...person, followUps: [], interactions: [moment("2026-07-01T12:00:00")] }), []);
 });
 
 test("someone whose name wasn't heard can be saved by their label", () => {

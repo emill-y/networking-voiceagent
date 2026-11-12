@@ -87,6 +87,7 @@ function RootNavigator() {
         <Stack.Screen name="sessions/[id]/review" />
         <Stack.Screen name="search" />
         <Stack.Screen name="network" />
+        <Stack.Screen name="contacts/index" />
         <Stack.Screen name="contacts/[id]/index" />
         <Stack.Screen name="contacts/[id]/edit" />
         <Stack.Screen name="profile" />
