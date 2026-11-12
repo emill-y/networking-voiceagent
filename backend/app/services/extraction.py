@@ -108,7 +108,9 @@ Voice labels (when lines start with "[Speaker N]"):
   where someone else says their name.
 - One voice is one person: never give two people the same speaker. A person with no
   lines of their own in the recording is not someone to add, whatever names are said.
-- The voice heard most is usually the user; never add the user.
+- "[You]" lines are the user, recognized by their saved voice: never add them, and
+  never give anyone the speaker "You". Without [You] lines, the voice heard most is
+  usually the user; never add the user either way.
 - Voice analysis is good but not perfect: rarely, one voice is split into two labels.
   If two labels clearly belong to the same person (same name, same story), use the
   label with more lines.

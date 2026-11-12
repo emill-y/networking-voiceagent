@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from psycopg import errors as pg_errors
 
 from app.core.config import get_settings
-from app.routes import account, calendar, demo, me, plans, sessions, sharing, waitlist, network, pages, web_app, captures, contacts, extract, follow_ups, health, search, transcribe
+from app.routes import account, calendar, demo, me, plans, sessions, sharing, waitlist, network, pages, web_app, captures, contacts, extract, follow_ups, health, search, transcribe, voice
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
@@ -51,6 +51,7 @@ app.include_router(plans.router)
 app.include_router(me.router)
 app.include_router(sharing.router)
 app.include_router(sessions.router)
+app.include_router(voice.router)
 app.include_router(waitlist.router)
 app.include_router(pages.router)
 app.include_router(web_app.router)

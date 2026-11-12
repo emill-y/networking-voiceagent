@@ -26,6 +26,7 @@ from app.core.auth import get_current_user_id, get_optional_user_id
 from app.core.db import get_db
 from app.core.rate_limit import ai_limiter
 from app.repositories import sessions as repo
+from app.repositories import voiceprints
 from app.routes.transcribe import transcribe_and_diarize
 from app.schemas.contacts import CaptureRequest
 from app.schemas.sessions import (
@@ -134,7 +135,8 @@ def upload_chunk(
     # Transcribe (and tell voices apart) before locking the row: other chunks can upload meanwhile.
     result, heard = transcribe_and_diarize(audio, transcriber, diarizer)
     row = repo.get(conn, session_id, lock=True)
-    text, voices = svc.label_chunk(result, heard, row["voices"] or [])
+    saved_voice = voiceprints.get(conn, row["user_id"]) if heard is not None else None
+    text, voices = svc.label_chunk(result, heard, row["voices"] or [], saved_voice)
     segments = svc.add_segment(row["segments"] or [], seq, text, result.audio_seconds)
     seconds = sum(s["seconds"] for s in segments)
     windows = dict(row["windows"] or {})

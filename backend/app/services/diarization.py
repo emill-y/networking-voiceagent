@@ -20,8 +20,13 @@ Three steps:
 The language model then reads labeled lines instead of an unlabeled blur, so
 it can count the voices and tie each person to one.
 
-Voiceprints are biometric data: they're kept only while a session is open,
-and deleted when it's saved or discarded (see repositories/sessions.py).
+If the user saved their voice (the You page), it's voice 0 from the start of
+every session: their lines read "[You] ..." and they're never added as
+someone they met.
+
+Voiceprints are biometric data: a session's are kept only while it's open,
+and deleted when it ends (see repositories/sessions.py). The user's own is
+kept until they delete it (repositories/voiceprints.py).
 """
 
 import logging
@@ -43,6 +48,12 @@ SAME_VOICE = 0.65
 # How readily the segmentation step splits a chunk into separate voices
 # (lower = splits more). 0.5 merged two clearly different voices; 0.3 split them.
 CLUSTER_THRESHOLD = 0.3
+# Your saved voice was recorded up close and quietly; in a session the phone may
+# be in a pocket in a loud room, so it's matched a little more loosely.
+SAME_VOICE_AS_YOU = 0.6
+YOU = 0  # the voice number reserved for the user's saved voice
+# Saving your voice needs at least this much of you talking, and nobody else.
+MIN_ENROLL_SECONDS = 6.0
 # Voiceprints from less speech than this are unreliable: never start a new voice
 # from them (they can still match a voice already heard).
 MIN_NEW_VOICE_SECONDS = 1.0
@@ -115,6 +126,34 @@ class Diarizer:
         return ChunkVoices(turns, prints, seconds)
 
 
+class VoiceEnrollError(Exception):
+    """The recording can't be used as the user's voice (too short, several voices)."""
+
+
+def enroll_voice(chunk: ChunkVoices) -> tuple[list[float], float]:
+    """(voiceprint, seconds of speech) of the one person in a recording of the
+    user reading aloud. Rejects recordings with too little speech, or with a
+    second voice that talks for more than a moment (that print could be anyone's)."""
+    talkers = sorted((v for v in chunk.prints), key=lambda v: -chunk.seconds.get(v, 0))
+    if not talkers or chunk.seconds.get(talkers[0], 0) < MIN_ENROLL_SECONDS:
+        raise VoiceEnrollError("We couldn’t hear enough of you. Read the whole passage aloud, then try again.")
+    main = talkers[0]
+    others = sum(chunk.seconds.get(v, 0) for v in chunk.seconds if v != main)
+    if others > max(2.0, 0.25 * chunk.seconds[main]):
+        raise VoiceEnrollError("We heard more than one voice. Record somewhere quiet, on your own.")
+    return [float(x) for x in chunk.prints[main]], round(chunk.seconds[main], 2)
+
+
+def your_voice(print_: list[float], seconds: float) -> dict:
+    """The user's saved voice, as the first entry of a session's voices."""
+    return {"id": YOU, "print": [float(x) for x in print_], "seconds": round(seconds, 2), "saved": round(seconds, 2)}
+
+
+def you_heard(voices: list[dict]) -> bool:
+    """Has the user's saved voice been heard in this session yet?"""
+    return any(v["id"] == YOU and v["seconds"] > v.get("saved", 0) for v in voices)
+
+
 def _collect(audio: np.ndarray, turns: list[Turn]) -> np.ndarray:
     parts, total = [], 0
     for turn in turns:
@@ -146,10 +185,11 @@ def match_voices(chunk: ChunkVoices, known: list[dict]) -> tuple[dict[int, int],
     # Longest talkers first: their voiceprints are the most reliable.
     for voice in sorted(chunk.prints, key=lambda v: -chunk.seconds.get(v, 0)):
         vec = chunk.prints[voice]
-        scores = [(_cosine(vec, k["print"]), k) for k in known]
-        best_score, best = max(scores, key=lambda s: s[0], default=(0.0, None))
+        # How far each known voice is above the bar it has to clear.
+        scores = [(_cosine(vec, k["print"]) - (SAME_VOICE_AS_YOU if k["id"] == YOU else SAME_VOICE), k) for k in known]
+        best_score, best = max(scores, key=lambda s: s[0], default=(-1.0, None))
         talk = chunk.seconds.get(voice, 0.0)
-        if best is not None and best_score >= SAME_VOICE:
+        if best is not None and best_score >= 0:
             total = best["seconds"] + talk
             if total > 0:
                 best["print"] = [(a * best["seconds"] + b * talk) / total for a, b in zip(best["print"], vec)]
@@ -182,7 +222,11 @@ def label_transcript(pieces: list[tuple[float, float, str]], turns: list[Turn], 
             lines[-1] = (voice, f"{lines[-1][1]} {text}")
         else:
             lines.append((voice, text))
-    return "\n".join(f"[Speaker {v}] {t}" if v else t for v, t in lines)
+    return "\n".join(f"[{_label(v)}] {t}" if v is not None else t for v, t in lines)
+
+
+def _label(voice: int) -> str:
+    return "You" if voice == YOU else f"Speaker {voice}"
 
 
 _diarizer: Diarizer | None = None

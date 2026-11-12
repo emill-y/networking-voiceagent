@@ -10,6 +10,7 @@ import { Input } from "@/components/Input";
 import { Page } from "@/components/Page";
 import { useToast } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
+import { VoiceSetup } from "@/components/VoiceSetup";
 import { useDesktop } from "@/hooks/useDesktop";
 import { useAccount } from "@/hooks/useAccount";
 import { ApiError } from "@/lib/api";
@@ -114,6 +115,12 @@ export default function Profile() {
         </View>
       </Card>
 
+      <Group title="Your voice">
+        <View style={s.voice}>
+          <VoiceSetup />
+        </View>
+      </Group>
+
       <Group title="Your data">
         <Row icon="download" title="Export everyone you’ve met" detail="A spreadsheet (CSV) for Google Sheets or Excel"
           trailing={<Button title="Export" size="sm" loading={busy === "export"} onPress={() => void exportAll()} />} />
@@ -185,5 +192,6 @@ const useStyles = makeStyles(({ colors }) =>
     groupCard: { paddingVertical: space.xxs },
     row: { flexDirection: "row", alignItems: "center", gap: space.sm, minHeight: 56, paddingHorizontal: space.md, paddingVertical: space.xs },
     rowHover: { backgroundColor: colors.surfaceHover },
+    voice: { padding: space.md },
   }),
 );

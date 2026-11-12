@@ -22,7 +22,7 @@ import secrets
 from datetime import date
 
 from app.schemas.extraction import ExtractedPerson
-from app.services.diarization import ChunkVoices, label_transcript, match_voices
+from app.services.diarization import YOU, ChunkVoices, label_transcript, match_voices, you_heard, your_voice
 from app.services.extraction import ExtractionFailed, extract_people
 from app.services.identity import normalize
 from app.services.llm import LLMClient, LLMUnavailable
@@ -39,12 +39,17 @@ SPEAKER = re.compile(r"\[Speaker (\d+)\]")
 MAX_UNHEARD_WORDS = 12
 
 
-def label_chunk(result, heard: ChunkVoices | None, voices: list[dict]) -> tuple[str, list[dict] | None]:
+def label_chunk(result, heard: ChunkVoices | None, voices: list[dict],
+                saved_voice: dict | None = None) -> tuple[str, list[dict] | None]:
     """(text to store, the session's voices updated) for one transcribed chunk.
 
+    saved_voice is the user's saved voice ({"print", "seconds"}), if they saved
+    one: it starts the session as voice 0, so their lines read "[You] ...".
     Without voice analysis (off, or it failed) the text is kept as it is."""
     if heard is None:
         return result.text, None
+    if saved_voice and not any(v["id"] == YOU for v in voices):
+        voices = [your_voice(saved_voice["print"], saved_voice["seconds"])] + voices
     if not heard.turns:
         if len(result.text.split()) <= MAX_UNHEARD_WORDS:
             return "", voices
@@ -121,10 +126,14 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
     if known:
         header.append("Already met earlier in this event: " + "; ".join(known[:40])
                       + ". If this part adds details about one of them, use exactly that name.")
-    if voices:
-        heard = sorted(voices, key=lambda v: -v["seconds"])
-        header.append("Voices heard so far: " + ", ".join(f"Speaker {v['id']} ({_seconds(v['seconds'])})" for v in heard)
-                      + f". Speaker {heard[0]['id']}, heard most, is probably the user wearing the recorder.")
+    others = sorted((v for v in voices or [] if v["id"] != YOU), key=lambda v: -v["seconds"])
+    if voices and you_heard(voices):
+        header.append("Lines marked [You] are the user, recognized by their saved voice. Never add them."
+                      + (" Other voices so far: " + ", ".join(f"Speaker {v['id']} ({_seconds(v['seconds'])})" for v in others) + "."
+                         if others else ""))
+    elif others:
+        header.append("Voices heard so far: " + ", ".join(f"Speaker {v['id']} ({_seconds(v['seconds'])})" for v in others)
+                      + f". Speaker {others[0]['id']}, heard most, is probably the user wearing the recorder.")
     if header:
         text = "\n".join(f"({line})" for line in header) + "\n" + text
     try:

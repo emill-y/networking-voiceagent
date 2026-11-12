@@ -90,6 +90,7 @@ function RootNavigator() {
         <Stack.Screen name="contacts/[id]/index" />
         <Stack.Screen name="contacts/[id]/edit" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="voice" />
       </Stack.Protected>
       <Stack.Protected guard={!inApp}>
         <Stack.Screen name="sign-in" />

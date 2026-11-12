@@ -252,6 +252,8 @@ const SESSION_PEOPLE = [
 let demoSession: { id: string; title: string | null; status: "recording" | "ready" | "saved"; chunks: number; startedAt: string; endedAt: string | null; contactIds: string[] } | null = null;
 // Sessions saved during this demo, newest first.
 let savedSessions: AmbientSession[] = [];
+// The demo's "your voice": not saved until someone tries recording it.
+let demoVoiceSavedAt: string | null = null;
 
 function sessionPeople(chunks: number, title: string | null) {
   const latest = new Map<string, (typeof SESSION_PEOPLE)[number]["person"]>();
@@ -371,6 +373,12 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
     return reply({ displayName: "Eisha Yadav", avatarUrl: null, inviteCode: "eisha123", inviteLink: "https://nomi-connect.vercel.app/?invite=eisha123", invitedCount: 2 });
   }
   if (route === "/invites/redeem") return reply({ redeemed: false });
+  if (route === "/me/voice") {
+    if (method === "POST") demoVoiceSavedAt = new Date().toISOString();
+    if (method === "DELETE") demoVoiceSavedAt = null;
+    if (method === "DELETE") return reply(undefined);
+    return reply(demoVoiceSavedAt ? { saved: true, seconds: 15, updatedAt: demoVoiceSavedAt } : { saved: false, seconds: null, updatedAt: null });
+  }
   if (route === "/duplicate-check") return reply({ matches: ((body.people as unknown[]) ?? []).map(() => []) });
   if (route === "/sessions" && method === "GET") return reply(history());
   if (route === "/sessions" && method === "POST") {
@@ -386,6 +394,7 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
       demoSession.endedAt = new Date().toISOString();
     }
     if (parts[2] === "save") return reply(saveDemoSession((body.people as CapturedPerson[]) ?? []));
+    if (method === "PATCH") demoSession.title = (body.title as string | null) || null;
     if (method === "DELETE") {
       demoSession = null;
       return reply(undefined);
@@ -396,6 +405,7 @@ export async function demoRequest<T>(path: string, options: RequestOptions = {})
     const found = history().find((x) => x.id === parts[1]);
     if (method === "DELETE") return reply(undefined);
     if (!found) throw new Error("Not found");
+    if (method === "PATCH") return reply({ ...found, title: (body.title as string | null) || null, titleAuto: false });
     return reply(found);
   }
   if (route === "/me/export") return reply({ exportedAt: new Date().toISOString(), contacts: people.map(detail) });
