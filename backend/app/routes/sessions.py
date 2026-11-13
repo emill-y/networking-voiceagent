@@ -120,7 +120,10 @@ def upload_chunk(
         raise HTTPException(status.HTTP_409_CONFLICT, "This session has ended.")
     ai_limiter.check(row["user_id"])
     # Transcribe before locking the row: other chunks can upload meanwhile.
-    result = transcribe_upload(audio, transcriber)
+    windows_so_far = row["windows"] or {}
+    names = [p.name for p in svc.merge_people(windows_so_far, None) if p.name]
+    prompt = svc.transcription_prompt(row["segments"] or [], seq, row["title"], names)
+    result = transcribe_upload(audio, transcriber, prompt)
     row = repo.get(conn, session_id, lock=True)
     segments = svc.add_segment(row["segments"] or [], seq, result.text, result.audio_seconds)
     seconds = sum(s["seconds"] for s in segments)
@@ -151,6 +154,11 @@ def finish(
                                     row["owner_name"], svc.known_people(windows, skip=window))
             if found is not None:
                 windows[str(window)] = found
+    # One last read of the whole session, so everyone's notes cover the full
+    # conversation (windows only ever see a minute or two at a time).
+    whole = svc.read_whole(segments, llm, date.today(), row["title"], row["owner_name"], svc.known_people(windows))
+    if whole:
+        windows[svc.FULL_KEY] = whole
     # Nobody found, but there was a conversation: keep it rather than lose it.
     if not svc.merge_people(windows, row["title"]):
         fallback = svc.conversation_fallback(segments, llm, row["title"])

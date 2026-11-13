@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 
 WINDOW_CHUNKS = 5  # about a minute and a half of conversation per model read
 MAX_CHUNKS = 720  # four hours at 20-second chunks
-LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes")
+FULL_KEY = str(MAX_CHUNKS + 1)  # the end-of-session read of everything
+LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes", "conversation")
+# At the end, the whole transcript is read once more in one go (when it fits),
+# so each person's notes come from the full conversation, not just pieces.
+FULL_PASS_MAX_WORDS = 24_000
 TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due")
 
 
@@ -71,7 +75,20 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
     The model is told who the user is (so they're never added) and who was
     already found earlier in the event (so later details land on the same
     person, under the same name)."""
-    text = window_text(segments, window)
+    return _read(window_text(segments, window), llm, today, title, owner, known)
+
+
+def read_whole(segments: list[dict], llm: LLMClient, today: date, title: str | None,
+               owner: str | None = None, known: list[str] | None = None) -> list[dict] | None:
+    """Everyone in the whole session in one read, or None if it's too long or the model failed."""
+    text = full_transcript(segments)
+    if len(text.split()) > FULL_PASS_MAX_WORDS:
+        return None
+    return _read(text, llm, today, title, owner, known)
+
+
+def _read(text: str, llm: LLMClient, today: date, title: str | None,
+          owner: str | None, known: list[str] | None) -> list[dict] | None:
     if len(text.split()) < 8:
         return []
     header = []
@@ -147,6 +164,9 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
                 if not match.get(field) and person.get(field):
                     match[field] = person[field]
             for field in LIST_FIELDS:
+                if field == "conversation" and key == FULL_KEY and person.get(field):
+                    match[field] = list(person[field])  # the whole-session read tells it best
+                    continue
                 seen = {x.lower() for x in match.get(field) or []}
                 match[field] = list(match.get(field) or []) + [x for x in person.get(field) or [] if x.lower() not in seen]
             if not match.get("label") and person.get("label"):
@@ -201,3 +221,19 @@ def conversation_fallback(segments: list[dict], llm: LLMClient, title: str | Non
     except (LLMUnavailable, ValueError, TypeError, AttributeError) as exc:
         logger.warning("Conversation fallback failed: %s", type(exc).__name__)
     return person
+
+
+def transcription_prompt(segments: list[dict], seq: int, title: str | None, names: list[str]) -> str | None:
+    """Context for speech-to-text: the event, names already heard, and the end of
+    the previous chunk, so names are spelled consistently and a sentence cut
+    between chunks still reads right. Whisper uses about the last 224 tokens."""
+    parts = []
+    if title:
+        parts.append(f"{title}.")
+    if names:
+        parts.append(", ".join(names[:20]) + ".")
+    before = next((s["text"] for s in reversed(segments) if s["seq"] < seq and s["text"]), "")
+    if before:
+        parts.append(before[-500:])
+    prompt = " ".join(parts).strip()
+    return prompt[-900:] or None

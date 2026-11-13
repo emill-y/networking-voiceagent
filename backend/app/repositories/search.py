@@ -10,7 +10,7 @@ from app.schemas.search import SearchFilters
 # One searchable text per person: their details, every moment, every follow-up.
 DOCUMENT_SQL = """
     concat_ws(' ', c.name, c.company, c.role, c.school, c.major, c.location, c.summary,
-      (select string_agg(concat_ws(' ', i.event, i.location,
+      (select string_agg(concat_ws(' ', i.event, i.location, i.summary,
                 array_to_string(i.projects, ' '), array_to_string(i.needs, ' '),
                 array_to_string(i.topics, ' '), array_to_string(i.interests, ' '),
                 array_to_string(i.notes, ' ')), ' ')
@@ -94,7 +94,7 @@ def people_profiles(conn: Connection, user_id: UUID, limit: int = 500) -> list[d
                           'event', i.event, 'date', i.interaction_date::date,
                           'projects', i.projects, 'needs', i.needs, 'topics', i.topics,
                           'interests', i.interests, 'notes', i.notes,
-                          'said', left(i.raw_transcript, 400))
+                          'said', left(coalesce(i.summary, i.raw_transcript), 600))
                         order by i.interaction_date desc)
                  from interactions i where i.contact_id = c.id), '[]'::json) as moments,
                coalesce((select array_agg(f.action order by f.created_at) from follow_ups f

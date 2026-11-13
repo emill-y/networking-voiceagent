@@ -19,13 +19,13 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def transcribe_upload(audio: UploadFile, transcriber: Transcriber):
+def transcribe_upload(audio: UploadFile, transcriber: Transcriber, prompt: str | None = None):
     """Save, transcribe and delete one uploaded recording."""
     temp_path = audio_upload.save_to_temp(audio, get_settings().max_upload_bytes)
     try:
         logger.info("Received %.1f KB of audio; transcribing", os.path.getsize(temp_path) / 1024)
         try:
-            return transcriber.transcribe(temp_path)
+            return transcriber.transcribe(temp_path, prompt=prompt) if prompt else transcriber.transcribe(temp_path)
         except AudioDecodeError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
         except TranscriptionUnavailable as exc:

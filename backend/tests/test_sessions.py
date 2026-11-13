@@ -22,7 +22,7 @@ SPEECH = {
 
 
 class ChunkTranscriber:
-    def transcribe(self, path):
+    def transcribe(self, path, prompt=None):
         with open(path, "rb") as f:
             data = f.read()
         return Transcript(SPEECH.get(data, ""), "en", 30.0, 5)
@@ -267,3 +267,37 @@ def test_a_conversation_without_names_is_kept_not_lost(session_client):
 
     assert svc.conversation_fallback([{"seq": 0, "text": SPEECH[b"nameless"], "seconds": 20}], Down(), "Mixer")["label"] == "Someone from Mixer"
     assert svc.conversation_fallback([{"seq": 0, "text": "um yeah", "seconds": 20}], Down(), None) is None
+
+
+def test_the_whole_session_read_gives_each_persons_conversation():
+    windows = {
+        "0": [{"name": "Sarah Kim", "conversation": ["She studies bioengineering."]}],
+        "1": [{"name": "Sarah", "conversation": ["She climbs on weekends."], "interests": ["climbing"]}],
+        svc.FULL_KEY: [{"name": "Sarah Kim", "conversation": [
+            "She studies bioengineering at Berkeley.", "She climbs at Mission Cliffs on weekends."]}],
+    }
+    sarah = svc.merge_people(windows, None)[0]
+    assert sarah.conversation == ["She studies bioengineering at Berkeley.", "She climbs at Mission Cliffs on weekends."]
+    assert sarah.interests == ["climbing"]
+    # Without the full read, every window's notes are kept, in order.
+    del windows[svc.FULL_KEY]
+    assert svc.merge_people(windows, None)[0].conversation == ["She studies bioengineering.", "She climbs on weekends."]
+
+
+def test_speech_to_text_gets_names_and_the_previous_sentence():
+    segments = [{"seq": 0, "text": "so I've been working on protein", "seconds": 20}]
+    prompt = svc.transcription_prompt(segments, 1, "Cal Hacks", ["Sarah Kim", "Jason Chen"])
+    assert prompt == "Cal Hacks. Sarah Kim, Jason Chen. so I've been working on protein"
+    assert svc.transcription_prompt([], 0, None, []) is None
+
+
+def test_conversation_notes_are_saved_under_the_person(session_client):
+    client = session_client
+    session = client.post("/sessions", json={"title": "Mixer"}).json()
+    upload(client, session["id"], 0, b"c0")
+    client.post(f"/sessions/{session['id']}/finish")
+    person = {"contactId": None, "contact": {"name": "Sarah Kim"},
+              "interaction": {"event": "Mixer", "summary": "She studies bioengineering at Berkeley.\nShe wants to get coffee."}}
+    saved = client.post(f"/sessions/{session['id']}/save", json={"people": [person]}).json()
+    contact = client.get(f"/contacts/{saved['contacts'][0]['id']}").json()
+    assert contact["interactions"][0]["summary"] == "She studies bioengineering at Berkeley.\nShe wants to get coffee."

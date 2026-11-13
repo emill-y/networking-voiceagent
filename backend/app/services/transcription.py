@@ -46,7 +46,8 @@ class Transcript:
 
 
 class Transcriber(Protocol):
-    def transcribe(self, audio_path: str) -> Transcript: ...
+    # prompt: optional context (names, the previous sentence) to steer spelling.
+    def transcribe(self, audio_path: str, prompt: str | None = None) -> Transcript: ...
 
 
 def decode_audio(audio_path: str):
@@ -119,13 +120,13 @@ class WhisperTranscriber:
                     )
         return self._model
 
-    def transcribe(self, audio_path: str) -> Transcript:
+    def transcribe(self, audio_path: str, prompt: str | None = None) -> Transcript:
         started = time.perf_counter()
         audio = decode_audio(audio_path)
         model = self._get_model()
         # vad_filter trims silence, which speeds things up and reduces
         # Whisper's tendency to hallucinate text during long pauses.
-        segments, info = model.transcribe(audio, beam_size=5, vad_filter=True)
+        segments, info = model.transcribe(audio, beam_size=5, vad_filter=True, initial_prompt=prompt)
         text = " ".join(segment.text.strip() for segment in segments).strip()
         latency_ms = int((time.perf_counter() - started) * 1000)
         audio_seconds = round(audio.size / SAMPLE_RATE, 2)
@@ -157,7 +158,7 @@ class HuggingFaceTranscriber:
             )
         return self._client
 
-    def transcribe(self, audio_path: str) -> Transcript:
+    def transcribe(self, audio_path: str, prompt: str | None = None) -> Transcript:
         started = time.perf_counter()
         # Decode locally first: rejects corrupt files before uploading them
         # anywhere, and tells us the duration.
@@ -188,7 +189,7 @@ class OpenAICompatibleTranscriber:
         self._model = model
         self._timeout = timeout_seconds
 
-    def transcribe(self, audio_path: str) -> Transcript:
+    def transcribe(self, audio_path: str, prompt: str | None = None) -> Transcript:
         import httpx
 
         started = time.perf_counter()
@@ -201,7 +202,8 @@ class OpenAICompatibleTranscriber:
                 response = httpx.post(
                     self._url,
                     headers={"Authorization": f"Bearer {self._api_key}"},
-                    data={"model": self._model, "language": "en", "response_format": "json", "temperature": "0"},
+                    data={"model": self._model, "language": "en", "response_format": "json", "temperature": "0",
+                          **({"prompt": prompt} if prompt else {})},
                     files={"file": (os.path.basename(audio_path), file)},
                     timeout=self._timeout,
                 )
