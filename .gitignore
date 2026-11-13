@@ -66,3 +66,6 @@ backend/web/*
 public/
 .vercel/
 _uv/
+
+# Voice differentiation models (python -m scripts.download_diarization_models)
+backend/models/

@@ -74,3 +74,26 @@ export function followUpSuggestions(people: Person[], now = new Date(), limit = 
       return { contactId: p.id, name: p.name, action, why, dueInDays: 3 };
     });
 }
+
+// Contacts matching what's typed so far in Search ("ma" -> Maya Singh, Mark
+// Adams, then people at Mastercard), best match first.
+type Typed = { id: string; name: string; company: string | null; school: string | null; role?: string | null; lastEvent?: string | null };
+
+export function matchContacts<T extends Typed>(people: T[], typed: string, limit = 5): T[] {
+  const q = typed.trim().toLowerCase();
+  if (!q) return [];
+  const score = (p: T): number => {
+    const name = p.name.toLowerCase();
+    if (name.startsWith(q)) return 0; // "ma" -> "Maya Singh"
+    if (name.split(/\s+/).some((word) => word.startsWith(q))) return 1; // "si" -> "Maya Singh"
+    if (name.includes(q)) return 2;
+    if ([p.company, p.school, p.role, p.lastEvent].some((x) => x?.toLowerCase().includes(q))) return 3;
+    return -1;
+  };
+  return people
+    .map((p) => ({ p, rank: score(p) }))
+    .filter((x) => x.rank >= 0)
+    .sort((a, b) => a.rank - b.rank || a.p.name.localeCompare(b.p.name))
+    .slice(0, limit)
+    .map((x) => x.p);
+}

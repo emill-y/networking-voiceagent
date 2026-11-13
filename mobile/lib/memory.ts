@@ -19,6 +19,59 @@ export function memoryLines(interaction: Interaction): string[] {
   return lines;
 }
 
+// ---------------------------------------------------------------------------
+// The template for a conversation's notes: one heading per kind of detail,
+// short bullet points under each, always in this order. Empty sections are
+// left out. Notes are sorted by the prefix the model gives them
+// (backend/app/services/extraction.py, WHAT_TO_REMEMBER).
+// ---------------------------------------------------------------------------
+export type Section = { key: string; title: string; items: string[] };
+
+const TEMPLATE: { key: string; title: string }[] = [
+  { key: "met", title: "How you met" },
+  { key: "topics", title: "What you talked about" },
+  { key: "projects", title: "Working on" },
+  { key: "needs", title: "Looking for" },
+  { key: "interests", title: "Into" },
+  { key: "plans", title: "Their plans" },
+  { key: "next", title: "Next steps" },
+  { key: "ask", title: "Ask about next time" },
+  { key: "notes", title: "Other notes" },
+  { key: "unsure", title: "Not sure" },
+];
+
+const NOTE_PREFIXES: [RegExp, string][] = [
+  [/^how (we|you) met:\s*/i, "met"],
+  [/^plans?:\s*/i, "plans"],
+  [/^next step:\s*/i, "next"],
+  [/^ask about:\s*/i, "ask"],
+  [/^unsure:\s*/i, "unsure"],
+];
+
+// "plans: hawaii trip in December." -> "Hawaii trip in December"; "ai" -> "AI"
+function bullet(text: string): string {
+  const trimmed = text.trim().replace(/\.$/, "");
+  if (/^[a-z]{1,2}$/.test(trimmed)) return trimmed.toUpperCase();
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
+export function conversationSections(interaction: Interaction): Section[] {
+  const buckets: Record<string, string[]> = {
+    met: [interaction.event, interaction.location].filter((x): x is string => !!x).map((x, i) => (i === 0 ? `At ${x}` : `In ${x}`)),
+    topics: interaction.topicsDiscussed.map(bullet),
+    projects: interaction.projects.map(bullet),
+    needs: interaction.needs.map(bullet),
+    interests: interaction.interests.map(bullet),
+  };
+  for (const note of interaction.notes) {
+    const match = NOTE_PREFIXES.find(([re]) => re.test(note));
+    const key = match ? match[1] : "notes";
+    const text = match ? note.replace(match[0], "") : note;
+    if (text.trim()) (buckets[key] ??= []).push(bullet(text));
+  }
+  return TEMPLATE.map(({ key, title }) => ({ key, title, items: [...new Set(buckets[key] ?? [])] })).filter((s) => s.items.length > 0);
+}
+
 export function subtitle(person: {
   role: string | null;
   company: string | null;
@@ -28,41 +81,34 @@ export function subtitle(person: {
   return [role, person.major].filter(Boolean).join(" · ");
 }
 
-export type Briefing = {
-  headline: string;
-  remember: string[];
-};
+export type Plan = { text: string; dueAt: string | null };
 
-const ORDINALS = ["", "", "second", "third", "fourth", "fifth"];
+const NEXT_STEP = /^next step:\s*/i;
 
-// "Before you meet again": built only from what's stored, never invented.
-export function briefing(person: ContactDetail, now = new Date()): Briefing | null {
-  const [latest] = person.interactions;
-  if (!latest) return null;
-  const firstName = person.name.split(/\s+/)[0];
-  const when = formatRelative(latest.interactionDate, now);
-  const where = latest.event ? ` at ${latest.event}` : "";
-  const count = person.interactions.length;
+// Plans you made with this person: your open follow-ups, and the next steps
+// noted when you saved a session ("Next step: get coffee next week").
+// Empty when you didn't make any, so the page can leave the section out.
+export function plansWith(person: ContactDetail): Plan[] {
+  const plans: Plan[] = person.followUps
+    .filter((f) => f.status === "open")
+    .map((f) => ({ text: sentence(f.action), dueAt: f.dueAt }));
+  for (const moment of person.interactions) {
+    for (const note of moment.notes) {
+      if (NEXT_STEP.test(note)) plans.push({ text: sentence(note.replace(NEXT_STEP, "")), dueAt: null });
+    }
+  }
+  const seen = new Set<string>();
+  return plans.filter((p) => {
+    const key = p.text.toLowerCase().replace(/[.!?]$/, "");
+    if (!p.text || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
 
-  let headline =
-    when === "today" || when === "yesterday"
-      ? `You met ${firstName} ${when}${where}.`
-      : `You last saw ${firstName} ${when}${where}.`;
-  if (count > 1) {
-    headline += ` That was the ${ORDINALS[count] ?? `${count}th`} time you’ve met.`;
-  }
-
-  const remember: string[] = [];
-  for (const followUp of person.followUps.filter((f) => f.status === "open")) {
-    remember.push(`You planned to: ${followUp.action.charAt(0).toLowerCase()}${followUp.action.slice(1)}.`);
-  }
-  // "a robotics startup" -> "Ask how the robotics startup is going."
-  for (const project of latest.projects) {
-    remember.push(`Ask how ${project.replace(/^(a|an) /i, "the ")} is going.`);
-  }
-  for (const need of latest.needs) remember.push(`Ask whether they found ${need}.`);
-  for (const note of latest.notes) {
-    if (note.startsWith("Unsure:")) remember.push(`Check: ${note.slice(7).trim()}.`);
-  }
-  return { headline, remember: remember.slice(0, 4) };
+function sentence(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return "";
+  const capped = trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+  return /[.!?]$/.test(capped) ? capped : `${capped}.`;
 }

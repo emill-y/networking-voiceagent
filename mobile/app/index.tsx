@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -15,7 +16,7 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { formatShortDate } from "@/lib/format";
 import { groupSessions, namesLine, sessionLength } from "@/lib/sessions";
 import { makeStyles, radius, space, useTheme } from "@/lib/theme";
-import { listSessions } from "@/services/nomi";
+import { getMyVoice, listSessions } from "@/services/nomi";
 import type { AmbientSession } from "@/types/api";
 
 // Home is your sessions: start one, pick up one that's running, review one
@@ -74,6 +75,8 @@ export default function Sessions() {
         </Txt>
       </View>
 
+      <VoicePrompt onPress={() => router.push("/voice")} />
+
       {live ? (
         <LiveCard session={live} onPress={() => router.push("/session")} />
       ) : (
@@ -118,6 +121,50 @@ export default function Sessions() {
         </View>
       )}
     </Page>
+  );
+}
+
+const VOICE_PROMPT_KEY = "nomi.voicePromptDismissed";
+
+// Until you've saved your voice: a nudge to do it, so sessions know which
+// voice is yours. "Not now" hides it (it's always on the You page).
+function VoicePrompt({ onPress }: { onPress: () => void }) {
+  const s = useStyles();
+  const { colors } = useTheme();
+  const [show, setShow] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      Promise.all([getMyVoice(), AsyncStorage.getItem(VOICE_PROMPT_KEY).catch(() => null)])
+        .then(([voice, dismissed]) => active && setShow(!voice.saved && dismissed !== "1"))
+        .catch(() => undefined);
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
+
+  if (!show) return null;
+  return (
+    <Card padding="lg" style={s.voicePrompt}>
+      <View style={s.startText}>
+        <View style={s.startIcon}>
+          <Icon name="user" size={20} color={colors.text} />
+        </View>
+        <View style={s.flex}>
+          <Txt variant="heading">Teach Nomi your voice</Txt>
+          <Txt variant="small">Record 15 seconds of yourself once, so sessions can tell you apart from the people you meet.</Txt>
+        </View>
+      </View>
+      <View style={s.voiceButtons}>
+        <Button title="Record my voice" icon="mic" size="sm" onPress={onPress} />
+        <Button title="Not now" variant="ghost" size="sm" onPress={() => {
+          setShow(false);
+          void AsyncStorage.setItem(VOICE_PROMPT_KEY, "1").catch(() => undefined);
+        }} />
+      </View>
+    </Card>
   );
 }
 
@@ -213,6 +260,8 @@ const useStyles = makeStyles(({ colors }) =>
     topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
     heading: { gap: space.xxs },
     start: { gap: space.md },
+    voicePrompt: { gap: space.md },
+    voiceButtons: { flexDirection: "row", gap: space.xs, flexWrap: "wrap" },
     startText: { flexDirection: "row", gap: space.sm, alignItems: "flex-start" },
     startIcon: {
       width: 40,

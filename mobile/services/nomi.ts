@@ -146,6 +146,38 @@ export function finishSession(id: string) {
   return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}/finish`, { method: "POST", timeoutMs: 120_000 });
 }
 
+// Name a session (or rename it after it ended). null clears the name.
+export function renameSession(id: string, title: string | null) {
+  return request<AmbientSession>(`/sessions/${encodeURIComponent(id)}`, { method: "PATCH", body: { title } });
+}
+
+// ---------- Your voice ----------
+// Saved once (the You page) so sessions know which voice is yours.
+
+export type MyVoice = { saved: boolean; seconds: number | null; updatedAt: string | null };
+
+export function getMyVoice() {
+  return request<MyVoice>("/me/voice");
+}
+
+// A short recording of you reading aloud: a Blob on the web, a file URI on phones.
+export async function saveMyVoice(audio: string | Blob) {
+  const form = new FormData();
+  if (typeof audio !== "string") {
+    form.append("audio", audio, audio.type.includes("mp4") ? "voice.m4a" : "voice.webm");
+  } else if (Platform.OS === "web") {
+    const blob = await (await fetch(audio)).blob();
+    form.append("audio", blob, blob.type.includes("mp4") ? "voice.m4a" : "voice.webm");
+  } else {
+    form.append("audio", new File(audio) as unknown as Blob, "voice.m4a");
+  }
+  return request<MyVoice>("/me/voice", { method: "POST", body: form, timeoutMs: 60_000 });
+}
+
+export function deleteMyVoice() {
+  return request<void>("/me/voice", { method: "DELETE" });
+}
+
 export function deleteSession(id: string) {
   return request<void>(`/sessions/${encodeURIComponent(id)}`, { method: "DELETE" });
 }

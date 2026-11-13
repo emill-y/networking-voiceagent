@@ -8,6 +8,7 @@ from app.core.config import get_settings
 from app.core.rate_limit import limit_ai_requests
 from app.schemas.transcription import TranscriptionResponse
 from app.services import audio_upload
+from app.services.diarization import Diarizer
 from app.services.transcription import (
     AudioDecodeError,
     Transcriber,
@@ -21,15 +22,31 @@ logger = logging.getLogger(__name__)
 
 def transcribe_upload(audio: UploadFile, transcriber: Transcriber, prompt: str | None = None):
     """Save, transcribe and delete one uploaded recording."""
+    return transcribe_and_diarize(audio, transcriber, None, prompt)[0]
+
+
+def transcribe_and_diarize(audio: UploadFile, transcriber: Transcriber, diarizer: Diarizer | None,
+                           prompt: str | None = None):
+    """(transcript, voices) for one recording. voices is None when there's no
+    diarizer or it failed: the transcript is still used, just without labels.
+    prompt is optional context for speech-to-text (names, the previous sentence)."""
     temp_path = audio_upload.save_to_temp(audio, get_settings().max_upload_bytes)
     try:
         logger.info("Received %.1f KB of audio; transcribing", os.path.getsize(temp_path) / 1024)
         try:
-            return transcriber.transcribe(temp_path, prompt=prompt) if prompt else transcriber.transcribe(temp_path)
+            # Some transcribers (and test fakes) take no prompt; only pass one when there is one.
+            result = transcriber.transcribe(temp_path, prompt=prompt) if prompt else transcriber.transcribe(temp_path)
         except AudioDecodeError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
         except TranscriptionUnavailable as exc:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+        voices = None
+        if diarizer is not None:
+            try:
+                voices = diarizer.chunk_voices(temp_path)
+            except Exception as exc:  # never lose a chunk over voice labels
+                logger.warning("Voice differentiation failed: %s", type(exc).__name__)
+        return result, voices
     finally:
         # Minimal audio retention: the file never outlives the request.
         audio_upload.remove(temp_path)

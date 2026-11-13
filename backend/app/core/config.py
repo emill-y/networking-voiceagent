@@ -43,6 +43,12 @@ class Settings:
     whisper_compute_type: str = "int8"
     max_upload_bytes: int = 10 * 1024 * 1024
 
+    # Voice differentiation (speaker diarization) for sessions, with sherpa-onnx.
+    # Runs when the models are in diarization_model_dir (python -m
+    # scripts.download_diarization_models); DIARIZATION=off turns it off.
+    diarization: bool = True
+    diarization_model_dir: str = str(Path(__file__).resolve().parents[2] / "models" / "diarization")
+
     # LLM. "ollama" = local Qwen via Ollama (development);
     # "openai_compatible" = a hosted API such as Groq or OpenAI (production).
     llm_provider: str = "ollama"
@@ -125,6 +131,9 @@ def get_settings() -> Settings:
         whisper_device=env.get("WHISPER_DEVICE", "auto"),
         whisper_compute_type=env.get("WHISPER_COMPUTE_TYPE", "int8"),
         max_upload_bytes=int(env.get("MAX_UPLOAD_MB", "10")) * 1024 * 1024,
+        diarization=env.get("DIARIZATION", "on").strip().lower() not in {"0", "off", "false", "no"},
+        diarization_model_dir=env.get("DIARIZATION_MODEL_DIR")
+        or str(Path(__file__).resolve().parents[2] / "models" / "diarization"),
         llm_provider=env.get("LLM_PROVIDER", "ollama").strip().lower(),
         llm_base_url=env.get("LLM_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/"),
         llm_api_key=env.get("LLM_API_KEY") or None,

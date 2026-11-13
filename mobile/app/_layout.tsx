@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { Sidebar } from "@/components/Sidebar";
 import { showsTabBar, TabBar } from "@/components/TabBar";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ToastProvider } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
 import { AccountProvider } from "@/hooks/useAccount";
@@ -42,6 +43,7 @@ function Root() {
         <AccountProvider>
           <ToastProvider>
             <RootNavigator />
+            <ConfirmDialog />
           </ToastProvider>
         </AccountProvider>
       </SessionProvider>
@@ -87,9 +89,11 @@ function RootNavigator() {
         <Stack.Screen name="sessions/[id]/review" />
         <Stack.Screen name="search" />
         <Stack.Screen name="network" />
+        <Stack.Screen name="contacts/index" />
         <Stack.Screen name="contacts/[id]/index" />
         <Stack.Screen name="contacts/[id]/edit" />
         <Stack.Screen name="profile" />
+        <Stack.Screen name="voice" />
       </Stack.Protected>
       <Stack.Protected guard={!inApp}>
         <Stack.Screen name="sign-in" />

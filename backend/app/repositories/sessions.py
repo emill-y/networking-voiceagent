@@ -8,7 +8,7 @@ from psycopg.types.json import Jsonb
 
 Row = dict[str, Any]
 COLUMNS = ("id, user_id, title, status, segments, audio_seconds, windows, upload_token_hash, created_at, ended_at, "
-           "owner_name, contact_ids")
+           "owner_name, contact_ids, title_auto, voices")
 
 
 def create(conn: Connection, user_id: UUID, title: str | None, token_hash: str, owner_name: str | None = None) -> Row:
@@ -30,7 +30,7 @@ def recent(conn: Connection, user_id: UUID, limit: int = 100) -> list[Row]:
 def save(conn: Connection, session_id: UUID, contact_ids: list[UUID]) -> None:
     """Keep the session as a record of who was met; drop its transcript."""
     conn.execute(
-        """update ambient_sessions set status = 'saved', contact_ids = %s, segments = '[]', windows = '{}',
+        """update ambient_sessions set status = 'saved', contact_ids = %s, segments = '[]', windows = '{}', voices = '[]',
                ended_at = coalesce(ended_at, now()), updated_at = now() where id = %s""",
         (contact_ids, session_id),
     )
@@ -63,17 +63,28 @@ def active(conn: Connection, user_id: UUID) -> Row | None:
     ).fetchone()
 
 
-def save_progress(conn: Connection, session_id: UUID, segments: list, audio_seconds: float, windows: dict) -> None:
+def save_progress(conn: Connection, session_id: UUID, segments: list, audio_seconds: float, windows: dict,
+                  voices: list | None = None) -> None:
     conn.execute(
-        "update ambient_sessions set segments = %s, audio_seconds = %s, windows = %s, updated_at = now() where id = %s",
-        (Jsonb(segments), audio_seconds, Jsonb(windows), session_id),
+        """update ambient_sessions set segments = %s, audio_seconds = %s, windows = %s,
+               voices = coalesce(%s, voices), updated_at = now() where id = %s""",
+        (Jsonb(segments), audio_seconds, Jsonb(windows), Jsonb(voices) if voices is not None else None, session_id),
     )
 
 
 def finish(conn: Connection, session_id: UUID, windows: dict) -> None:
     conn.execute(
-        "update ambient_sessions set status = 'ready', windows = %s, ended_at = now(), updated_at = now() where id = %s",
+        # Voiceprints are only needed while recording; don't keep them.
+        "update ambient_sessions set status = 'ready', windows = %s, voices = '[]', ended_at = now(), updated_at = now() where id = %s",
         (Jsonb(windows), session_id),
+    )
+
+
+def set_title(conn: Connection, session_id: UUID, title: str | None, auto: bool = False) -> None:
+    """Name a session: by the user (auto=False) or made up from the conversation."""
+    conn.execute(
+        "update ambient_sessions set title = %s, title_auto = %s, updated_at = now() where id = %s",
+        (title, auto, session_id),
     )
 
 

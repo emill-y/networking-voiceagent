@@ -7,6 +7,7 @@
     POST   /sessions/{id}/chunks     upload ~30 s of audio (sign-in or X-Session-Token)
     POST   /sessions/{id}/finish     stop; final list of people to review
     POST   /sessions/{id}/save       add the reviewed people to your network
+    PATCH  /sessions/{id}            rename (any time, including after it ended)
     DELETE /sessions/{id}            discard (a saved session's contacts stay)
 
 Audio is transcribed and deleted within the request. Nothing is added to
@@ -25,12 +26,16 @@ from app.core.auth import get_current_user_id, get_optional_user_id
 from app.core.db import get_db
 from app.core.rate_limit import ai_limiter
 from app.repositories import sessions as repo
-from app.routes.transcribe import transcribe_upload
+from app.repositories import voiceprints
+from app.routes.transcribe import transcribe_and_diarize
 from app.schemas.contacts import CaptureRequest
-from app.schemas.sessions import SessionContact, SessionCreate, SessionCreated, SessionFinished, SessionOut, SessionSave
+from app.schemas.sessions import (
+    SessionContact, SessionCreate, SessionCreated, SessionFinished, SessionOut, SessionSave, SessionUpdate,
+)
 from app.services.captures import save_capture
 from app.services import session_notes
 from app.services import sessions as svc
+from app.services.diarization import Diarizer, get_diarizer
 from app.services.llm import LLMClient, get_llm_client
 from app.services.transcription import Transcriber, get_transcriber
 
@@ -45,15 +50,22 @@ def _out(row: dict, model=SessionOut, conn: Connection | None = None, **extra):
         contacts=[SessionContact.model_validate(c) for c in contacts],
         id=row["id"],
         title=row["title"],
+        title_auto=row.get("title_auto", False),
         status=row["status"],
         chunks=len(segments),
         audio_seconds=row["audio_seconds"],
         words=len(svc.full_transcript(segments).split()),
-        people=svc.merge_people(row["windows"] or {}, row["title"]),
+        people=svc.merge_people(row["windows"] or {}, _event(row)),
         started_at=row["created_at"],
         ended_at=row["ended_at"],
         **extra,
     )
+
+
+def _event(row: dict) -> str | None:
+    """The event name the user gave, used as "where you met". A title made up
+    from the conversation ("Hawaii trip plans") isn't a place, so it's not used."""
+    return None if row.get("title_auto") else row["title"]
 
 
 def _own(conn: Connection, user_id: UUID, session_id: UUID, lock: bool = False) -> dict:
@@ -115,26 +127,30 @@ def upload_chunk(
     x_session_token: str | None = Header(default=None),
     transcriber: Transcriber = Depends(get_transcriber),
     llm: LLMClient = Depends(get_llm_client),
+    diarizer: Diarizer | None = Depends(get_diarizer),
 ):
     row = _authorized(conn, session_id, user_id, x_session_token)
     if row["status"] != "recording":
         raise HTTPException(status.HTTP_409_CONFLICT, "This session has ended.")
     ai_limiter.check(row["user_id"])
-    # Transcribe before locking the row: other chunks can upload meanwhile.
+    # Transcribe (and tell voices apart) before locking the row: other chunks can upload meanwhile.
+    # Speech-to-text gets context (the event, names heard, the previous sentence) for spelling.
     windows_so_far = row["windows"] or {}
     names = [p.name for p in svc.merge_people(windows_so_far, None) if p.name]
     prompt = svc.transcription_prompt(row["segments"] or [], seq, row["title"], names)
-    result = transcribe_upload(audio, transcriber, prompt)
+    result, heard = transcribe_and_diarize(audio, transcriber, diarizer, prompt)
     row = repo.get(conn, session_id, lock=True)
-    segments = svc.add_segment(row["segments"] or [], seq, result.text, result.audio_seconds)
+    saved_voice = voiceprints.get(conn, row["user_id"]) if heard is not None else None
+    text, voices = svc.label_chunk(result, heard, row["voices"] or [], saved_voice)
+    segments = svc.add_segment(row["segments"] or [], seq, text, result.audio_seconds)
     seconds = sum(s["seconds"] for s in segments)
     windows = dict(row["windows"] or {})
     window = svc.window_of(seq)
     found = svc.read_window(segments, window, llm, today or date.today(), row["title"],
-                            row["owner_name"], svc.known_people(windows, skip=window))
+                            row["owner_name"], svc.known_people(windows, skip=window), voices)
     if found is not None:
         windows[str(window)] = found
-    repo.save_progress(conn, session_id, segments, seconds, windows)
+    repo.save_progress(conn, session_id, segments, seconds, windows, voices)
     return _out({**row, "segments": segments, "audio_seconds": seconds, "windows": windows})
 
 
@@ -152,7 +168,7 @@ def finish(
     for window in sorted({svc.window_of(s["seq"]) for s in segments}):
         if str(window) not in windows or window == max(svc.window_of(s["seq"]) for s in segments):
             found = svc.read_window(segments, window, llm, date.today(), row["title"],
-                                    row["owner_name"], svc.known_people(windows, skip=window))
+                                    row["owner_name"], svc.known_people(windows, skip=window), row["voices"] or [])
             if found is not None:
                 windows[str(window)] = found
     # The end-of-session read: tell everyone apart and write detailed notes on
@@ -167,8 +183,25 @@ def finish(
         if fallback:
             windows[svc.FALLBACK_KEY] = [fallback]
     repo.finish(conn, session_id, windows)
+    # No name given when it started: make one up from what was said.
+    if not row["title"]:
+        title = svc.suggest_title(segments, llm)
+        if title:
+            repo.set_title(conn, session_id, title, auto=True)
     row = repo.get(conn, session_id)
     return _out(row, SessionFinished, transcript=svc.full_transcript(segments))
+
+
+@router.patch("/sessions/{session_id}", response_model=SessionOut)
+def rename(
+    session_id: UUID,
+    body: SessionUpdate,
+    conn: Connection = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+):
+    _own(conn, user_id, session_id, lock=True)
+    repo.set_title(conn, session_id, body.title or None)
+    return _out(repo.get(conn, session_id), conn=conn)
 
 
 @router.post("/sessions/{session_id}/save", response_model=SessionOut)

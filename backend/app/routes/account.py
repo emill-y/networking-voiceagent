@@ -51,6 +51,7 @@ def delete_all_data(
     conn.execute("delete from contacts where user_id = %s", (user_id,))
     feeds_repo.delete_all(conn, user_id)
     conn.execute("delete from ambient_sessions where user_id = %s", (user_id,))
+    conn.execute("delete from voiceprints where user_id = %s", (user_id,))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

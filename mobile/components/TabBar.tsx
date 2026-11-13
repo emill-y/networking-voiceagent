@@ -7,10 +7,10 @@ import { NAV } from "@/components/nav";
 import { Txt } from "@/components/Txt";
 import { makeStyles, space, useTheme } from "@/lib/theme";
 
-// Phone navigation: Sessions, Search and Map, with the one action that
-// matters (start a session) right beside them.
+// Phone navigation: Sessions, Search, Contacts and Map, with the one action
+// that matters (start a session) right beside them.
 export function showsTabBar(pathname: string): boolean {
-  return ["/", "/network", "/search"].includes(pathname);
+  return ["/", "/network", "/search", "/contacts"].includes(pathname);
 }
 
 // Room to leave under scrolling content so the floating bar never covers it.

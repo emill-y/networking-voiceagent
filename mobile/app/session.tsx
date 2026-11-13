@@ -20,7 +20,7 @@ import { confirm } from "@/lib/confirm";
 import { formatDuration } from "@/lib/format";
 import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 import { watchSupported } from "@/lib/watch";
-import { deleteSession, finishSession } from "@/services/nomi";
+import { deleteSession, finishSession, getMyVoice } from "@/services/nomi";
 import type { AmbientSession, ExtractedPerson } from "@/types/api";
 
 const CONSENT_KEY = "nomi.sessionConsent";
@@ -203,8 +203,30 @@ function Setup() {
         <Fact text="Nothing is added to your network until you review it" />
         <Fact text="Keeps recording with the screen locked" />
         {watchSupported && <Fact text="Or start it from Nomi on your Apple Watch" />}
+        <VoiceFact />
       </View>
     </Page>
+  );
+}
+
+// Whether sessions will recognize your voice, with a way to set it up.
+function VoiceFact() {
+  const s = useStyles();
+  const router = useRouter();
+  const { colors } = useTheme();
+  const [saved, setSaved] = useState<boolean | null>(null);
+  useEffect(() => {
+    getMyVoice().then((v) => setSaved(v.saved)).catch(() => undefined);
+  }, []);
+  if (saved === null) return null;
+  if (saved) return <Fact text="Nomi knows your voice, so it won’t add you" />;
+  return (
+    <Pressable onPress={() => router.push("/voice")} accessibilityRole="link" style={s.fact}>
+      <Icon name="mic" size={14} color={colors.textTertiary} />
+      <Txt variant="small" style={s.flex}>
+        Save your voice first so Nomi can tell you apart from the people you meet. <Txt variant="small" weight="600">Set up</Txt>
+      </Txt>
+    </Pressable>
   );
 }
 

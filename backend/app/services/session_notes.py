@@ -11,6 +11,12 @@ apart or write good notes. When the session ends:
    and writes thorough, sectioned notes (Granola-style), in parallel.
 
 Anything that fails or runs out of time falls back to the live results.
+
+With voice differentiation on, transcript lines also carry voice labels
+("[#12] [Speaker 2] hi I'm Jun", "[You] ..."). Then each person is tied to
+one voice, and the same rules as the live reads hold in code: someone with
+no voice of their own (only talked about) is dropped, and one voice is one
+person.
 """
 
 import json
@@ -23,7 +29,9 @@ from pydantic import ValidationError
 
 from app.schemas.extraction import EXTRACTION_JSON_SCHEMA, ExtractedPerson
 from app.services.extraction import clean_person
+from app.services.identity import normalize
 from app.services.llm import LLMClient, LLMUnavailable
+from app.services.sessions import SPEAKER, VOICE_LABEL, _speaker, strip_labels
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +40,8 @@ TIME_BUDGET_SECONDS = 40  # the API runs for at most 60 seconds per request
 PARALLEL = 6
 
 SPLIT_PROMPT = """You read the transcript of a networking event, recorded on the user's phone.
-There are no speaker labels. Each line starts with its chunk number, like [#12] (about 20
-seconds each). The event is a series of separate conversations. List every person the user
+Each line starts with its chunk number, like [#12] (about 20 seconds each), and often a voice
+label from voice analysis: "[Speaker 2]" is the same voice all event; "[You]" is the user. The event is a series of separate conversations. List every person the user
 had a real conversation with, each one separately. Return JSON only.
 
 Rules:
@@ -51,6 +59,10 @@ Rules:
 - label: always set, a few words that tell this person apart from the others ("Airbnb
   designer who climbs", "CS junior building a drone startup").
 - chunks: the chunk numbers of their conversation, in order.
+- speaker: when lines have voice labels, the label on this person's OWN lines ("Speaker 2").
+  One voice is one person: never give two people the same speaker. Someone with no lines of
+  their own (only talked about) is not a person to add. "[You]" lines are the user. Without
+  labels, null.
 - Order people by when the user met them."""
 
 SPLIT_SCHEMA = {
@@ -64,8 +76,9 @@ SPLIT_SCHEMA = {
                     "name": {"type": ["string", "null"]},
                     "label": {"type": "string"},
                     "chunks": {"type": "array", "items": {"type": "integer"}},
+                    "speaker": {"type": ["string", "null"]},
                 },
-                "required": ["name", "label", "chunks"],
+                "required": ["name", "label", "chunks", "speaker"],
             },
         }
     },
@@ -73,8 +86,10 @@ SPLIT_SCHEMA = {
 }
 
 NOTES_PROMPT = """You are an excellent note-taker. From part of a networking event transcript
-(recorded on the user's phone, no speaker labels), write the user's notes about ONE person:
-the person named at the top. Other voices belong to the user or to other people. Return JSON
+(recorded on the user's phone), write the user's notes about ONE person: the person named
+at the top. Lines may start with voice labels ("[Speaker 2]", "[You]" for the user); when the
+top names this person's voice, their lines are the ones with that label. Other voices belong
+to the user or to other people. Return JSON
 only: one object with this person's details.
 
 Fill every field that was stated (role, company, school, major, location, interests,
@@ -88,7 +103,8 @@ in this order:
 ## What you talked about
 ## Their advice and ideas
 ## Next steps
-Be exhaustive: the user relies on these notes instead of their memory. Keep every specific:
+Never copy chunk numbers ("[#12]") or voice labels ("[Speaker 2]") into the notes; say who
+said what in words. Be exhaustive: the user relies on these notes instead of their memory. Keep every specific:
 numbers, dates, places, companies, schools, classes, products, people they mentioned, stories,
 opinions, questions they asked, and what the user shared. A few minutes of conversation is
 usually 10 to 30 bullets. One fact per bullet, as a full sentence from the user's point of
@@ -123,11 +139,57 @@ def split_people(segments: list[dict], llm: LLMClient, title: str | None, owner:
             name = (item.get("name") or "").strip() or None
             label = (item.get("label") or "").strip() or None
             if chunks and (name or label):
-                people.append({"name": name, "label": label, "chunks": chunks})
-        return people
+                people.append({"name": name, "label": label, "chunks": chunks, "speaker": _speaker(item.get("speaker"))})
+        return one_per_voice(people, segments)
     except (LLMUnavailable, ValueError, TypeError, AttributeError) as exc:
         logger.warning("Session split failed: %s", type(exc).__name__)
         return None
+
+
+def one_per_voice(people: list[dict], segments: list[dict]) -> list[dict]:
+    """When the transcript has voice labels: drop people without a voice of
+    their own, fold two people given the same voice into one (the second name
+    is kept as an "also heard as" note), and never keep the user.
+
+    Without a saved voice ("[You]"), if every voice became a person, one of
+    them is the user: the voice heard most (the phone is on them) is dropped."""
+    voices = {f"Speaker {n}" for s in segments for n in SPEAKER.findall(s["text"] or "")}
+    if not voices:
+        for person in people:
+            person["speaker"] = None
+        return people
+    out: list[dict] = []
+    for person in people:
+        if person["speaker"] not in voices:
+            continue
+        same = next((p for p in out if p["speaker"] == person["speaker"]), None)
+        if same is None:
+            out.append(person)
+            continue
+        same["chunks"] = sorted(set(same["chunks"]) | set(person["chunks"]))
+        if person["name"] and normalize(person["name"]) != normalize(same["name"]):
+            if same["name"]:
+                same.setdefault("also", []).append(person["name"])
+            else:
+                same["name"] = person["name"]
+    you_saved = any("[You]" in (s["text"] or "") for s in segments)
+    if not you_saved and len(voices) >= 2 and len(out) == len(voices):
+        said = words_by_voice(segments)
+        heard_most = max(voices, key=lambda v: said.get(v, 0))
+        out = [p for p in out if p["speaker"] != heard_most]
+    return out
+
+
+def words_by_voice(segments: list[dict]) -> dict[str, int]:
+    """How much each labeled voice said, in words."""
+    counts: dict[str, int] = {}
+    for s in segments:
+        for line in (s["text"] or "").splitlines():
+            m = SPEAKER.match(line)
+            if m:
+                key = f"Speaker {m.group(1)}"
+                counts[key] = counts.get(key, 0) + len(VOICE_LABEL.sub("", line).split())
+    return counts
 
 
 def person_text(segments: list[dict], chunks: list[int]) -> str:
@@ -139,9 +201,11 @@ def person_text(segments: list[dict], chunks: list[int]) -> str:
 def write_person(segments: list[dict], who: dict, llm: LLMClient, title: str | None,
                  owner: str | None) -> dict:
     """Detailed notes on one person. On failure, just who they are."""
-    base = {"name": who["name"], "label": None if who["name"] else who["label"], "met_at": title}
+    base = {"name": who["name"], "label": None if who["name"] else who["label"], "met_at": title,
+            "speaker": who.get("speaker"), "notes": [f"Unsure: also heard as {n}" for n in who.get("also", [])]}
     focus = who["name"] or who["label"]
-    header = [f"Write notes about: {focus}" + (f" ({who['label']})" if who["name"] and who["label"] else "")]
+    header = [f"Write notes about: {focus}" + (f" ({who['label']})" if who["name"] and who["label"] else "")
+              + (f". Their voice: [{who['speaker']}]" if who.get("speaker") else "")]
     if owner:
         header.append(f"The user is {owner}.")
     if title:
@@ -152,8 +216,9 @@ def write_person(segments: list[dict], who: dict, llm: LLMClient, title: str | N
         person = clean_person(ExtractedPerson.model_validate(raw))
         if person is None:
             return base
-        data = person.model_dump(mode="json")
-        data.update({k: v for k, v in base.items() if k in ("name", "label")})
+        data = strip_labels(person.model_dump(mode="json"))
+        data.update({k: v for k, v in base.items() if k in ("name", "label", "speaker")})
+        data["notes"] = list(data.get("notes") or []) + [n for n in base["notes"] if n not in (data.get("notes") or [])]
         data["met_at"] = data.get("met_at") or title
         return data
     except (LLMUnavailable, ValueError, ValidationError) as exc:
@@ -181,5 +246,6 @@ def write_notes(segments: list[dict], llm: LLMClient, today: date, title: str | 
         if future.done() and not future.exception():
             out.append(future.result())
         else:
-            out.append({"name": who["name"], "label": None if who["name"] else who["label"], "met_at": title})
+            out.append({"name": who["name"], "label": None if who["name"] else who["label"], "met_at": title,
+                        "speaker": who.get("speaker")})
     return out
