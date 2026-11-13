@@ -23,11 +23,8 @@ logger = logging.getLogger(__name__)
 
 WINDOW_CHUNKS = 5  # about a minute and a half of conversation per model read
 MAX_CHUNKS = 720  # four hours at 20-second chunks
-FULL_KEY = str(MAX_CHUNKS + 1)  # the end-of-session read of everything
+FULL_KEY = str(MAX_CHUNKS + 1)  # the end-of-session notes (see session_notes.py)
 LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes", "conversation")
-# At the end, the whole transcript is read once more in one go (when it fits),
-# so each person's notes come from the full conversation, not just pieces.
-FULL_PASS_MAX_WORDS = 24_000
 TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due")
 
 
@@ -76,15 +73,6 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
     already found earlier in the event (so later details land on the same
     person, under the same name)."""
     return _read(window_text(segments, window), llm, today, title, owner, known)
-
-
-def read_whole(segments: list[dict], llm: LLMClient, today: date, title: str | None,
-               owner: str | None = None, known: list[str] | None = None) -> list[dict] | None:
-    """Everyone in the whole session in one read, or None if it's too long or the model failed."""
-    text = full_transcript(segments)
-    if len(text.split()) > FULL_PASS_MAX_WORDS:
-        return None
-    return _read(text, llm, today, title, owner, known)
 
 
 def _read(text: str, llm: LLMClient, today: date, title: str | None,
@@ -148,15 +136,28 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
 
     People whose name was never said are kept, recognized by their label, so
     the user can name them at review. When an unnamed person later says their
-    name (same label), the name is filled in."""
+    name (same label), the name is filled in.
+
+    Once the session has ended, the end-of-session notes (FULL_KEY) decide who
+    the people are and hold their notes; the live windows only fill in fields
+    those notes left empty, and add named people the end read missed."""
+    final = windows.get(FULL_KEY)
+    keys = sorted((k for k in windows if k != FULL_KEY), key=int)
+    if final:
+        keys = [FULL_KEY] + keys
     merged: list[dict] = []
-    for key in sorted(windows, key=int):
+    from_final: set[int] = set()
+    for key in keys:
         for person in windows[key]:
             if not normalize(person.get("name")) and not normalize(person.get("label")):
                 continue
             match = next((m for m in merged if _matches(m, person)), None)
             if match is None:
+                if final and key != FULL_KEY and not normalize(person.get("name")):
+                    continue  # unnamed live guesses are covered by the end read
                 merged.append(dict(person))
+                if key == FULL_KEY:
+                    from_final.add(id(merged[-1]))
                 continue
             if person.get("name") and len(person["name"]) > len(match.get("name") or ""):
                 match["name"] = person["name"]  # the fuller name wins
@@ -164,9 +165,8 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
                 if not match.get(field) and person.get(field):
                     match[field] = person[field]
             for field in LIST_FIELDS:
-                if field == "conversation" and key == FULL_KEY and person.get(field):
-                    match[field] = list(person[field])  # the whole-session read tells it best
-                    continue
+                if field == "conversation" and id(match) in from_final:
+                    continue  # the end-of-session notes are the record
                 seen = {x.lower() for x in match.get(field) or []}
                 match[field] = list(match.get(field) or []) + [x for x in person.get(field) or [] if x.lower() not in seen]
             if not match.get("label") and person.get("label"):

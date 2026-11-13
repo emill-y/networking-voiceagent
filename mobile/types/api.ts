@@ -22,6 +22,8 @@ export type ExtractedPerson = {
   needs: string[];
   topicsDiscussed: string[];
   notes: string[];
+  // Sessions: detailed notes on the conversation ("## Section" headings, then bullets).
+  conversation?: string[];
   followUp: string | null;
   followUpDue: string | null; // "YYYY-MM-DD", resolved by the backend
 };
@@ -54,6 +56,8 @@ export type CapturedPerson = {
   interaction: {
     event: string | null;
     location: string | null;
+    // The conversation notes, one line each.
+    summary?: string | null;
     interests: string[];
     projects: string[];
     needs: string[];

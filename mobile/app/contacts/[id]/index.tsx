@@ -8,6 +8,7 @@ import { Card } from "@/components/Card";
 import { Tag } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon, type IconName } from "@/components/Icon";
+import { Notes, notesLines } from "@/components/Notes";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
 import { Txt } from "@/components/Txt";
@@ -121,10 +122,11 @@ export default function Person() {
                 </Pressable>
                 {isOpen && (
                   <View style={s.momentBody}>
+                    {moment.summary ? <Notes lines={notesLines(moment.summary)} /> : null}
                     {lines.map((line, j) => (
                       <Txt key={j} variant="small" tone={line.startsWith("Unsure:") ? "tertiary" : "default"}>{line}</Txt>
                     ))}
-                    {moment.rawTranscript ? <Txt variant="small" style={s.quote}>“{moment.rawTranscript}”</Txt> : null}
+                    {moment.rawTranscript && !moment.summary ? <Txt variant="small" style={s.quote}>“{moment.rawTranscript}”</Txt> : null}
                     <Button title="Delete this note" size="sm" variant="ghost" onPress={() => void removeMoment(moment.id)} />
                   </View>
                 )}

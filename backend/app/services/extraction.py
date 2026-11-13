@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 2
 MAX_LIST_ITEMS = 12
-MAX_CONVERSATION_ITEMS = 40
+MAX_CONVERSATION_ITEMS = 60
 MAX_TEXT_CHARS = 400
 
 SYSTEM_PROMPT = """You extract memory notes about people from a voice note.
@@ -69,6 +69,9 @@ Rules:
 - Never include the user (the person wearing the recorder; they often ask the
   questions and introduce themselves first). If you can't tell who someone is, skip them.
 - Skip people who are only mentioned and weren't there ("my professor said...").
+- Each separate conversation is a separate person. Never merge two people because
+  neither said a name. Reuse an "already met" label only when the details clearly
+  match that person.
 - Never invent a name. If someone clearly talked with the user but their name was
   never said ("hey bro", "nice to meet you"), still include them with name null and a
   label: a few words to recognize them by, from what they said ("Airbnb designer who

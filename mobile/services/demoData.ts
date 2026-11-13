@@ -253,10 +253,46 @@ let demoSession: { id: string; title: string | null; status: "recording" | "read
 // Sessions saved during this demo, newest first.
 let savedSessions: AmbientSession[] = [];
 
+// What the end-of-session read writes about each person (shown at review).
+const DEMO_NOTES: Record<string, string[]> = {
+  "Leo Tran": [
+    "## About them", "Leo founded Ramen Lab, a ramen pop-up that runs Friday nights in the Mission.",
+    "He left a line-cook job at State Bird Provisions last spring to start it.",
+    "## What they're working on", "They sell out about 120 bowls a night and want a permanent spot by summer.",
+    "He's redesigning the menu around three bowls instead of seven.",
+    "## What you talked about", "Branding: he thinks the current logo looks like a sushi place.",
+    "Instagram brings most of their customers; he posts the menu every Wednesday.",
+    "## Next steps", "Send Leo a few branding ideas by Friday.",
+  ],
+  "Ines Moreau": [
+    "## About them", "Ines is a PhD student in materials science at Stanford, in her third year.",
+    "## What they're working on", "Her lab makes solar coatings that stay efficient on curved surfaces.",
+    "They're testing them on e-bike shells with a startup in Palo Alto.",
+    "## What you talked about", "She's looking for a designer to help pitch the coatings to consumer brands.",
+    "Unsure: she may be spinning the project out of the lab next year.",
+  ],
+  "CS student building a drone startup": [
+    "## About them", "A CS junior who never said their name; they came with the Cal Hacks robotics team.",
+    "## What they're working on", "A drone delivery service for campus, starting with the library and dorms.",
+    "They have two working prototypes and a waiver from campus safety for testing.",
+    "## Their advice and ideas", "They said hardware teams should demo early, even with a broken prototype.",
+    "## Next steps", "They need a hardware co-founder; I said I'd ask around.",
+  ],
+  "Kai Johnson": [
+    "## About them", "Kai is a product designer at Airbnb on the host tools team.",
+    "## What you talked about", "Portfolio reviews: Kai said to lead with one deep case study, not five shallow ones.",
+    "We both like music; Kai plays bass in a band that plays in Oakland.",
+    "## Next steps", "Book a portfolio review with Kai next week.",
+  ],
+};
+
 function sessionPeople(chunks: number, title: string | null) {
   const latest = new Map<string, (typeof SESSION_PEOPLE)[number]["person"]>();
   for (const { at, person } of SESSION_PEOPLE) if (chunks >= at) latest.set(person.name ?? person.label ?? "", person);
-  return [...latest.values()].map((p) => ({ ...p, metAt: p.metAt ?? title }));
+  const ended = demoSession?.status === "ready";
+  return [...latest.values()].map((p) => ({
+    ...p, metAt: p.metAt ?? title, conversation: ended ? DEMO_NOTES[p.name ?? p.label ?? ""] ?? [] : [],
+  }));
 }
 
 const contactOf = (p: Person) => ({ id: p.id, name: p.name, role: p.role, company: p.company, school: p.school });
@@ -302,7 +338,7 @@ function saveDemoSession(captured: CapturedPerson[]): AmbientSession {
     added.push({ ...PEOPLE[0], id, name: c.contact.name, role: c.contact.role, company: c.contact.company, school: c.contact.school,
       major: c.contact.major, location: c.contact.location, email: null, interests: c.interaction.interests, projects: c.interaction.projects,
       needs: c.interaction.needs, topics: c.interaction.topicsDiscussed, notes: c.interaction.notes, event: sess.title ?? "Session",
-      metDaysAgo: 0, summary: "", said: "" });
+      metDaysAgo: 0, summary: c.interaction.summary ?? "", said: "" });
     return id;
   });
   people = [...added, ...people];

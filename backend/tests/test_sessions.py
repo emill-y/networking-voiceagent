@@ -35,6 +35,8 @@ class ConversationLLM:
         self.calls = []
 
     def chat_json(self, system, user, schema):
+        if system.startswith("You read the transcript of a networking event"):
+            return json.dumps({"people": []})  # the end read finds nothing: live results stay
         self.calls.append(user)
         assert "ambient recording" in system.lower()
         # Context lines (event, who the user is, people already met) aren't speech.
@@ -301,3 +303,59 @@ def test_conversation_notes_are_saved_under_the_person(session_client):
     saved = client.post(f"/sessions/{session['id']}/save", json={"people": [person]}).json()
     contact = client.get(f"/contacts/{saved['contacts'][0]['id']}").json()
     assert contact["interactions"][0]["summary"] == "She studies bioengineering at Berkeley.\nShe wants to get coffee."
+
+
+def test_the_end_read_tells_people_apart_and_writes_detailed_notes():
+    from app.services import session_notes
+
+    segments = [
+        {"seq": 0, "text": "hey bro what are you working on", "seconds": 20},
+        {"seq": 1, "text": "I'm building a drone delivery startup for campus, we need hardware people", "seconds": 20},
+        {"seq": 2, "text": "nice to meet you, I'm at Airbnb doing design, I climb at Mission Cliffs", "seconds": 20},
+        {"seq": 3, "text": "you should come climbing Thursday", "seconds": 20},
+    ]
+
+    class Model:
+        def __init__(self):
+            self.messages = []
+
+        def chat_json(self, system, user, schema):
+            self.messages.append(user)
+            if system == session_notes.SPLIT_PROMPT:
+                return json.dumps({"people": [
+                    {"name": None, "label": "Drone startup founder", "chunks": [0, 1]},
+                    {"name": None, "label": "Airbnb designer who climbs", "chunks": [2, 3]},
+                ]})
+            if "Drone startup founder" in user.splitlines()[0]:
+                return json.dumps({"projects": ["drone delivery startup"], "needs": ["hardware people"], "conversation": [
+                    "## What they're working on", "They're building a drone delivery startup for campus.",
+                    "## Next steps", "They need hardware people."]})
+            return json.dumps({"company": "Airbnb", "role": "Designer", "interests": ["climbing"], "conversation": [
+                "## About them", "They design at Airbnb.", "They climb at Mission Cliffs.",
+                "## Next steps", "They invited me climbing on Thursday."]})
+
+    model = Model()
+    notes = session_notes.write_notes(segments, model, None, "Mixer", "Maya", [])
+    assert [(p["label"], p.get("company")) for p in notes] == [("Drone startup founder", None), ("Airbnb designer who climbs", "Airbnb")]
+    assert notes[1]["conversation"][0] == "## About them"
+    assert "[#2]" in model.messages[0]  # the split sees chunk numbers
+    # Each person's notes come from just their part of the transcript (plus a chunk either side).
+    founder_text = next(m for m in model.messages[1:] if "Drone startup founder" in m)
+    assert "drone delivery" in founder_text and "Thursday" not in founder_text
+
+    # The end read decides who's who; a live guess that lumped them together is dropped.
+    windows = {"0": [{"name": None, "label": "Someone from Mixer", "interests": ["drones"]}], svc.FULL_KEY: notes}
+    people = svc.merge_people(windows, "Mixer")
+    assert [p.label for p in people] == ["Drone startup founder", "Airbnb designer who climbs"]
+
+
+def test_the_end_read_gives_up_gracefully():
+    from app.services import session_notes
+
+    class Down:
+        def chat_json(self, *a):
+            raise LLMUnavailable("down")
+
+    segments = [{"seq": 0, "text": "hello there I'm Sarah and I study chemistry at Berkeley nice to meet you", "seconds": 20}]
+    assert session_notes.write_notes(segments, Down(), None, None, None, []) is None
+    assert session_notes.write_notes([{"seq": 0, "text": "hi", "seconds": 1}], Down(), None, None, None, []) is None

@@ -29,6 +29,7 @@ from app.routes.transcribe import transcribe_upload
 from app.schemas.contacts import CaptureRequest
 from app.schemas.sessions import SessionContact, SessionCreate, SessionCreated, SessionFinished, SessionOut, SessionSave
 from app.services.captures import save_capture
+from app.services import session_notes
 from app.services import sessions as svc
 from app.services.llm import LLMClient, get_llm_client
 from app.services.transcription import Transcriber, get_transcriber
@@ -154,11 +155,12 @@ def finish(
                                     row["owner_name"], svc.known_people(windows, skip=window))
             if found is not None:
                 windows[str(window)] = found
-    # One last read of the whole session, so everyone's notes cover the full
-    # conversation (windows only ever see a minute or two at a time).
-    whole = svc.read_whole(segments, llm, date.today(), row["title"], row["owner_name"], svc.known_people(windows))
-    if whole:
-        windows[svc.FULL_KEY] = whole
+    # The end-of-session read: tell everyone apart and write detailed notes on
+    # each (the live windows only ever see a minute or two at a time).
+    notes = session_notes.write_notes(segments, llm, date.today(), row["title"], row["owner_name"],
+                                      svc.known_people(windows))
+    if notes:
+        windows[svc.FULL_KEY] = notes
     # Nobody found, but there was a conversation: keep it rather than lose it.
     if not svc.merge_people(windows, row["title"]):
         fallback = svc.conversation_fallback(segments, llm, row["title"])
