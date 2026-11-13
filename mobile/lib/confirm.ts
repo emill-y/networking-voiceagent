@@ -1,8 +1,24 @@
 import { Alert, Platform } from "react-native";
 
-// Ask before destructive actions. Alert.alert has no web implementation,
-// so the browser's confirm dialog is used there.
+// Ask before destructive actions: confirm("Delete Maya?", "…", "Delete").
+// The app's own pop-up (components/ConfirmDialog.tsx, mounted in the root
+// layout) answers it. Before that's mounted, the platform's dialog is used.
+export type ConfirmRequest = { title: string; message: string; action: string; resolve: (yes: boolean) => void };
+
+let show: ((request: ConfirmRequest) => void) | null = null;
+
+export function setConfirmHandler(handler: ((request: ConfirmRequest) => void) | null): () => void {
+  show = handler;
+  return () => {
+    if (show === handler) show = null;
+  };
+}
+
 export function confirm(title: string, message: string, action: string): Promise<boolean> {
+  if (show) {
+    const open = show;
+    return new Promise((resolve) => open({ title, message, action, resolve }));
+  }
   if (Platform.OS === "web") {
     return Promise.resolve(window.confirm(`${title}\n\n${message}`));
   }

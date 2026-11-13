@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { EmptyState } from "@/components/EmptyState";
 import { Sidebar } from "@/components/Sidebar";
 import { showsTabBar, TabBar } from "@/components/TabBar";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { ToastProvider } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
 import { AccountProvider } from "@/hooks/useAccount";
@@ -42,6 +43,7 @@ function Root() {
         <AccountProvider>
           <ToastProvider>
             <RootNavigator />
+            <ConfirmDialog />
           </ToastProvider>
         </AccountProvider>
       </SessionProvider>
