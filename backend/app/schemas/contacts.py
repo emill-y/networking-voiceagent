@@ -11,6 +11,7 @@ Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max
 ShortText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=400)]
 Item = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=400)]
 Items = Annotated[list[Item], Field(max_length=30)]
+LongText = Annotated[str, StringConstraints(strip_whitespace=True, max_length=12_000)]
 FollowUpStatus = Literal["open", "done", "dismissed"]
 
 
@@ -59,6 +60,8 @@ class ContactUpdate(_BlankToNone):
 
 class InteractionFields(_BlankToNone):
     event: ShortText | None = None
+    # Sessions: the conversation notes, one sentence per line.
+    summary: LongText | None = None
     location: ShortText | None = None
     interests: Items = Field(default_factory=list)
     projects: Items = Field(default_factory=list)

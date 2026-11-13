@@ -33,6 +33,7 @@ from app.schemas.sessions import (
     SessionContact, SessionCreate, SessionCreated, SessionFinished, SessionOut, SessionSave, SessionUpdate,
 )
 from app.services.captures import save_capture
+from app.services import session_notes
 from app.services import sessions as svc
 from app.services.diarization import Diarizer, get_diarizer
 from app.services.llm import LLMClient, get_llm_client
@@ -133,7 +134,11 @@ def upload_chunk(
         raise HTTPException(status.HTTP_409_CONFLICT, "This session has ended.")
     ai_limiter.check(row["user_id"])
     # Transcribe (and tell voices apart) before locking the row: other chunks can upload meanwhile.
-    result, heard = transcribe_and_diarize(audio, transcriber, diarizer)
+    # Speech-to-text gets context (the event, names heard, the previous sentence) for spelling.
+    windows_so_far = row["windows"] or {}
+    names = [p.name for p in svc.merge_people(windows_so_far, None) if p.name]
+    prompt = svc.transcription_prompt(row["segments"] or [], seq, row["title"], names)
+    result, heard = transcribe_and_diarize(audio, transcriber, diarizer, prompt)
     row = repo.get(conn, session_id, lock=True)
     saved_voice = voiceprints.get(conn, row["user_id"]) if heard is not None else None
     text, voices = svc.label_chunk(result, heard, row["voices"] or [], saved_voice)
@@ -166,6 +171,12 @@ def finish(
                                     row["owner_name"], svc.known_people(windows, skip=window), row["voices"] or [])
             if found is not None:
                 windows[str(window)] = found
+    # The end-of-session read: tell everyone apart and write detailed notes on
+    # each (the live windows only ever see a minute or two at a time).
+    notes = session_notes.write_notes(segments, llm, date.today(), row["title"], row["owner_name"],
+                                      svc.known_people(windows))
+    if notes:
+        windows[svc.FULL_KEY] = notes
     # Nobody found, but there was a conversation: keep it rather than lose it.
     if not svc.merge_people(windows, row["title"]):
         fallback = svc.conversation_fallback(segments, llm, row["title"])

@@ -20,19 +20,22 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-def transcribe_upload(audio: UploadFile, transcriber: Transcriber):
+def transcribe_upload(audio: UploadFile, transcriber: Transcriber, prompt: str | None = None):
     """Save, transcribe and delete one uploaded recording."""
-    return transcribe_and_diarize(audio, transcriber, None)[0]
+    return transcribe_and_diarize(audio, transcriber, None, prompt)[0]
 
 
-def transcribe_and_diarize(audio: UploadFile, transcriber: Transcriber, diarizer: Diarizer | None):
+def transcribe_and_diarize(audio: UploadFile, transcriber: Transcriber, diarizer: Diarizer | None,
+                           prompt: str | None = None):
     """(transcript, voices) for one recording. voices is None when there's no
-    diarizer or it failed: the transcript is still used, just without labels."""
+    diarizer or it failed: the transcript is still used, just without labels.
+    prompt is optional context for speech-to-text (names, the previous sentence)."""
     temp_path = audio_upload.save_to_temp(audio, get_settings().max_upload_bytes)
     try:
         logger.info("Received %.1f KB of audio; transcribing", os.path.getsize(temp_path) / 1024)
         try:
-            result = transcriber.transcribe(temp_path)
+            # Some transcribers (and test fakes) take no prompt; only pass one when there is one.
+            result = transcriber.transcribe(temp_path, prompt=prompt) if prompt else transcriber.transcribe(temp_path)
         except AudioDecodeError as exc:
             raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
         except TranscriptionUnavailable as exc:

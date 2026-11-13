@@ -7,6 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { Input } from "@/components/Input";
+import { Notes, notesLines } from "@/components/Notes";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
 import { SessionTitle } from "@/components/SessionTitle";
@@ -180,6 +181,8 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
   const [open, setOpen] = useState(!draft.name.trim() && !draft.label.trim());
   // Someone whose name wasn't heard: ask for it right on the card.
   const [unnamed] = useState(!draft.name.trim() && !!draft.label.trim());
+  const [allNotes, setAllNotes] = useState(false);
+  const notes = notesLines(draft.conversation);
   const set = (field: keyof Draft) => (value: string) => onChange((d) => ({ ...d, [field]: value }));
   const work = draft.role && draft.company ? `${draft.role} at ${draft.company}` : draft.role || draft.company;
   const firstLine = (v: string) => v.split("\n")[0];
@@ -214,6 +217,17 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
         </View>
       )}
 
+      {draft.include && !open && notes.length > 0 && (
+        <View style={s.notes}>
+          <Notes lines={notes} limit={allNotes ? undefined : 8} />
+          {notes.length > 8 && (
+            <Pressable onPress={() => setAllNotes((v) => !v)} accessibilityRole="button" hitSlop={8}>
+              <Txt variant="small" tone="secondary" weight="500">{allNotes ? "Show less" : `Show all ${notes.length} notes`}</Txt>
+            </Pressable>
+          )}
+        </View>
+      )}
+
       {draft.include && draft.candidates.length > 0 && (
         <View style={s.match}>
           <Txt variant="small" tone="default" weight="500">Already in your network?</Txt>
@@ -243,6 +257,8 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
           <Input label="Name" value={draft.name} onChangeText={set("name")} autoCapitalize="words"
             placeholder={draft.label ? "Add it now or later" : "Or a few words to recognize them by"} />
           {unnamed && <Input label="Recognize them by" value={draft.label} onChangeText={set("label")} />}
+          <Input label="Conversation notes" value={draft.conversation} onChangeText={set("conversation")} multiline
+            hint="One line each. Lines starting with ## are headings." style={{ minHeight: 160 }} />
           {FIELDS.map((f) => (
             <Input key={f.key} label={f.label} value={draft[f.key]} onChangeText={set(f.key)} multiline={f.multiline}
               hint={f.multiline ? "One per line" : undefined} />
@@ -284,6 +300,7 @@ const useStyles = makeStyles(({ colors, shadow }) =>
     choice: { paddingVertical: space.xs, paddingHorizontal: space.sm, borderRadius: radius.sm, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
     choiceOn: { borderColor: colors.text },
     fields: { gap: space.sm, marginLeft: 34 },
+    notes: { gap: space.xs, marginLeft: 34, paddingTop: space.xxs },
     footer: {
       position: "absolute",
       left: 0,

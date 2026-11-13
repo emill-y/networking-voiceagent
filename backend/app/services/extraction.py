@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 MAX_ATTEMPTS = 2
 MAX_LIST_ITEMS = 12
+MAX_CONVERSATION_ITEMS = 60
 MAX_TEXT_CHARS = 400
 
 # ---------------------------------------------------------------------------
@@ -80,8 +81,9 @@ Result: {"people":[{"name":"Priya Shah","company":"Figma","role":"Software engin
 
 # Ambient sessions: a recording of the conversations themselves, not a note.
 AMBIENT_PROMPT = """You extract memory notes about people from an ambient recording of the
-user at a networking event. The transcript has several speakers and no speaker labels,
-and may include background noise or fragments. Return JSON only.
+user at a networking event. The transcript has several speakers, often with voice labels
+("[Speaker 2]", "[You]"; see below), and may include background noise or fragments.
+Return JSON only.
 
 Who counts as a person (most important; a wrong person is worse than a missing one):
 - Only add someone who was there and spoke with the user in this recording. Good
@@ -121,6 +123,9 @@ Rules:
   says about themselves ("I study chemistry at Berkeley", "I work at Figma").
 - Never include the user (the person wearing the recorder; they often ask the
   questions and introduce themselves first). If you can't tell who someone is, skip them.
+- Each separate conversation is a separate person. Never merge two people because
+  neither said a name. Reuse an "already met" label only when the details clearly
+  match that person.
 - Never invent a name. If someone clearly talked with the user but their name was
   never said ("hey bro", "nice to meet you"), still include them with name null and a
   label: a few words to recognize them by, from what they said ("Airbnb designer who
@@ -134,12 +139,20 @@ Rules:
 - followUp is a concrete next step that was agreed ("let's get coffee next week",
   "send me your resume"), written as the user's action. Else null.
 - Keep list items short, without duplicates. Use null and [] for unknowns.
+- Be thorough: the user relies on these notes instead of their memory. Missing a
+  detail is worse than a long note. Fill every field that was stated.
+- conversation is the record of what was said with that person, in order, as full
+  sentences that keep the specifics: numbers, places, companies, classes, products,
+  people they mentioned, stories, opinions, advice, plans ("She's a junior in IEOR
+  and interned at Magic Hour last summer on their video pipeline." "They argued the
+  Bay Area is better than NYC for hardware startups."). Write it from the user's
+  point of view ("I", "they"), never copying voice labels like "[Speaker 2]". Several
+  sentences for any real conversation.
 - Do not record sensitive traits (health, religion, sexuality, politics, ethnicity).
 - Lines in parentheses at the top are context, not speech: the event name, who the
   user is (never include them, even if their name is spoken), and people already met
   earlier in the event. When a person from that list appears again, reuse their exact
-  name (or, for "unnamed" people, their exact label) and add only the new details from
-  this part. If an unnamed person from that list now says their name, give the name and
+  name (or, for "unnamed" people, their exact label) and add the details from this part. If an unnamed person from that list now says their name, give the name and
   keep the same label.
 - Speech recognition misspells names. If a name here is clearly the same person as one
   already met (same first name, same company or school), use the earlier spelling.
@@ -173,7 +186,7 @@ def _clean_text(value: str | None) -> str | None:
     return text[:MAX_TEXT_CHARS]
 
 
-def _clean_list(values: list[str]) -> list[str]:
+def _clean_list(values: list[str], limit: int = MAX_LIST_ITEMS) -> list[str]:
     seen: set[str] = set()
     cleaned: list[str] = []
     for value in values:
@@ -181,7 +194,7 @@ def _clean_list(values: list[str]) -> list[str]:
         if text and text.lower() not in seen:
             seen.add(text.lower())
             cleaned.append(text)
-    return cleaned[:MAX_LIST_ITEMS]
+    return cleaned[:limit]
 
 
 def clean_person(person: ExtractedPerson) -> ExtractedPerson | None:
@@ -192,7 +205,7 @@ def clean_person(person: ExtractedPerson) -> ExtractedPerson | None:
     data = {}
     for field_name, value in person:
         if isinstance(value, list):
-            data[field_name] = _clean_list(value)
+            data[field_name] = _clean_list(value, MAX_CONVERSATION_ITEMS if field_name == "conversation" else MAX_LIST_ITEMS)
         elif isinstance(value, str) or value is None:
             data[field_name] = _clean_text(value)
         else:

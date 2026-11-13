@@ -23,7 +23,7 @@ SPEECH = {
 
 
 class ChunkTranscriber:
-    def transcribe(self, path):
+    def transcribe(self, path, prompt=None):
         with open(path, "rb") as f:
             data = f.read()
         return Transcript(SPEECH.get(data, ""), "en", 30.0, 5)
@@ -39,6 +39,8 @@ class ConversationLLM:
         self.calls.append(user)
         if "title" in schema["properties"]:  # naming an untitled session
             return json.dumps({"title": "robotics startup chat"})
+        if system.startswith("You read the transcript of a networking event"):
+            return json.dumps({"people": []})  # the end read finds nothing: live results stay
         assert "ambient recording" in system.lower()
         # Context lines (event, who the user is, people already met) aren't speech.
         user = "\n".join(line for line in user.splitlines() if not line.startswith("("))
@@ -369,7 +371,7 @@ FRIEND_TALK = {
 
 
 class PiecesTranscriber:
-    def transcribe(self, path):
+    def transcribe(self, path, prompt=None):
         with open(path, "rb") as f:
             pieces = FRIEND_TALK.get(f.read(), [])
         return Transcript(" ".join(p[2] for p in pieces), "en", 20.0, 5, tuple(pieces))
@@ -419,3 +421,164 @@ def test_one_voice_is_one_person_and_names_without_a_voice_are_dropped(session_c
     # Voiceprints are gone once the session ends.
     with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as conn:
         assert conn.execute("select voices from ambient_sessions where id = %s", (session["id"],)).fetchone()[0] == []
+
+
+# ---------- End-of-session notes (from main) ----------
+
+def test_the_whole_session_read_gives_each_persons_conversation():
+    windows = {
+        "0": [{"name": "Sarah Kim", "conversation": ["She studies bioengineering."]}],
+        "1": [{"name": "Sarah", "conversation": ["She climbs on weekends."], "interests": ["climbing"]}],
+        svc.FULL_KEY: [{"name": "Sarah Kim", "conversation": [
+            "She studies bioengineering at Berkeley.", "She climbs at Mission Cliffs on weekends."]}],
+    }
+    sarah = svc.merge_people(windows, None)[0]
+    assert sarah.conversation == ["She studies bioengineering at Berkeley.", "She climbs at Mission Cliffs on weekends."]
+    assert sarah.interests == ["climbing"]
+    # Without the full read, every window's notes are kept, in order.
+    del windows[svc.FULL_KEY]
+    assert svc.merge_people(windows, None)[0].conversation == ["She studies bioengineering.", "She climbs on weekends."]
+
+
+def test_speech_to_text_gets_names_and_the_previous_sentence():
+    segments = [{"seq": 0, "text": "so I've been working on protein", "seconds": 20}]
+    prompt = svc.transcription_prompt(segments, 1, "Cal Hacks", ["Sarah Kim", "Jason Chen"])
+    assert prompt == "Cal Hacks. Sarah Kim, Jason Chen. so I've been working on protein"
+    assert svc.transcription_prompt([], 0, None, []) is None
+
+
+def test_conversation_notes_are_saved_under_the_person(session_client):
+    client = session_client
+    session = client.post("/sessions", json={"title": "Mixer"}).json()
+    upload(client, session["id"], 0, b"c0")
+    client.post(f"/sessions/{session['id']}/finish")
+    person = {"contactId": None, "contact": {"name": "Sarah Kim"},
+              "interaction": {"event": "Mixer", "summary": "She studies bioengineering at Berkeley.\nShe wants to get coffee."}}
+    saved = client.post(f"/sessions/{session['id']}/save", json={"people": [person]}).json()
+    contact = client.get(f"/contacts/{saved['contacts'][0]['id']}").json()
+    assert contact["interactions"][0]["summary"] == "She studies bioengineering at Berkeley.\nShe wants to get coffee."
+
+
+def test_the_end_read_tells_people_apart_and_writes_detailed_notes():
+    from app.services import session_notes
+
+    segments = [
+        {"seq": 0, "text": "hey bro what are you working on", "seconds": 20},
+        {"seq": 1, "text": "I'm building a drone delivery startup for campus, we need hardware people", "seconds": 20},
+        {"seq": 2, "text": "nice to meet you, I'm at Airbnb doing design, I climb at Mission Cliffs", "seconds": 20},
+        {"seq": 3, "text": "you should come climbing Thursday", "seconds": 20},
+    ]
+
+    class Model:
+        def __init__(self):
+            self.messages = []
+
+        def chat_json(self, system, user, schema):
+            self.messages.append(user)
+            if system == session_notes.SPLIT_PROMPT:
+                return json.dumps({"people": [
+                    {"name": None, "label": "Drone startup founder", "chunks": [0, 1]},
+                    {"name": None, "label": "Airbnb designer who climbs", "chunks": [2, 3]},
+                ]})
+            if "Drone startup founder" in user.splitlines()[0]:
+                return json.dumps({"projects": ["drone delivery startup"], "needs": ["hardware people"], "conversation": [
+                    "## What they're working on", "They're building a drone delivery startup for campus.",
+                    "## Next steps", "They need hardware people."]})
+            return json.dumps({"company": "Airbnb", "role": "Designer", "interests": ["climbing"], "conversation": [
+                "## About them", "They design at Airbnb.", "They climb at Mission Cliffs.",
+                "## Next steps", "They invited me climbing on Thursday."]})
+
+    model = Model()
+    notes = session_notes.write_notes(segments, model, None, "Mixer", "Maya", [])
+    assert [(p["label"], p.get("company")) for p in notes] == [("Drone startup founder", None), ("Airbnb designer who climbs", "Airbnb")]
+    assert notes[1]["conversation"][0] == "## About them"
+    assert "[#2]" in model.messages[0]  # the split sees chunk numbers
+    # Each person's notes come from just their part of the transcript (plus a chunk either side).
+    founder_text = next(m for m in model.messages[1:] if "Drone startup founder" in m)
+    assert "drone delivery" in founder_text and "Thursday" not in founder_text
+
+    # The end read decides who's who; a live guess that lumped them together is dropped.
+    windows = {"0": [{"name": None, "label": "Someone from Mixer", "interests": ["drones"]}], svc.FULL_KEY: notes}
+    people = svc.merge_people(windows, "Mixer")
+    assert [p.label for p in people] == ["Drone startup founder", "Airbnb designer who climbs"]
+
+
+def test_the_end_read_gives_up_gracefully():
+    from app.services import session_notes
+
+    class Down:
+        def chat_json(self, *a):
+            raise LLMUnavailable("down")
+
+    segments = [{"seq": 0, "text": "hello there I'm Sarah and I study chemistry at Berkeley nice to meet you", "seconds": 20}]
+    assert session_notes.write_notes(segments, Down(), None, None, None, []) is None
+    assert session_notes.write_notes([{"seq": 0, "text": "hi", "seconds": 1}], Down(), None, None, None, []) is None
+
+
+def test_the_end_read_keeps_one_person_per_voice():
+    from app.services import session_notes
+
+    segments = [
+        {"seq": 0, "text": "[You] hey how was your week", "seconds": 20},
+        {"seq": 1, "text": "[Speaker 1] good I'm Jun, my sister Lien is visiting and Lucida says hi", "seconds": 20},
+        {"seq": 2, "text": "[Speaker 1] yeah June is fine too, we're going to Hawaii in December", "seconds": 20},
+    ]
+
+    class Model:
+        def __init__(self):
+            self.messages = []
+
+        def chat_json(self, system, user, schema):
+            self.messages.append(user)
+            if system == session_notes.SPLIT_PROMPT:
+                return json.dumps({"people": [
+                    {"name": "Jun", "label": "Friend", "chunks": [1], "speaker": "Speaker 1"},
+                    {"name": "Lien", "label": "Jun's sister", "chunks": [1], "speaker": None},   # only talked about
+                    {"name": "Lucida", "label": "Friend", "chunks": [1], "speaker": "Speaker 4"},  # no such voice
+                    {"name": "June", "label": "Friend", "chunks": [2], "speaker": "speaker 1"},  # same voice as Jun
+                ]})
+            return json.dumps({"conversation": ["## Their plans", "Hawaii trip in December."]})
+
+    model = Model()
+    notes = session_notes.write_notes(segments, model, None, None, None, [])
+    assert [(p["name"], p["speaker"]) for p in notes] == [("Jun", "Speaker 1")]
+    assert "Unsure: also heard as June" in notes[0]["notes"]
+    assert "[Speaker 1]" in model.messages[0]  # the split sees the voice labels
+    assert "Their voice: [Speaker 1]" in model.messages[1]
+    assert session_notes.one_per_voice([{"name": "Ann", "label": "x", "chunks": [0], "speaker": "Speaker 2"}],
+                                       [{"seq": 0, "text": "no labels here", "seconds": 5}])[0]["speaker"] is None
+
+
+def test_without_a_saved_voice_the_end_read_leaves_out_the_voice_heard_most():
+    from app.services import session_notes
+
+    segments = [
+        {"seq": 0, "text": "[Speaker 2] hi I'm Maya I just moved from Seattle\n[Speaker 1] nice to meet you Maya I'm Tom "
+                           "my sister Lucy is a designer and my friend Jun says learn Figma", "seconds": 20},
+        {"seq": 1, "text": "[Speaker 1] are you going anywhere for the holidays we're going to Hawaii in December", "seconds": 20},
+    ]
+
+    class Model:
+        def chat_json(self, system, user, schema):
+            if system == session_notes.SPLIT_PROMPT:
+                return json.dumps({"people": [
+                    {"name": "Maya", "label": "Moved from Seattle", "chunks": [0], "speaker": "Speaker 2"},
+                    {"name": "Tom", "label": "Hawaii trip", "chunks": [0, 1], "speaker": "Speaker 1"},
+                ]})
+            return json.dumps({"conversation": ["## About them", "[Speaker 2] She just moved from Seattle."]})
+
+    notes = session_notes.write_notes(segments, Model(), None, None, None, [])
+    # Two voices, two people found: one of them is the user (Tom, heard most).
+    assert [p["name"] for p in notes] == ["Maya"]
+    # Voice labels never reach the notes.
+    assert notes[0]["conversation"] == ["## About them", "She just moved from Seattle."]
+
+    # A live read that found Tom doesn't bring him back once the end read left his voice out.
+    windows = {"0": [{"name": "Tom", "speaker": "Speaker 1"}, {"name": "Maya", "speaker": "Speaker 2"}], svc.FULL_KEY: notes}
+    assert [p.name for p in svc.merge_people(windows, None)] == ["Maya"]
+
+
+def test_live_notes_stand_in_when_the_end_notes_failed():
+    windows = {"0": [{"name": "Maya", "conversation": ["She just moved from Seattle."]}],
+               svc.FULL_KEY: [{"name": "Maya", "label": None}]}  # notes for her couldn't be written
+    assert svc.merge_people(windows, None)[0].conversation == ["She just moved from Seattle."]

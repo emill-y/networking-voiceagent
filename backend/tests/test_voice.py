@@ -93,7 +93,7 @@ def test_without_voice_recognition_the_server_says_so(db_client):
 
 
 class ChatTranscriber:
-    def transcribe(self, path):
+    def transcribe(self, path, prompt=None):
         pieces = ((0.0, 10.0, "hi I'm Stephanie what do you do"), (10.0, 20.0, "I'm Jun I design games for Riot"))
         return Transcript(" ".join(p[2] for p in pieces), "en", 20.0, 5, pieces)
 

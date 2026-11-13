@@ -20,6 +20,8 @@ class ExtractedPerson(ApiModel):
     needs: list[str] = Field(default_factory=list)
     topics_discussed: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+    # Sessions: the conversation with this person, as detailed notes in order.
+    conversation: list[str] = Field(default_factory=list)
     follow_up: str | None = None
     # Resolved by the backend from follow_up's wording, not by the model.
     follow_up_due: date | None = None
@@ -80,11 +82,16 @@ EXTRACTION_JSON_SCHEMA: dict = {
                     "needs": _string_list("What they are looking for."),
                     "topicsDiscussed": _string_list("Topics the user and this person talked about."),
                     "notes": _string_list("Other details worth remembering."),
+                    "conversation": _string_list(
+                        "Detailed notes of the whole conversation with this person, in order, one full sentence each: "
+                        "what they said, what the user said, stories, specifics (numbers, places, products, classes, "
+                        "people they mentioned), opinions and plans. Empty for voice notes."
+                    ),
                     "followUp": _nullable_string("What the user intends to do next with them."),
                 },
                 "required": [
                     "name", "label", "company", "role", "school", "major", "metAt", "location",
-                    "interests", "projects", "needs", "topicsDiscussed", "notes", "followUp",
+                    "interests", "projects", "needs", "topicsDiscussed", "notes", "conversation", "followUp",
                 ],
             },
         }

@@ -9,6 +9,7 @@ import { Tag } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon, type IconName } from "@/components/Icon";
 import { MoreMenu } from "@/components/MoreMenu";
+import { Notes, notesLines } from "@/components/Notes";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
 import { Txt } from "@/components/Txt";
@@ -20,6 +21,9 @@ import { conversationSections, plansWith, subtitle } from "@/lib/memory";
 import { makeStyles, space, useTheme } from "@/lib/theme";
 import { deleteContact, deleteInteraction, getContact } from "@/services/nomi";
 import type { ContactDetail } from "@/types/api";
+
+// Template sections that session notes don't already have.
+const ONLY_TEMPLATE = new Set(["met", "plans", "ask"]);
 
 export default function Person() {
   const s = useStyles();
@@ -121,7 +125,10 @@ export default function Person() {
         ) : (
           person.interactions.map((moment, i) => {
             const last = i === person.interactions.length - 1;
-            const sections = conversationSections(moment);
+            // Session notes (## headings and bullets) are the main record when there are any;
+            // the template then adds only what they don't cover.
+            const notes = notesLines(moment.summary);
+            const sections = conversationSections(moment).filter((x) => !notes.length || ONLY_TEMPLATE.has(x.key));
             const showTranscript = expanded === moment.id;
             return (
               <View key={moment.id} style={s.event}>
@@ -132,7 +139,8 @@ export default function Person() {
                 <View style={[s.eventBody, !last && s.eventGap]}>
                   <Txt variant="label">{formatShortDate(moment.interactionDate)}</Txt>
                   <Txt variant="caption">{formatRelative(moment.interactionDate)}</Txt>
-                  {sections.length === 0 && <Txt variant="small" tone="tertiary">Nothing noted from this conversation.</Txt>}
+                  {sections.length === 0 && notes.length === 0 && <Txt variant="small" tone="tertiary">Nothing noted from this conversation.</Txt>}
+                  {notes.length > 0 && <View style={s.section}><Notes lines={notes} /></View>}
                   {sections.map((section) => (
                     <View key={section.key} style={s.section}>
                       <Txt variant="caption" weight="600" style={s.sectionTitle}>{section.title}</Txt>

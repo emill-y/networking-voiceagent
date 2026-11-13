@@ -31,9 +31,12 @@ logger = logging.getLogger(__name__)
 
 WINDOW_CHUNKS = 5  # about a minute and a half of conversation per model read
 MAX_CHUNKS = 720  # four hours at 20-second chunks
-LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes")
+FULL_KEY = str(MAX_CHUNKS + 1)  # the end-of-session notes (see session_notes.py)
+LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes", "conversation")
 TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due", "speaker")
 SPEAKER = re.compile(r"\[Speaker (\d+)\]")
+# Any voice label at the start of a line: "[Speaker 2] " or "[You] ".
+VOICE_LABEL = re.compile(r"\[(?:Speaker \d+|You)\]\s*")
 # Whisper sometimes writes a few words when there's only silence or noise. If
 # voice analysis heard no one at all, text this short is treated as made up.
 MAX_UNHEARD_WORDS = 12
@@ -64,6 +67,14 @@ def _speaker(value) -> str | None:
     """'Speaker 2', 'speaker 2', '2', '[Speaker 2]' -> 'Speaker 2'."""
     digits = re.search(r"\d+", str(value or ""))
     return f"Speaker {int(digits.group())}" if digits else None
+
+
+def strip_labels(person: dict) -> dict:
+    """Voice labels are for the model to read, not for the notes it writes."""
+    for field in ("conversation", "notes", "topics_discussed"):
+        if person.get(field):
+            person[field] = [t for t in (" ".join(VOICE_LABEL.sub("", x).split()) for x in person[field]) if t]
+    return person
 
 
 def _seconds(value: float) -> str:
@@ -115,7 +126,11 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
     The model is told who the user is (so they're never added) and who was
     already found earlier in the event (so later details land on the same
     person, under the same name)."""
-    text = window_text(segments, window)
+    return _read(window_text(segments, window), llm, today, title, owner, known, voices)
+
+
+def _read(text: str, llm: LLMClient, today: date, title: str | None,
+          owner: str | None, known: list[str] | None, voices: list[dict] | None = None) -> list[dict] | None:
     if len(text.split()) < 8:
         return []
     header = []
@@ -141,7 +156,7 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
     except (LLMUnavailable, ExtractionFailed) as exc:
         logger.warning("Ambient extraction failed for a window: %s", type(exc).__name__)
         return None
-    people = [p.model_dump(mode="json") for p in result.people]
+    people = [strip_labels(p.model_dump(mode="json")) for p in result.people]
     labels = {f"Speaker {n}" for n in SPEAKER.findall(text)}
     if labels:
         # Voices were labeled: only people with a voice in this part count.
@@ -192,15 +207,33 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
 
     People whose name was never said are kept, recognized by their label, so
     the user can name them at review. When an unnamed person later says their
-    name (same label), the name is filled in."""
+    name (same label), the name is filled in.
+
+    Once the session has ended, the end-of-session notes (FULL_KEY) decide who
+    the people are and hold their notes; the live windows only fill in fields
+    those notes left empty, and add named people the end read missed."""
+    final = windows.get(FULL_KEY)
+    # With voice labels, the end read decides which voices are people; a voice it
+    # left out (the user, or no one real) doesn't come back from a live read.
+    final_voices = {p.get("speaker") for p in final or [] if p.get("speaker")}
+    keys = sorted((k for k in windows if k != FULL_KEY), key=int)
+    if final:
+        keys = [FULL_KEY] + keys
     merged: list[dict] = []
-    for key in sorted(windows, key=int):
+    from_final: set[int] = set()
+    for key in keys:
         for person in windows[key]:
             if not normalize(person.get("name")) and not normalize(person.get("label")):
                 continue
+            if final_voices and key != FULL_KEY and person.get("speaker") and person["speaker"] not in final_voices:
+                continue
             match = next((m for m in merged if _matches(m, person)), None)
             if match is None:
+                if final and key != FULL_KEY and not normalize(person.get("name")):
+                    continue  # unnamed live guesses are covered by the end read
                 merged.append(dict(person))
+                if key == FULL_KEY:
+                    from_final.add(id(merged[-1]))
                 continue
             new, old = normalize(person.get("name")), normalize(match.get("name"))
             if new and old and not _same_person(new, old):
@@ -214,6 +247,8 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
                 if not match.get(field) and person.get(field):
                     match[field] = person[field]
             for field in LIST_FIELDS:
+                if field == "conversation" and id(match) in from_final and match.get("conversation"):
+                    continue  # the end-of-session notes are the record (unless writing them failed)
                 seen = {x.lower() for x in match.get(field) or []}
                 match[field] = list(match.get(field) or []) + [x for x in person.get(field) or [] if x.lower() not in seen]
             if not match.get("label") and person.get("label"):
@@ -296,3 +331,21 @@ def conversation_fallback(segments: list[dict], llm: LLMClient, title: str | Non
     except (LLMUnavailable, ValueError, TypeError, AttributeError) as exc:
         logger.warning("Conversation fallback failed: %s", type(exc).__name__)
     return person
+
+
+def transcription_prompt(segments: list[dict], seq: int, title: str | None, names: list[str]) -> str | None:
+    """Context for speech-to-text: the event, names already heard, and the end of
+    the previous chunk, so names are spelled consistently and a sentence cut
+    between chunks still reads right. Whisper uses about the last 224 tokens."""
+    parts = []
+    if title:
+        parts.append(f"{title}.")
+    if names:
+        parts.append(", ".join(names[:20]) + ".")
+    before = next((s["text"] for s in reversed(segments) if s["seq"] < seq and s["text"]), "")
+    # Stored text carries voice labels ("[Speaker 2] ..."); Whisper should only see speech.
+    before = " ".join(VOICE_LABEL.sub("", before).split())
+    if before:
+        parts.append(before[-500:])
+    prompt = " ".join(parts).strip()
+    return prompt[-900:] or None

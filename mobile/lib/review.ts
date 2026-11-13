@@ -25,6 +25,7 @@ export type Draft = {
   topicsDiscussed: string;
   interests: string;
   notes: string;
+  conversation: string; // the conversation notes, one line each ("## Heading" lines allowed)
   followUp: string;
   followUpDue: string; // "YYYY-MM-DD" or ""
 };
@@ -54,6 +55,7 @@ export function emptyDraft(): Draft {
     topicsDiscussed: "",
     interests: "",
     notes: "",
+    conversation: "",
     followUp: "",
     followUpDue: "",
   };
@@ -75,6 +77,7 @@ export function draftFromExtracted(person: ExtractedPerson): Draft {
     topicsDiscussed: person.topicsDiscussed.join("\n"),
     interests: person.interests.join("\n"),
     notes: person.notes.join("\n"),
+    conversation: (person.conversation ?? []).join("\n"),
     followUp: person.followUp ?? "",
     followUpDue: person.followUpDue ?? "",
   };
@@ -138,6 +141,7 @@ export function toCapturedPerson(draft: Draft): CapturedPerson {
     interaction: {
       event: text(draft.metAt),
       location: text(draft.location),
+      summary: draft.conversation.split("\n").map((l) => l.trim()).filter(Boolean).join("\n") || null,
       projects: splitLines(draft.projects),
       needs: splitLines(draft.needs),
       topicsDiscussed: splitLines(draft.topicsDiscussed),

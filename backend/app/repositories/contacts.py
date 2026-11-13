@@ -187,14 +187,14 @@ def create_interaction(
     row = conn.execute(
         """
         insert into interactions (
-          user_id, contact_id, raw_transcript, event, location,
+          user_id, contact_id, raw_transcript, event, location, summary,
           interests, projects, needs, topics, notes, source_type, interaction_date
         )
-        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, coalesce(%s, now()))
+        values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, coalesce(%s, now()))
         returning id
         """,
         (
-            user_id, contact_id, raw_transcript, fields.get("event"), fields.get("location"),
+            user_id, contact_id, raw_transcript, fields.get("event"), fields.get("location"), fields.get("summary"),
             fields.get("interests", []), fields.get("projects", []), fields.get("needs", []),
             fields.get("topics_discussed", []), fields.get("notes", []),
             source_type, interaction_date,
