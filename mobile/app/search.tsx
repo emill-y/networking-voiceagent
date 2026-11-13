@@ -12,7 +12,7 @@ import { Page } from "@/components/Page";
 import { Txt } from "@/components/Txt";
 import { ApiError } from "@/lib/api";
 import { formatRelative } from "@/lib/format";
-import { searchSuggestions } from "@/lib/suggest";
+import { matchContacts, searchSuggestions } from "@/lib/suggest";
 import { makeStyles, radius, space, useTheme } from "@/lib/theme";
 import { listContacts, search } from "@/services/nomi";
 import type { ContactSummary, SearchResult } from "@/types/api";
@@ -70,6 +70,10 @@ export default function Search() {
 
   // Your own people make the best examples; general ones until you have some.
   const suggestions = people.length >= 3 ? searchSuggestions(people) : EXAMPLES;
+  // While typing (before asking): people whose name, company, school or event matches.
+  const typing = query.trim() !== "" && query.trim() !== asked && !loading;
+  const matches = typing ? matchContacts(people, query) : [];
+  const open = (id: string) => router.push({ pathname: "/contacts/[id]", params: { id } });
 
   return (
     <Page title="Search" width="narrow">
@@ -89,6 +93,28 @@ export default function Search() {
         />
         <Button title="Ask" variant="primary" loading={loading} disabled={!query.trim()} onPress={() => void run(query)} />
       </View>
+
+      {matches.length > 0 && (
+        <View style={s.results}>
+          <Txt variant="overline">People</Txt>
+          <Card padding="none">
+            {matches.map((p, i) => (
+              <Pressable key={p.id} onPress={() => open(p.id)} accessibilityRole="button" accessibilityLabel={`Open ${p.name}`}
+                style={({ hovered }) => [s.match, i > 0 && s.border, hovered && s.hover]}>
+                <Avatar name={p.name} size={32} />
+                <View style={s.flex}>
+                  <Txt variant="label" numberOfLines={1}>{p.name}</Txt>
+                  <Txt variant="caption" numberOfLines={1}>
+                    {[p.role, p.company ?? p.school].filter(Boolean).join(" · ") || p.lastEvent || ""}
+                  </Txt>
+                </View>
+                <Icon name="chevron" size={16} color={colors.textTertiary} />
+              </Pressable>
+            ))}
+          </Card>
+          <Txt variant="caption">Or press Ask to search everything you’ve noted.</Txt>
+        </View>
+      )}
 
       {loading ? (
         <View style={s.loading}><OrbitLoader label="Searching your network" /></View>
@@ -123,7 +149,7 @@ export default function Search() {
             </Card>
           </View>
         )
-      ) : (
+      ) : matches.length > 0 ? null : (
         <View style={s.suggestions}>
           <Txt variant="overline">Try asking</Txt>
           {suggestions.map((q) => (
@@ -203,6 +229,7 @@ const useStyles = makeStyles(({ colors, shadow }) =>
     loading: { paddingVertical: space.xxl, alignItems: "center" },
     results: { gap: space.xs },
     result: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.sm },
+    match: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, paddingVertical: space.xs, minHeight: 52 },
     border: { borderTopWidth: 1, borderTopColor: colors.border },
     hover: { backgroundColor: colors.surfaceHover },
     nameRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "space-between", gap: space.xs },

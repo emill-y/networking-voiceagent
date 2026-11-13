@@ -30,3 +30,20 @@ test("follow-up suggestions skip people you already planned something with", () 
   const [withCompany] = followUpSuggestions([{ ...maya, openFollowUps: 0 }], now);
   assert.equal(withCompany.action, "Ask Maya how things are at Stripe");
 });
+
+import { matchContacts } from "./suggest.ts";
+
+test("search suggests contacts while you type", () => {
+  const person = (id: string, name: string, extra = {}) => ({ id, name, company: null, school: null, role: null, lastEvent: null, ...extra });
+  const people = [
+    person("1", "Omar Haddad", { company: "Mapbox" }),
+    person("2", "Maya Singh", { company: "Figma" }),
+    person("3", "Jason Chen", { lastEvent: "Mayfield mixer" }),
+    person("4", "Tomás Maya"),
+    person("5", "Annie Park"),
+  ];
+  assert.deepEqual(matchContacts(people, "maya").map((p) => p.name), ["Maya Singh", "Tomás Maya"]);
+  assert.deepEqual(matchContacts(people, " Ma").map((p) => p.name), ["Maya Singh", "Tomás Maya", "Omar Haddad", "Jason Chen"]);
+  assert.deepEqual(matchContacts(people, ""), []);
+  assert.equal(matchContacts(people, "a", 2).length, 2);
+});

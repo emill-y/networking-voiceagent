@@ -8,6 +8,7 @@ import { Card } from "@/components/Card";
 import { Tag } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon, type IconName } from "@/components/Icon";
+import { MoreMenu } from "@/components/MoreMenu";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
 import { Txt } from "@/components/Txt";
@@ -15,7 +16,7 @@ import { useDesktop } from "@/hooks/useDesktop";
 import { ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm";
 import { formatRelative, formatShortDate } from "@/lib/format";
-import { memoryLines, plansWith, subtitle } from "@/lib/memory";
+import { conversationSections, plansWith, subtitle } from "@/lib/memory";
 import { makeStyles, space, useTheme } from "@/lib/theme";
 import { deleteContact, deleteInteraction, getContact } from "@/services/nomi";
 import type { ContactDetail } from "@/types/api";
@@ -77,12 +78,17 @@ export default function Person() {
           {where ? <Txt variant="small" tone="tertiary">{where}</Txt> : null}
         </View>
       </View>
+      <View style={s.corner}>
+        <MoreMenu label={`More for ${person.name}`} actions={[
+          { label: "Edit", icon: "pen", onPress: () => router.push({ pathname: "/contacts/[id]/edit", params: { id: person.id } }) },
+          { label: "Delete", icon: "trash", danger: true, onPress: () => void removePerson() },
+        ]} />
+      </View>
       {interests.length > 0 && <View style={s.tags}>{interests.map((x) => <Tag key={x} label={x} />)}</View>}
       <View style={s.actions}>
         {person.phone ? <Button title="Call" icon="phone" size="sm" onPress={() => void Linking.openURL(`tel:${dialable(person.phone!)}`)} /> : null}
         {person.phone ? <Button title="Text" icon="message" size="sm" onPress={() => void Linking.openURL(`sms:${dialable(person.phone!)}`)} /> : null}
         {person.email ? <Button title="Email" icon="mail" size="sm" onPress={() => void Linking.openURL(`mailto:${person.email}`)} /> : null}
-        <Button title="Edit" icon="pen" size="sm" onPress={() => router.push({ pathname: "/contacts/[id]/edit", params: { id: person.id } })} />
       </View>
     </Card>
   );
@@ -115,7 +121,7 @@ export default function Person() {
         ) : (
           person.interactions.map((moment, i) => {
             const last = i === person.interactions.length - 1;
-            const lines = memoryLines(moment).filter((line) => !/^next step:/i.test(line));
+            const sections = conversationSections(moment);
             const showTranscript = expanded === moment.id;
             return (
               <View key={moment.id} style={s.event}>
@@ -124,10 +130,19 @@ export default function Person() {
                   {!last && <View style={s.railLine} />}
                 </View>
                 <View style={[s.eventBody, !last && s.eventGap]}>
-                  <Txt variant="caption">{formatShortDate(moment.interactionDate)} · {formatRelative(moment.interactionDate)}</Txt>
-                  <Txt variant="label">{moment.event ?? "Conversation"}</Txt>
-                  {lines.map((line, j) => (
-                    <Txt key={j} variant="small" tone={line.startsWith("Unsure:") ? "tertiary" : "default"}>{line}</Txt>
+                  <Txt variant="label">{formatShortDate(moment.interactionDate)}</Txt>
+                  <Txt variant="caption">{formatRelative(moment.interactionDate)}</Txt>
+                  {sections.length === 0 && <Txt variant="small" tone="tertiary">Nothing noted from this conversation.</Txt>}
+                  {sections.map((section) => (
+                    <View key={section.key} style={s.section}>
+                      <Txt variant="caption" weight="600" style={s.sectionTitle}>{section.title}</Txt>
+                      {section.items.map((item) => (
+                        <View key={item} style={s.bullet}>
+                          <View style={[s.dot, section.key === "unsure" && s.dotMuted]} />
+                          <Txt variant="small" tone={section.key === "unsure" ? "tertiary" : "default"} style={s.flex}>{item}</Txt>
+                        </View>
+                      ))}
+                    </View>
                   ))}
                   {showTranscript && moment.rawTranscript ? <Txt variant="small" style={s.quote}>“{moment.rawTranscript}”</Txt> : null}
                   <View style={s.eventActions}>
@@ -157,7 +172,6 @@ export default function Person() {
         <Detail icon="clock" label="First met" value={formatShortDate(person.interactions[person.interactions.length - 1]?.interactionDate ?? person.createdAt)} />
       </Card>
       {person.summary ? <Txt variant="small" style={s.summary}>{person.summary}</Txt> : null}
-      <Button title={`Delete ${person.name.split(" ")[0]}`} icon="trash" variant="danger" size="sm" onPress={() => void removePerson()} />
     </View>
   );
 
@@ -207,8 +221,9 @@ const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     flex: { flex: 1, minWidth: 0 },
     header: { gap: space.md },
+    corner: { position: "absolute", top: space.sm, right: space.sm },
     name: { fontSize: 30, lineHeight: 36 },
-    identity: { flexDirection: "row", alignItems: "center", gap: space.md },
+    identity: { flexDirection: "row", alignItems: "center", gap: space.md, paddingRight: 36 },
     tags: { flexDirection: "row", flexWrap: "wrap", gap: space.xxs },
     actions: { flexDirection: "row", flexWrap: "wrap", gap: space.xs },
     columns: { flexDirection: "row", alignItems: "flex-start", gap: space.lg },
@@ -224,9 +239,12 @@ const useStyles = makeStyles(({ colors }) =>
     railDot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, backgroundColor: colors.border },
     railDotLatest: { backgroundColor: colors.accent },
     railLine: { flex: 1, width: 2, marginTop: 4, backgroundColor: colors.border },
-    eventBody: { flex: 1, minWidth: 0, gap: 2, alignItems: "flex-start" },
+    eventBody: { flex: 1, minWidth: 0, gap: 2, alignItems: "stretch" },
+    section: { gap: 3, marginTop: space.sm },
+    sectionTitle: { textTransform: "uppercase", letterSpacing: 0.6, color: colors.textSecondary },
+    dotMuted: { backgroundColor: colors.border },
     eventGap: { paddingBottom: space.lg },
-    eventActions: { flexDirection: "row", gap: space.xs, marginLeft: -space.xs },
+    eventActions: { flexDirection: "row", gap: space.xs, marginLeft: -space.xs, marginTop: space.xs, alignSelf: "flex-start" },
     quote: { fontStyle: "italic", marginTop: space.xxs },
     border: { borderTopWidth: 1, borderTopColor: colors.border },
     detail: { flexDirection: "row", alignItems: "center", gap: space.sm, paddingHorizontal: space.md, minHeight: 44 },

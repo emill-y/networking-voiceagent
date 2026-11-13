@@ -1,24 +1,24 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import { Avatar } from "@/components/Avatar";
 import { EmptyState } from "@/components/EmptyState";
-import { Icon } from "@/components/Icon";
 import { Input } from "@/components/Input";
 import { ListRow } from "@/components/ListRow";
+import { MoreMenu } from "@/components/MoreMenu";
 import { Page } from "@/components/Page";
 import { SkeletonRows } from "@/components/Skeleton";
 import { useToast } from "@/components/Toast";
 import { Txt } from "@/components/Txt";
 import { confirm } from "@/lib/confirm";
 import { formatRelative } from "@/lib/format";
-import { makeStyles, radius, space, useTheme } from "@/lib/theme";
+import { makeStyles, radius, space } from "@/lib/theme";
 import { deleteContact, listContacts } from "@/services/nomi";
 import type { ContactSummary } from "@/types/api";
 
 // Everyone you've met, most recently seen first. Tap someone for their
-// timeline; edit or delete them right from the list.
+// timeline; "⋯" beside a name turns into Edit and Delete.
 export default function Contacts() {
   const s = useStyles();
   const router = useRouter();
@@ -69,7 +69,7 @@ export default function Contacts() {
       ) : (
         <View style={s.list}>
           {shown.map((p) => (
-            // The person and the buttons sit side by side (a button can't hold buttons).
+            // The person and the menu sit side by side (a button can't hold buttons).
             <View key={p.id} style={s.row}>
               <View style={s.flex}>
                 <ListRow title={p.name}
@@ -77,8 +77,10 @@ export default function Contacts() {
                   leading={<Avatar name={p.name} size={36} />}
                   onPress={() => router.push(`/contacts/${p.id}`)} />
               </View>
-              <IconButton icon="pen" label={`Edit ${p.name}`} onPress={() => router.push({ pathname: "/contacts/[id]/edit", params: { id: p.id } })} />
-              <IconButton icon="trash" label={`Delete ${p.name}`} onPress={() => void remove(p)} />
+              <MoreMenu label={`More for ${p.name}`} actions={[
+                { label: "Edit", icon: "pen", onPress: () => router.push({ pathname: "/contacts/[id]/edit", params: { id: p.id } }) },
+                { label: "Delete", icon: "trash", danger: true, onPress: () => void remove(p) },
+              ]} />
             </View>
           ))}
         </View>
@@ -93,23 +95,10 @@ function describe(p: ContactSummary): string | null {
   return [job, p.school].filter(Boolean).join(" · ") || p.lastEvent;
 }
 
-function IconButton({ icon, label, onPress }: { icon: "pen" | "trash"; label: string; onPress: () => void }) {
-  const s = useStyles();
-  const { colors } = useTheme();
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={label} hitSlop={6}
-      style={({ hovered, pressed }: { hovered?: boolean; pressed: boolean }) => [s.iconButton, (hovered || pressed) && s.iconHover]}>
-      <Icon name={icon} size={16} color={icon === "trash" ? colors.danger : colors.textSecondary} />
-    </Pressable>
-  );
-}
-
 const useStyles = makeStyles(({ colors }) =>
   StyleSheet.create({
     list: { backgroundColor: colors.surface, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.border, padding: space.xxs },
     row: { flexDirection: "row", alignItems: "center", gap: 2, paddingRight: space.xxs },
     flex: { flex: 1, minWidth: 0 },
-    iconButton: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center" },
-    iconHover: { backgroundColor: colors.surfaceHover },
   }),
 );

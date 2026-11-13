@@ -93,7 +93,7 @@ test("possible matches default to a new person", () => {
   assert.equal(toCapturedPerson(draft).contactId, null);
 });
 
-import { joinList, memoryLines, plansWith, subtitle } from "./memory.ts";
+import { conversationSections, joinList, memoryLines, plansWith, subtitle } from "./memory.ts";
 
 test("memory lines read like sentences", () => {
   const lines = memoryLines({
@@ -177,4 +177,31 @@ test("someone whose name wasn't heard can be saved by their label", () => {
   assert.equal(toCapturedPerson(draft).contact.name, "Airbnb designer who climbs");
   assert.equal(toCapturedPerson({ ...draft, name: "Kai" }).contact.name, "Kai");
   assert.notEqual(draftProblem({ ...draft, label: "" }), null);
+});
+
+test("a conversation is organized into headed bullet points", () => {
+  const sections = conversationSections({
+    id: "i1", contactId: "c1", event: "Cal Hacks", location: "San Francisco", summary: null, rawTranscript: null,
+    interests: ["climbing", "ai"], projects: ["a robotics startup"], needs: ["designers"], topicsDiscussed: ["AI agents", "Magic Hour"],
+    notes: ["How we met: sat next to me at the opening talk", "Plans: Hawaii trip in December.", "Next step: get coffee next week",
+      "Ask about: how the demo went", "Unsure: may work at Google", "Has a dog named Mochi."],
+    interactionDate: "2026-09-24T00:00:00Z", sourceType: "voice",
+  });
+  assert.deepEqual(sections.map((s) => [s.title, s.items]), [
+    ["How you met", ["At Cal Hacks", "In San Francisco", "Sat next to me at the opening talk"]],
+    ["What you talked about", ["AI agents", "Magic Hour"]],
+    ["Working on", ["A robotics startup"]],
+    ["Looking for", ["Designers"]],
+    ["Into", ["Climbing", "AI"]],
+    ["Their plans", ["Hawaii trip in December"]],
+    ["Next steps", ["Get coffee next week"]],
+    ["Ask about next time", ["How the demo went"]],
+    ["Other notes", ["Has a dog named Mochi"]],
+    ["Not sure", ["May work at Google"]],
+  ]);
+  // Nothing noted: no sections at all.
+  assert.deepEqual(conversationSections({
+    id: "i2", contactId: "c1", event: null, location: null, summary: null, rawTranscript: null,
+    interests: [], projects: [], needs: [], topicsDiscussed: [], notes: [], interactionDate: "2026-09-24T00:00:00Z", sourceType: "voice",
+  }), []);
 });
