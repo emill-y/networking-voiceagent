@@ -45,6 +45,22 @@ VOICE_LABEL = re.compile(r"\[(?:Speaker \d+|You)\]\s*")
 MAX_UNHEARD_WORDS = 12
 
 
+# Chinese, Japanese, Korean and Thai don't put spaces between words, so a
+# whole sentence would count as one "word". There, every two characters count
+# as about one word.
+_UNSPACED = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af\u0e00-\u0e7f]")
+
+
+def word_count(text: str | None) -> int:
+    """About how many words were said, in any language."""
+    if not text:
+        return 0
+    text = VOICE_LABEL.sub("", text)
+    unspaced = len(_UNSPACED.findall(text))
+    spaced = len(_UNSPACED.sub(" ", text).split())
+    return spaced + (unspaced + 1) // 2
+
+
 def label_chunk(result, heard: ChunkVoices | None, voices: list[dict],
                 saved_voice: dict | None = None) -> tuple[str, list[dict] | None]:
     """(text to store, the session's voices updated) for one transcribed chunk.
@@ -57,7 +73,7 @@ def label_chunk(result, heard: ChunkVoices | None, voices: list[dict],
     if saved_voice and not any(v["id"] == YOU for v in voices):
         voices = [your_voice(saved_voice["print"], saved_voice["seconds"])] + voices
     if not heard.turns:
-        if len(result.text.split()) <= MAX_UNHEARD_WORDS:
+        if word_count(result.text) <= MAX_UNHEARD_WORDS:
             return "", voices
         return result.text, voices
     if not result.pieces:
@@ -134,7 +150,7 @@ def read_window(segments: list[dict], window: int, llm: LLMClient, today: date, 
 
 def _read(text: str, llm: LLMClient, today: date, title: str | None,
           owner: str | None, known: list[str] | None, voices: list[dict] | None = None) -> list[dict] | None:
-    if len(text.split()) < 8:
+    if word_count(text) < 8:
         return []
     header = []
     if title:
@@ -203,6 +219,17 @@ def _matches(entry: dict, person: dict) -> bool:
         return _same_person(other, name)
     label, other_label = normalize(person.get("label")), normalize(entry.get("label"))
     return bool(label and other_label and label == other_label)
+
+
+CONTENT_FIELDS = ("company", "role", "school", "major", "location", "interests", "projects", "needs",
+                  "topics_discussed", "conversation", "follow_up")
+
+
+def has_content(person: ExtractedPerson) -> bool:
+    """A name, or anything at all learned about them (a "heard as" guess alone doesn't count)."""
+    if person.name or any(getattr(person, f) for f in CONTENT_FIELDS):
+        return True
+    return any(not n.lower().startswith("unsure: also heard as") for n in person.notes)
 
 
 def voice_key(speaker: str) -> str:
@@ -290,7 +317,8 @@ one's name was clearly said. Return JSON only: a short label to recognize who th
 talked with (a few words from what they said, e.g. "Designer who just moved to SF"; use
 "Someone you talked to" if nothing fits), the topics discussed (short items, at most 6),
 and anything they said about themselves (role, school, company, projects), only if stated.
-Never invent names or facts. Skip sensitive traits."""
+Never invent names or facts. Skip sensitive traits. The conversation may be in any
+language: write in English, keeping names and places as said."""
 FALLBACK_SCHEMA = {
     "type": "object",
     "properties": {
@@ -308,6 +336,7 @@ in sentence case, with no quotes or ending punctuation.
 Good titles: "Hawaii trip plans", "Cal Hacks team chat", "Coffee about design jobs".
 Prefer the main topic or plan over small talk. Use a named event if one is clearly stated.
 Don't use people's names unless the conversation was only about one person.
+Write the title in English, whatever language the conversation was in.
 If there's too little to tell, return an empty title."""
 TITLE_SCHEMA = {"type": "object", "properties": {"title": {"type": "string"}}, "required": ["title"]}
 MIN_TITLE_WORDS = 8
@@ -317,7 +346,7 @@ MAX_TITLE_CHARS = 60
 def suggest_title(segments: list[dict], llm: LLMClient) -> str | None:
     """A short title made up from the conversation ("Hawaii trip plans"), or None."""
     text = full_transcript(segments)
-    if len(text.split()) < MIN_TITLE_WORDS:
+    if word_count(text) < MIN_TITLE_WORDS:
         return None
     try:
         raw = llm.chat_json(TITLE_PROMPT, f"Transcript:\n\"\"\"\n{text[:12000]}\n\"\"\"", TITLE_SCHEMA)
@@ -334,7 +363,7 @@ def conversation_fallback(segments: list[dict], llm: LLMClient, title: str | Non
     """One unnamed person for a session where nobody was found, or None if
     there's hardly any speech to keep."""
     text = full_transcript(segments)
-    if len(text.split()) < MIN_FALLBACK_WORDS:
+    if word_count(text) < MIN_FALLBACK_WORDS:
         return None
     default = f"Someone from {title}" if title else "Someone you talked to"
     person = {"name": None, "label": default, "met_at": title, "topics_discussed": [], "notes": []}

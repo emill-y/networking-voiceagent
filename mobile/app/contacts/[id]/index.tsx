@@ -9,7 +9,7 @@ import { Tag } from "@/components/Chip";
 import { EmptyState } from "@/components/EmptyState";
 import { Icon, type IconName } from "@/components/Icon";
 import { MoreMenu } from "@/components/MoreMenu";
-import { Notes, notesLines } from "@/components/Notes";
+import { ExpandableNotes, notesLines } from "@/components/Notes";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
 import { Txt } from "@/components/Txt";
@@ -29,7 +29,6 @@ export default function Person() {
   const s = useStyles();
   const router = useRouter();
   const desktop = useDesktop();
-  const { colors } = useTheme();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [person, setPerson] = useState<ContactDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +139,7 @@ export default function Person() {
                   <Txt variant="label">{formatShortDate(moment.interactionDate)}</Txt>
                   <Txt variant="caption">{formatRelative(moment.interactionDate)}</Txt>
                   {sections.length === 0 && notes.length === 0 && <Txt variant="small" tone="tertiary">Nothing noted from this conversation.</Txt>}
-                  {notes.length > 0 && <View style={s.section}><Notes lines={notes} /></View>}
+                  {notes.length > 0 && <View style={s.section}><ExpandableNotes lines={notes} /></View>}
                   {sections.map((section) => (
                     <View key={section.key} style={s.section}>
                       <Txt variant="caption" weight="600" style={s.sectionTitle}>{section.title}</Txt>

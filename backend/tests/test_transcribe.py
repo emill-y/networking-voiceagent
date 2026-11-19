@@ -262,3 +262,20 @@ def test_a_cancelled_api_key_says_so(tmp_path, monkeypatch):
         401, json={"error": {"message": "Invalid API Key"}}, request=httpx.Request("POST", url)))
     with pytest.raises(TranscriptionUnavailable, match="refused the API key"):
         OpenAICompatibleTranscriber("https://x", "k", "whisper-large-v3").transcribe(_wav_file(tmp_path))
+
+
+def test_hosted_transcription_detects_the_language(tmp_path, monkeypatch):
+    import httpx
+
+    from app.services.transcription import OpenAICompatibleTranscriber
+
+    sent = {}
+
+    def fake_post(url, headers, data, files, timeout):
+        sent.update(data)
+        return httpx.Response(200, json={"text": "hola soy Lucía", "language": "spanish"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    result = OpenAICompatibleTranscriber("https://x", "k", "whisper-large-v3").transcribe(_wav_file(tmp_path))
+    assert "language" not in sent  # never forced to English
+    assert (result.text, result.language) == ("hola soy Lucía", "spanish")

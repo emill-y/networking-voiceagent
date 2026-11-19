@@ -55,7 +55,7 @@ def _out(row: dict, model=SessionOut, conn: Connection | None = None, **extra):
         status=row["status"],
         chunks=len(segments),
         audio_seconds=row["audio_seconds"],
-        words=len(svc.full_transcript(segments).split()),
+        words=svc.word_count(svc.full_transcript(segments)),
         people=_people(row),
         started_at=row["created_at"],
         ended_at=row["ended_at"],
@@ -67,6 +67,9 @@ def _people(row: dict) -> list[ExtractedPerson]:
     """Everyone found so far. While recording, a voice that has said enough
     shows up as a new person right away, before the model has read it."""
     people = svc.merge_people(row["windows"] or {}, _event(row))
+    if row["status"] != "recording":
+        # Once the session is over, someone with nothing at all to show isn't listed.
+        return [p for p in people if svc.has_content(p)]
     if row["status"] == "recording":
         seen = {p.speaker for p in people if p.speaker}
         for who in session_notes.voice_people(row["segments"] or []):

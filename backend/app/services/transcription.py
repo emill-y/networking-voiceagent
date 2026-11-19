@@ -233,7 +233,7 @@ class OpenAICompatibleTranscriber:
         latency_ms = int((time.perf_counter() - started) * 1000)
         audio_seconds = round(audio.size / SAMPLE_RATE, 2)
         logger.info("Hosted transcription of %.1fs took %dms", audio_seconds, latency_ms)
-        return Transcript(text=(text or "").strip(), language="en",
+        return Transcript(text=(text or "").strip(), language=body.get("language") or None,
                           audio_seconds=audio_seconds, latency_ms=latency_ms, pieces=pieces)
 
     def _request(self, audio_path: str, model: str, prompt: str | None) -> dict:
@@ -245,7 +245,8 @@ class OpenAICompatibleTranscriber:
                     self._url,
                     headers={"Authorization": f"Bearer {self._api_key}"},
                     # verbose_json adds timestamped segments, used to label who spoke.
-                    data={"model": model, "language": "en", "response_format": "verbose_json", "temperature": "0",
+                    # No "language": Whisper detects it, so conversations in any language work.
+                    data={"model": model, "response_format": "verbose_json", "temperature": "0",
                           **({"prompt": prompt} if prompt else {})},
                     files={"file": (os.path.basename(audio_path), file)},
                     timeout=self._timeout,

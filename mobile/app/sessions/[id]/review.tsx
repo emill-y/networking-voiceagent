@@ -7,7 +7,7 @@ import { Avatar } from "@/components/Avatar";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { Input } from "@/components/Input";
-import { Notes, notesLines } from "@/components/Notes";
+import { ExpandableNotes, notesLines } from "@/components/Notes";
 import { PageLoader } from "@/components/OrbitLoader";
 import { Page } from "@/components/Page";
 import { SessionTitle } from "@/components/SessionTitle";
@@ -181,8 +181,11 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
   const [open, setOpen] = useState(!draft.name.trim() && !draft.label.trim());
   // Someone whose name wasn't heard: ask for it right on the card.
   const [unnamed] = useState(!draft.name.trim() && !!draft.label.trim());
-  const [allNotes, setAllNotes] = useState(false);
+  const [moreFields, setMoreFields] = useState(false);
   const notes = notesLines(draft.conversation);
+  // Only details that were heard are shown; the rest wait behind "Add a detail".
+  const filled = FIELDS.filter((f) => draft[f.key].trim());
+  const empty = FIELDS.filter((f) => !draft[f.key].trim());
   const set = (field: keyof Draft) => (value: string) => onChange((d) => ({ ...d, [field]: value }));
   const work = draft.role && draft.company ? `${draft.role} at ${draft.company}` : draft.role || draft.company;
   const firstLine = (v: string) => v.split("\n")[0];
@@ -219,12 +222,7 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
 
       {draft.include && !open && notes.length > 0 && (
         <View style={s.notes}>
-          <Notes lines={notes} limit={allNotes ? undefined : 8} />
-          {notes.length > 8 && (
-            <Pressable onPress={() => setAllNotes((v) => !v)} accessibilityRole="button" hitSlop={8}>
-              <Txt variant="small" tone="secondary" weight="500">{allNotes ? "Show less" : `Show all ${notes.length} notes`}</Txt>
-            </Pressable>
-          )}
+          <ExpandableNotes lines={notes} />
         </View>
       )}
 
@@ -259,10 +257,15 @@ function PersonCard({ draft, index, first, onChange }: { draft: Draft; index: nu
           {unnamed && <Input label="Recognize them by" value={draft.label} onChangeText={set("label")} />}
           <Input label="Conversation notes" value={draft.conversation} onChangeText={set("conversation")} multiline
             hint="One line each. Lines starting with ## are headings." style={{ minHeight: 160 }} />
-          {FIELDS.map((f) => (
+          {[...filled, ...(moreFields ? empty : [])].map((f) => (
             <Input key={f.key} label={f.label} value={draft[f.key]} onChangeText={set(f.key)} multiline={f.multiline}
               hint={f.multiline ? "One per line" : undefined} />
           ))}
+          {!moreFields && empty.length > 0 && (
+            <Pressable onPress={() => setMoreFields(true)} accessibilityRole="button" hitSlop={8}>
+              <Txt variant="small" tone="secondary" weight="500">+ Add a detail ({empty.map((f) => f.label.toLowerCase()).join(", ")})</Txt>
+            </Pressable>
+          )}
         </View>
       )}
     </View>

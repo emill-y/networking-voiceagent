@@ -154,6 +154,8 @@ Rules:
   earlier in the event. When a person from that list appears again, reuse their exact
   name (or, for "unnamed" people, their exact label) and add the details from this part. If an unnamed person from that list now says their name, give the name and
   keep the same label.
+- The recording may be in any language, or switch languages. Write every field in
+  English, keeping names, places, companies and products as said.
 - Speech recognition misspells names. If a name here is clearly the same person as one
   already met (same first name, same company or school), use the earlier spelling.
 

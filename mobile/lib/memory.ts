@@ -1,8 +1,6 @@
 // Turn stored fields into short, human sentences for the profile page.
 import type { ContactDetail, Interaction } from "../types/api";
 
-import { formatRelative } from "./format.ts";
-
 export function joinList(items: string[]): string {
   if (items.length <= 1) return items[0] ?? "";
   return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;

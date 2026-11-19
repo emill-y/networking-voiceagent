@@ -40,7 +40,7 @@ class Settings:
     hf_asr_model: str = "openai/whisper-large-v3"
 
     # faster-whisper (local)
-    whisper_model: str = "small.en"
+    whisper_model: str = "small"  # multilingual (small.en is English-only)
     whisper_device: str = "auto"
     whisper_compute_type: str = "int8"
     max_upload_bytes: int = 10 * 1024 * 1024
@@ -129,7 +129,7 @@ def get_settings() -> Settings:
         hf_token=env.get("HF_TOKEN") or None,
         hf_inference_provider=env.get("HF_INFERENCE_PROVIDER", "fal-ai"),
         hf_asr_model=env.get("HF_ASR_MODEL", "openai/whisper-large-v3"),
-        whisper_model=env.get("WHISPER_MODEL", "small.en"),
+        whisper_model=env.get("WHISPER_MODEL", "small"),
         whisper_device=env.get("WHISPER_DEVICE", "auto"),
         whisper_compute_type=env.get("WHISPER_COMPUTE_TYPE", "int8"),
         max_upload_bytes=int(env.get("MAX_UPLOAD_MB", "10")) * 1024 * 1024,

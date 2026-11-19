@@ -33,15 +33,15 @@ from app.schemas.extraction import EXTRACTION_JSON_SCHEMA, ExtractedPerson
 from app.services.extraction import clean_person
 from app.services.identity import normalize
 from app.services.llm import LLMClient, LLMUnavailable
-from app.services.sessions import SPEAKER, VOICE_LABEL, _speaker, strip_labels
+from app.services.sessions import SPEAKER, _speaker, strip_labels, word_count
 
 logger = logging.getLogger(__name__)
 
 MAX_WORDS = 24_000  # about two and a half hours of talking; longer sessions keep the live results
 TIME_BUDGET_SECONDS = 40  # the API runs for at most 60 seconds per request
 PARALLEL = 3  # free model tiers allow only a few thousand tokens a minute
-# A voice is a person once it has said this much ("hi I'm Maya, I just moved
-# here" is 8 words; a passerby's "sorry, excuse me" isn't).
+# A voice is a person once it has said this much ("hi I'm Maya, I just moved from
+# Seattle" is 8 words; a passerby's "sorry, excuse me" isn't).
 MIN_PERSON_WORDS = 8
 # A conversation counts as over when its voice hasn't spoken for this many chunks (a minute).
 VOICE_PAUSE_CHUNKS = 3
@@ -70,7 +70,10 @@ Rules:
   One voice is one person: never give two people the same speaker. Someone with no lines of
   their own (only talked about) is not a person to add. "[You]" lines are the user. Without
   labels, null.
-- Order people by when the user met them."""
+- Order people by when the user met them.
+The conversation may be in any language, or switch between languages. Write everything
+in English, but keep names, places, companies, products and key phrases as they were said
+(add a short English meaning in parentheses when it helps)."""
 
 SPLIT_SCHEMA = {
     "type": "object",
@@ -110,11 +113,14 @@ conversation holds the notes, like great meeting notes: short section headings t
 with "## ", each followed by bullet sentences. Use these sections when they have content,
 in this order:
 ## In short
-(one or two bullets: who they are and why they matter to the user)
+(two or three bullets: who they are, what you talked about, and why they matter to the
+user. This is what the user sees first; the rest opens up as the full notes)
 ## About them
 ## What they're working on
 ## What you talked about
 ## Their advice and ideas
+## Things they said
+(a few memorable lines in their own words, short quotes or close paraphrases)
 ## How you could help each other
 (only what follows from what was said: shared interests, intros either of you could make,
 opportunities they mentioned)
@@ -123,11 +129,16 @@ Never copy chunk numbers ("[#12]") or voice labels ("[Speaker 2]") into the note
 said what in words. Be exhaustive: the user relies on these notes instead of their memory. Keep every specific:
 numbers, dates, places, companies, schools, classes, products, people they mentioned, stories,
 opinions, questions they asked, and what the user shared. A few minutes of conversation is
-usually 10 to 30 bullets. One fact per bullet, as a full sentence from the user's point of
+usually 15 to 40 bullets. One fact per bullet, as a full sentence from the user's point of
 view ("They're a junior in IEOR at Berkeley." "I told them about Nomi; they asked how it
 handles consent."). Only write what was said. If you're not sure a line was this person,
 start the bullet with "Unsure:". Never record sensitive traits (health, religion, sexuality,
-politics, ethnicity). Never include facts about the user as facts about this person."""
+politics, ethnicity). Never include facts about the user as facts about this person.
+Skip any section with nothing to put in it.
+The conversation may be in any language, or switch between languages. Write everything
+in English, but keep names, places, companies, products and key phrases as they were said
+(add a short English meaning in parentheses when it helps).
+If the conversation wasn't in English, say which language it was in under "About them"."""
 
 PERSON_SCHEMA = EXTRACTION_JSON_SCHEMA["properties"]["people"]["items"]
 
@@ -204,7 +215,7 @@ def words_by_voice(segments: list[dict]) -> dict[str, int]:
             m = SPEAKER.match(line)
             if m:
                 key = f"Speaker {m.group(1)}"
-                counts[key] = counts.get(key, 0) + len(VOICE_LABEL.sub("", line).split())
+                counts[key] = counts.get(key, 0) + word_count(line)
     return counts
 
 
@@ -315,7 +326,7 @@ def write_notes(segments: list[dict], llm: LLMClient, today: date, title: str | 
     """Everyone in the session with detailed notes, or None to keep the live results.
 
     stored: notes already written during the session, by voice ("Speaker 2" -> person)."""
-    words = sum(len(s["text"].split()) for s in segments)
+    words = sum(word_count(s["text"]) for s in segments)
     if words < 15 or words > MAX_WORDS:
         return None
     started = time.monotonic()

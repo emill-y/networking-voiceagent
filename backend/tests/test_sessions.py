@@ -647,3 +647,32 @@ def test_a_new_voice_shows_up_at_once_and_its_notes_are_written_when_it_goes_qui
     finished = client.post(f"/sessions/{session['id']}/finish").json()
     assert llm.systems.count(session_notes.NOTES_PROMPT) == calls
     assert [p["name"] for p in finished["people"]] == ["Jun"]
+
+
+def test_words_are_counted_in_any_language():
+    assert svc.word_count("[Speaker 2] hi I'm Maya I just moved from Seattle") == 8
+    assert svc.word_count("hola soy Lucía y estudio química en Berkeley") == 8
+    # No spaces between words: every two characters count as about one word.
+    assert svc.word_count("[Speaker 3] 你好我叫王伟我在伯克利读化学专业") == 8
+    assert svc.word_count("こんにちは、田中です") >= 4
+    assert svc.word_count(None) == 0
+
+
+def test_a_voice_speaking_chinese_is_a_person_too():
+    from app.services import session_notes
+
+    segments = [
+        {"seq": 0, "text": "[Speaker 1] hi nice to meet you what do you study here at Berkeley", "seconds": 20},
+        {"seq": 1, "text": "[Speaker 2] 你好我叫王伟我在伯克利读化学专业现在在做电池研究", "seconds": 20},
+        {"seq": 2, "text": "[Speaker 1] oh cool batteries that's awesome tell me more about the lab", "seconds": 20},
+    ]
+    assert [p["speaker"] for p in session_notes.voice_people(segments)] == ["Speaker 2"]
+
+
+def test_after_a_session_people_with_nothing_to_show_are_left_out():
+    from app.schemas.extraction import ExtractedPerson
+
+    assert not svc.has_content(ExtractedPerson(label="Someone you talked to (voice 3)", speaker="Speaker 3"))
+    assert not svc.has_content(ExtractedPerson(label="x", notes=["Unsure: also heard as June"]))
+    assert svc.has_content(ExtractedPerson(name="Jun"))
+    assert svc.has_content(ExtractedPerson(label="Drone founder", conversation=["## In short", "Builds drones."]))

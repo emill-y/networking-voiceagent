@@ -258,6 +258,7 @@ let demoVoiceSavedAt: string | null = null;
 // What the end-of-session read writes about each person (shown at review).
 const DEMO_NOTES: Record<string, string[]> = {
   "Leo Tran": [
+    "## In short", "Leo runs Ramen Lab, a sold-out Friday pop-up in the Mission, and wants help rebranding before opening a permanent spot.",
     "## About them", "Leo founded Ramen Lab, a ramen pop-up that runs Friday nights in the Mission.",
     "He left a line-cook job at State Bird Provisions last spring to start it.",
     "## What they're working on", "They sell out about 120 bowls a night and want a permanent spot by summer.",
@@ -267,6 +268,7 @@ const DEMO_NOTES: Record<string, string[]> = {
     "## Next steps", "Send Leo a few branding ideas by Friday.",
   ],
   "Ines Moreau": [
+    "## In short", "Ines is a Stanford materials science PhD building solar coatings for curved surfaces, looking for a design partner.",
     "## About them", "Ines is a PhD student in materials science at Stanford, in her third year.",
     "## What they're working on", "Her lab makes solar coatings that stay efficient on curved surfaces.",
     "They're testing them on e-bike shells with a startup in Palo Alto.",
@@ -274,6 +276,7 @@ const DEMO_NOTES: Record<string, string[]> = {
     "Unsure: she may be spinning the project out of the lab next year.",
   ],
   "CS student building a drone startup": [
+    "## In short", "A CS junior building campus drone delivery; they need a hardware co-founder.",
     "## About them", "A CS junior who never said their name; they came with the Cal Hacks robotics team.",
     "## What they're working on", "A drone delivery service for campus, starting with the library and dorms.",
     "They have two working prototypes and a waiver from campus safety for testing.",
@@ -281,6 +284,7 @@ const DEMO_NOTES: Record<string, string[]> = {
     "## Next steps", "They need a hardware co-founder; I said I'd ask around.",
   ],
   "Kai Johnson": [
+    "## In short", "Kai designs host tools at Airbnb and offered to review your portfolio.",
     "## About them", "Kai is a product designer at Airbnb on the host tools team.",
     "## What you talked about", "Portfolio reviews: Kai said to lead with one deep case study, not five shallow ones.",
     "We both like music; Kai plays bass in a band that plays in Oakland.",
