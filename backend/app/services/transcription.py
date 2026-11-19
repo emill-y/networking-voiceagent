@@ -195,40 +195,107 @@ class OpenAICompatibleTranscriber:
         self._timeout = timeout_seconds
 
     def transcribe(self, audio_path: str, prompt: str | None = None) -> Transcript:
-        import httpx
-
         started = time.perf_counter()
         # Decode locally first: rejects bad files before uploading, and gives the duration.
         audio = decode_audio(audio_path)
         if not self._api_key:
             raise TranscriptionUnavailable("LLM_API_KEY is not set for hosted transcription.")
+        # If the provider refuses the request itself (a model this account can't
+        # use, a context prompt it won't take), try again the plain way: no
+        # prompt, then the widely available model. Rate limits and outages aren't
+        # retried here; the app retries the chunk later.
+        attempts = [(self._model, prompt)]
+        if prompt:
+            attempts.append((self._model, None))
+        if self._model != FALLBACK_STT_MODEL:
+            attempts.append((FALLBACK_STT_MODEL, None))
+        body: dict = {}
+        for i, (model, context) in enumerate(attempts):
+            try:
+                body = self._request(audio_path, model, context)
+            except _Rejected as exc:
+                logger.warning("Hosted transcription refused (%s, status %s): %s", model, exc.status, exc.reason)
+                if i == len(attempts) - 1:
+                    raise TranscriptionUnavailable(_refusal_message(exc)) from exc
+                continue
+            if model != self._model:
+                logger.warning("Using %s for speech-to-text from now on (%s was refused)", model, self._model)
+                self._model = model  # don't ask for the refused model on every chunk
+            break
+        try:
+            text = body["text"]
+            pieces = tuple(
+                (round(float(s["start"]), 2), round(float(s["end"]), 2), str(s.get("text") or "").strip())
+                for s in body.get("segments") or []
+            )
+        except (KeyError, ValueError, TypeError) as exc:
+            raise TranscriptionUnavailable("Speech-to-text sent back something unexpected.") from exc
+        latency_ms = int((time.perf_counter() - started) * 1000)
+        audio_seconds = round(audio.size / SAMPLE_RATE, 2)
+        logger.info("Hosted transcription of %.1fs took %dms", audio_seconds, latency_ms)
+        return Transcript(text=(text or "").strip(), language="en",
+                          audio_seconds=audio_seconds, latency_ms=latency_ms, pieces=pieces)
+
+    def _request(self, audio_path: str, model: str, prompt: str | None) -> dict:
+        import httpx
+
         try:
             with open(audio_path, "rb") as file:
                 response = httpx.post(
                     self._url,
                     headers={"Authorization": f"Bearer {self._api_key}"},
                     # verbose_json adds timestamped segments, used to label who spoke.
-                    data={"model": self._model, "language": "en", "response_format": "verbose_json", "temperature": "0",
+                    data={"model": model, "language": "en", "response_format": "verbose_json", "temperature": "0",
                           **({"prompt": prompt} if prompt else {})},
                     files={"file": (os.path.basename(audio_path), file)},
                     timeout=self._timeout,
                 )
-            response.raise_for_status()
-            body = response.json()
-            text = body["text"]
-            pieces = tuple(
-                (round(float(s["start"]), 2), round(float(s["end"]), 2), str(s.get("text") or "").strip())
-                for s in body.get("segments") or []
+        except httpx.HTTPError as exc:
+            logger.warning("Hosted transcription failed to connect (%s)", type(exc).__name__)
+            raise TranscriptionUnavailable("Couldn’t reach speech-to-text. Retrying.") from exc
+        if response.status_code in (401, 403):
+            logger.error("Hosted transcription: the API key was refused (status %s): %s",
+                         response.status_code, _error_text(response))
+            raise TranscriptionUnavailable(
+                "Speech-to-text refused the API key. Set a new LLM_API_KEY in Vercel and redeploy."
             )
-        except (httpx.HTTPError, KeyError, ValueError) as exc:
-            status = getattr(getattr(exc, "response", None), "status_code", None)
-            logger.warning("Hosted transcription failed (%s, status %s)", type(exc).__name__, status)
-            raise TranscriptionUnavailable(f"Hosted transcription ({self._model}) is unavailable.") from exc
-        latency_ms = int((time.perf_counter() - started) * 1000)
-        audio_seconds = round(audio.size / SAMPLE_RATE, 2)
-        logger.info("Hosted transcription of %.1fs took %dms", audio_seconds, latency_ms)
-        return Transcript(text=(text or "").strip(), language="en",
-                          audio_seconds=audio_seconds, latency_ms=latency_ms, pieces=pieces)
+        if response.status_code == 429:
+            logger.warning("Hosted transcription rate limited: %s", _error_text(response))
+            raise TranscriptionUnavailable("Speech-to-text is at its free limit right now. Retrying.")
+        if response.status_code >= 500:
+            logger.warning("Hosted transcription unavailable (status %s): %s", response.status_code, _error_text(response))
+            raise TranscriptionUnavailable("Speech-to-text is down for a moment. Retrying.")
+        if response.status_code >= 400:
+            raise _Rejected(response.status_code, _error_text(response))
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise TranscriptionUnavailable("Speech-to-text sent back something unexpected.") from exc
+
+
+# Groq's long-standing speech model, used when the configured one is refused.
+FALLBACK_STT_MODEL = "whisper-large-v3-turbo"
+
+
+class _Rejected(Exception):
+    def __init__(self, status: int, reason: str) -> None:
+        super().__init__(reason)
+        self.status = status
+        self.reason = reason
+
+
+def _refusal_message(exc: _Rejected) -> str:
+    return f"Speech-to-text refused the audio ({exc.status}): {exc.reason}" if exc.reason else \
+        f"Speech-to-text refused the audio ({exc.status})."
+
+
+def _error_text(response) -> str:
+    """The provider's own explanation (never the audio or the transcript)."""
+    try:
+        error = response.json().get("error", {})
+        return (error.get("message", "") if isinstance(error, dict) else str(error))[:300]
+    except ValueError:
+        return response.text[:300]
 
 
 _transcriber: Transcriber | None = None

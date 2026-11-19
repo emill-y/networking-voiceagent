@@ -223,3 +223,42 @@ def test_hosted_transcription_is_the_default_with_a_model_key(monkeypatch):
     assert get_settings().transcription_provider == "openai_compatible"
     monkeypatch.setenv("TRANSCRIPTION_PROVIDER", "local")
     assert get_settings().transcription_provider == "local"
+
+
+def test_hosted_transcription_falls_back_when_the_model_is_refused(tmp_path, monkeypatch):
+    import httpx
+
+    from app.services.transcription import FALLBACK_STT_MODEL, OpenAICompatibleTranscriber
+
+    asked = []
+
+    def fake_post(url, headers, data, files, timeout):
+        asked.append((data["model"], data.get("prompt")))
+        if data["model"] == "whisper-large-v3":
+            return httpx.Response(404, json={"error": {"message": "model not available"}}, request=httpx.Request("POST", url))
+        return httpx.Response(200, json={"text": "hi I'm Sam"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(httpx, "post", fake_post)
+    stt = OpenAICompatibleTranscriber("https://x", "k", "whisper-large-v3")
+    assert stt.transcribe(_wav_file(tmp_path), prompt="Cal Hacks.").text == "hi I'm Sam"
+    assert asked == [("whisper-large-v3", "Cal Hacks."), ("whisper-large-v3", None), (FALLBACK_STT_MODEL, None)]
+    # Remembered: the next chunk goes straight to the model that works.
+    asked.clear()
+    stt.transcribe(_wav_file(tmp_path))
+    assert asked == [(FALLBACK_STT_MODEL, None)]
+
+    # A rate limit isn't a rejection: no fallback, the app retries later.
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: httpx.Response(429, json={}, request=httpx.Request("POST", url)))
+    with pytest.raises(TranscriptionUnavailable, match="free limit"):
+        OpenAICompatibleTranscriber("https://x", "k", "whisper-large-v3").transcribe(_wav_file(tmp_path))
+
+
+def test_a_cancelled_api_key_says_so(tmp_path, monkeypatch):
+    import httpx
+
+    from app.services.transcription import OpenAICompatibleTranscriber
+
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: httpx.Response(
+        401, json={"error": {"message": "Invalid API Key"}}, request=httpx.Request("POST", url)))
+    with pytest.raises(TranscriptionUnavailable, match="refused the API key"):
+        OpenAICompatibleTranscriber("https://x", "k", "whisper-large-v3").transcribe(_wav_file(tmp_path))
