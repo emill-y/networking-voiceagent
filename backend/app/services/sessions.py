@@ -32,6 +32,9 @@ logger = logging.getLogger(__name__)
 WINDOW_CHUNKS = 5  # about a minute and a half of conversation per model read
 MAX_CHUNKS = 720  # four hours at 20-second chunks
 FULL_KEY = str(MAX_CHUNKS + 1)  # the end-of-session notes (see session_notes.py)
+# Notes on one voice, written during the session once its conversation went
+# quiet, are kept under windows[str(VOICE_NOTES_BASE + N)] for "Speaker N".
+VOICE_NOTES_BASE = 1000
 LIST_FIELDS = ("interests", "projects", "needs", "topics_discussed", "notes", "conversation")
 TEXT_FIELDS = ("company", "role", "school", "major", "met_at", "location", "follow_up", "follow_up_due", "speaker")
 SPEAKER = re.compile(r"\[Speaker (\d+)\]")
@@ -202,6 +205,19 @@ def _matches(entry: dict, person: dict) -> bool:
     return bool(label and other_label and label == other_label)
 
 
+def voice_key(speaker: str) -> str:
+    return str(VOICE_NOTES_BASE + int(speaker.split()[-1]))
+
+
+def voice_notes(windows: dict[str, list[dict]]) -> dict[str, dict]:
+    """Notes written during the session, by voice: {"Speaker 2": person}."""
+    out = {}
+    for key, people in windows.items():
+        if int(key) >= VOICE_NOTES_BASE and people and people[0].get("speaker"):
+            out[people[0]["speaker"]] = people[0]
+    return out
+
+
 def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[ExtractedPerson]:
     """One entry per person across all windows, in the order they were met.
 
@@ -216,23 +232,25 @@ def merge_people(windows: dict[str, list[dict]], event: str | None) -> list[Extr
     # With voice labels, the end read decides which voices are people; a voice it
     # left out (the user, or no one real) doesn't come back from a live read.
     final_voices = {p.get("speaker") for p in final or [] if p.get("speaker")}
-    keys = sorted((k for k in windows if k != FULL_KEY), key=int)
-    if final:
-        keys = [FULL_KEY] + keys
+    # Notes written per voice (during the session) come next, then the live windows.
+    voice_keys = sorted((k for k in windows if int(k) >= VOICE_NOTES_BASE), key=int)
+    window_keys = sorted((k for k in windows if k != FULL_KEY and int(k) < VOICE_NOTES_BASE), key=int)
+    keys = ([FULL_KEY] if final else []) + voice_keys + window_keys
+    preferred = {FULL_KEY, *voice_keys}
     merged: list[dict] = []
     from_final: set[int] = set()
     for key in keys:
         for person in windows[key]:
             if not normalize(person.get("name")) and not normalize(person.get("label")):
                 continue
-            if final_voices and key != FULL_KEY and person.get("speaker") and person["speaker"] not in final_voices:
+            if final_voices and key not in preferred and person.get("speaker") and person["speaker"] not in final_voices:
                 continue
             match = next((m for m in merged if _matches(m, person)), None)
             if match is None:
                 if final and key != FULL_KEY and not normalize(person.get("name")):
                     continue  # unnamed live guesses are covered by the end read
                 merged.append(dict(person))
-                if key == FULL_KEY:
+                if key in preferred:
                     from_final.add(id(merged[-1]))
                 continue
             new, old = normalize(person.get("name")), normalize(match.get("name"))

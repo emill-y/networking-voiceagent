@@ -338,7 +338,7 @@ def test_voices_keep_their_number_across_chunks():
     assert known[0]["seconds"] == 11.0
 
     # A new voice talking long enough is new; a half-second blip isn't.
-    third = ChunkVoices([Turn(0, 4, 0), Turn(4, 4.5, 1)], {0: [0.0, 0.0, 1.0], 1: [0.5, 0.5, -0.7]}, {0: 4.0, 1: 0.5})
+    third = ChunkVoices([Turn(0, 4, 0), Turn(4, 4.5, 1)], {0: [0.0, 0.0, 1.0], 1: [0.4, 0.4, -0.82]}, {0: 4.0, 1: 0.5})
     mapping, known = match_voices(third, known)
     assert mapping == {0: 3} and len(known) == 3
 
@@ -515,13 +515,14 @@ def test_the_end_read_gives_up_gracefully():
     assert session_notes.write_notes([{"seq": 0, "text": "hi", "seconds": 1}], Down(), None, None, None, []) is None
 
 
-def test_the_end_read_keeps_one_person_per_voice():
+def test_every_voice_is_its_own_person_with_its_own_notes():
     from app.services import session_notes
 
     segments = [
         {"seq": 0, "text": "[You] hey how was your week", "seconds": 20},
         {"seq": 1, "text": "[Speaker 1] good I'm Jun, my sister Lien is visiting and Lucida says hi", "seconds": 20},
         {"seq": 2, "text": "[Speaker 1] yeah June is fine too, we're going to Hawaii in December", "seconds": 20},
+        {"seq": 3, "text": "[Speaker 2] sorry excuse me", "seconds": 20},  # a passerby, not a person
     ]
 
     class Model:
@@ -530,23 +531,47 @@ def test_the_end_read_keeps_one_person_per_voice():
 
         def chat_json(self, system, user, schema):
             self.messages.append(user)
-            if system == session_notes.SPLIT_PROMPT:
-                return json.dumps({"people": [
-                    {"name": "Jun", "label": "Friend", "chunks": [1], "speaker": "Speaker 1"},
-                    {"name": "Lien", "label": "Jun's sister", "chunks": [1], "speaker": None},   # only talked about
-                    {"name": "Lucida", "label": "Friend", "chunks": [1], "speaker": "Speaker 4"},  # no such voice
-                    {"name": "June", "label": "Friend", "chunks": [2], "speaker": "speaker 1"},  # same voice as Jun
-                ]})
-            return json.dumps({"conversation": ["## Their plans", "Hawaii trip in December."]})
+            assert system == session_notes.NOTES_PROMPT  # no split step when voices are labeled
+            return json.dumps({"name": "Jun", "conversation": ["## Their plans", "Hawaii trip in December."]})
 
     model = Model()
     notes = session_notes.write_notes(segments, model, None, None, None, [])
+    # Lien and Lucida were only talked about, and have no voice: not people.
     assert [(p["name"], p["speaker"]) for p in notes] == [("Jun", "Speaker 1")]
-    assert "Unsure: also heard as June" in notes[0]["notes"]
-    assert "[Speaker 1]" in model.messages[0]  # the split sees the voice labels
-    assert "Their voice: [Speaker 1]" in model.messages[1]
-    assert session_notes.one_per_voice([{"name": "Ann", "label": "x", "chunks": [0], "speaker": "Speaker 2"}],
-                                       [{"seq": 0, "text": "no labels here", "seconds": 5}])[0]["speaker"] is None
+    assert len(model.messages) == 1 and "Their voice: [Speaker 1]" in model.messages[0]
+    assert "[Speaker 2]" not in model.messages[0]  # each person's notes come from their own chunks
+
+    # Notes already written during the session (and still current) aren't written again.
+    stored = {"Speaker 1": dict(notes[0])}
+    again = Model()
+    assert session_notes.write_notes(segments, again, None, None, None, [], stored=stored) == notes
+    assert again.messages == []
+
+
+def test_a_new_voice_is_a_new_person_even_without_a_name():
+    from app.services import session_notes
+
+    segments = [
+        {"seq": 0, "text": "[Speaker 1] hey what are you working on these days", "seconds": 20},
+        {"seq": 1, "text": "[Speaker 2] I'm building a drone delivery thing for campus honestly", "seconds": 20},
+        {"seq": 2, "text": "[Speaker 1] cool and you what brings you here tonight", "seconds": 20},
+        {"seq": 3, "text": "[Speaker 3] I'm a designer at Airbnb I mostly come for the free pizza", "seconds": 20},
+    ]
+
+    class Model:
+        def chat_json(self, system, user, schema):
+            if "[Speaker 2]" in user.split("Transcript:")[0]:
+                return json.dumps({"label": "Drone startup founder", "conversation": ["## About them", "Builds drones."]})
+            return json.dumps({"label": "Airbnb designer", "conversation": ["## About them", "Designs at Airbnb."]})
+
+    notes = session_notes.write_notes(segments, Model(), None, "Mixer", None, [])
+    # Speaker 1 is in the most chunks: that's the user. Speakers 2 and 3 are two different people.
+    assert [(p["label"], p["speaker"]) for p in notes] == [("Drone startup founder", "Speaker 2"), ("Airbnb designer", "Speaker 3")]
+
+    # During the session: once a voice has been quiet for a minute, its notes are due.
+    assert session_notes.voice_due(segments, {}, 3) is None  # Speaker 2 last spoke in chunk 1: not yet
+    assert session_notes.voice_due(segments, {}, 4)["speaker"] == "Speaker 2"
+    assert session_notes.voice_due(segments, {"Speaker 2": {"words": 99}}, 4) is None
 
 
 def test_without_a_saved_voice_the_end_read_leaves_out_the_voice_heard_most():
@@ -560,15 +585,10 @@ def test_without_a_saved_voice_the_end_read_leaves_out_the_voice_heard_most():
 
     class Model:
         def chat_json(self, system, user, schema):
-            if system == session_notes.SPLIT_PROMPT:
-                return json.dumps({"people": [
-                    {"name": "Maya", "label": "Moved from Seattle", "chunks": [0], "speaker": "Speaker 2"},
-                    {"name": "Tom", "label": "Hawaii trip", "chunks": [0, 1], "speaker": "Speaker 1"},
-                ]})
-            return json.dumps({"conversation": ["## About them", "[Speaker 2] She just moved from Seattle."]})
+            return json.dumps({"name": "Maya", "conversation": ["## About them", "[Speaker 2] She just moved from Seattle."]})
 
     notes = session_notes.write_notes(segments, Model(), None, None, None, [])
-    # Two voices, two people found: one of them is the user (Tom, heard most).
+    # Two voices: the one in every chunk (Tom) is the user.
     assert [p["name"] for p in notes] == ["Maya"]
     # Voice labels never reach the notes.
     assert notes[0]["conversation"] == ["## About them", "She just moved from Seattle."]
@@ -582,3 +602,48 @@ def test_live_notes_stand_in_when_the_end_notes_failed():
     windows = {"0": [{"name": "Maya", "conversation": ["She just moved from Seattle."]}],
                svc.FULL_KEY: [{"name": "Maya", "label": None}]}  # notes for her couldn't be written
     assert svc.merge_people(windows, None)[0].conversation == ["She just moved from Seattle."]
+
+
+class NotesLLM:
+    """Live reads find no one; notes calls describe Jun."""
+
+    def __init__(self):
+        self.systems = []
+
+    def chat_json(self, system, user, schema):
+        from app.services import session_notes
+
+        self.systems.append(system)
+        if system == session_notes.NOTES_PROMPT:
+            return json.dumps({"name": "Jun", "conversation": ["## In short", "Jun is going to Hawaii in December."]})
+        if "title" in schema["properties"]:
+            return json.dumps({"title": "Catching up"})
+        return json.dumps({"people": []})
+
+
+def test_a_new_voice_shows_up_at_once_and_its_notes_are_written_when_it_goes_quiet(session_client):
+    from app.services import session_notes
+
+    client = session_client
+    llm = NotesLLM()
+    app.dependency_overrides[get_transcriber] = lambda: PiecesTranscriber()
+    app.dependency_overrides[get_llm_client] = lambda: llm
+    app.dependency_overrides[get_diarizer] = lambda: FakeDiarizer()
+
+    session = client.post("/sessions", json={}).json()
+    body = upload(client, session["id"], 0, b"talk").json()
+    # The model hasn't named anyone yet, but a new voice is already a person.
+    assert [(p["label"], p["speaker"]) for p in body["people"]] == [("Someone new (voice 2)", "Speaker 2")]
+
+    for seq in (1, 2):
+        upload(client, session["id"], seq, b"silence")
+    assert session_notes.NOTES_PROMPT not in llm.systems
+    body = upload(client, session["id"], 3, b"silence").json()  # Jun has been quiet for a minute
+    assert llm.systems[-1] == session_notes.NOTES_PROMPT
+    assert [(p["name"], p["conversation"]) for p in body["people"]] == [("Jun", ["## In short", "Jun is going to Hawaii in December."])]
+
+    # Ending the session reuses those notes instead of writing them again.
+    calls = llm.systems.count(session_notes.NOTES_PROMPT)
+    finished = client.post(f"/sessions/{session['id']}/finish").json()
+    assert llm.systems.count(session_notes.NOTES_PROMPT) == calls
+    assert [p["name"] for p in finished["people"]] == ["Jun"]

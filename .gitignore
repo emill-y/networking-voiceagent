@@ -67,5 +67,7 @@ public/
 .vercel/
 _uv/
 
-# Voice differentiation models (python -m scripts.download_diarization_models)
-backend/models/
+# Models: only the voice differentiation ones are kept in the repository (the
+# deployed API needs them; python -m scripts.download_diarization_models).
+backend/models/*
+!backend/models/diarization/

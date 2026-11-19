@@ -34,15 +34,23 @@ class MyVoice(ApiModel):
     updated_at: datetime | None = None
 
 
-def _out(row) -> MyVoice:
+def _out(row, diarizer: Diarizer | None = None) -> MyVoice:
     if not row:
+        return MyVoice(saved=False)
+    # Saved with an earlier voice model: it can't be compared any more, so it
+    # counts as not saved until it's recorded again.
+    if diarizer is not None and len(row["print"] or []) != diarizer.dim:
         return MyVoice(saved=False)
     return MyVoice(saved=True, seconds=row["seconds"], updated_at=row["updated_at"])
 
 
 @router.get("/me/voice", response_model=MyVoice)
-def get_voice(conn: Connection = Depends(get_db), user_id: UUID = Depends(get_current_user_id)):
-    return _out(voiceprints.get(conn, user_id))
+def get_voice(
+    conn: Connection = Depends(get_db),
+    user_id: UUID = Depends(get_current_user_id),
+    diarizer: Diarizer | None = Depends(get_diarizer),
+):
+    return _out(voiceprints.get(conn, user_id), diarizer)
 
 
 @router.post("/me/voice", response_model=MyVoice)

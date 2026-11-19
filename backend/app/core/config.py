@@ -32,7 +32,9 @@ class Settings:
     # "local" = faster-whisper on this machine; "openai_compatible" = hosted
     # Whisper at LLM_BASE_URL (e.g. Groq); "huggingface" = HF Inference Providers.
     transcription_provider: str = "local"
-    stt_model: str = "whisper-large-v3-turbo"
+    # Full large-v3: more accurate than the turbo version in noisy rooms, and on
+    # Groq's free tier with the same limits (about 8 hours of audio a day).
+    stt_model: str = "whisper-large-v3"
     hf_token: str | None = None
     hf_inference_provider: str = "fal-ai"
     hf_asr_model: str = "openai/whisper-large-v3"
@@ -123,7 +125,7 @@ def get_settings() -> Settings:
         # the local Whisper model isn't installed on Vercel.
         transcription_provider=(env.get("TRANSCRIPTION_PROVIDER") or "").strip().lower()
         or ("openai_compatible" if env.get("LLM_API_KEY") else "local"),
-        stt_model=env.get("STT_MODEL", "whisper-large-v3-turbo"),
+        stt_model=env.get("STT_MODEL", "whisper-large-v3"),
         hf_token=env.get("HF_TOKEN") or None,
         hf_inference_provider=env.get("HF_INFERENCE_PROVIDER", "fal-ai"),
         hf_asr_model=env.get("HF_ASR_MODEL", "openai/whisper-large-v3"),
@@ -138,7 +140,10 @@ def get_settings() -> Settings:
         llm_base_url=env.get("LLM_BASE_URL", "https://api.groq.com/openai/v1").rstrip("/"),
         llm_api_key=env.get("LLM_API_KEY") or None,
         llm_model=env.get("LLM_MODEL", "openai/gpt-oss-120b"),
-        llm_reasoning_effort=env.get("LLM_REASONING_EFFORT") or None,
+        # gpt-oss thinks before answering, and the thinking counts toward a free
+        # tier's tokens per minute; "low" is plenty for reading a transcript.
+        llm_reasoning_effort=env.get("LLM_REASONING_EFFORT")
+        or ("low" if "gpt-oss" in env.get("LLM_MODEL", "openai/gpt-oss-120b") else None),
         llm_fallback_model=env.get("LLM_FALLBACK_MODEL", "openai/gpt-oss-20b") or None,
         llm_timeout_seconds=float(env.get("LLM_TIMEOUT_SECONDS", "30")),
         ollama_url=env.get("OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/"),

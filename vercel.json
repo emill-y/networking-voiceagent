@@ -8,7 +8,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 60,
-      "includeFiles": "backend/app/**",
+      "includeFiles": "{backend/app/**,backend/models/diarization/*.onnx}",
       "excludeFiles": "{mobile/**,supabase/**,tests/**,backend/tests/**,backend/web/**,backend/.env,backend/prod.env.yaml,**/.venv/**,**/node_modules/**}"
     }
   },

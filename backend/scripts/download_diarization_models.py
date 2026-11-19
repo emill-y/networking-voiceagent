@@ -1,4 +1,4 @@
-"""Download the two small models voice differentiation needs (about 34 MB).
+"""Download the two small models voice differentiation needs (about 46 MB).
 
     python -m scripts.download_diarization_models
 
@@ -7,11 +7,14 @@ Both come from the sherpa-onnx project's GitHub releases
 
 - segmentation.onnx: pyannote segmentation 3.0. Finds where speech is and
   where one voice stops and another starts.
-- embedding.onnx: WeSpeaker ResNet34 (trained on English speech, VoxCeleb).
-  Turns a stretch of someone's voice into a "voiceprint", a list of numbers;
-  two stretches of the same voice give similar numbers.
+- embedding.onnx: NVIDIA NeMo TitaNet-small (CC-BY-4.0). Turns a stretch of
+  someone's voice into a "voiceprint", a list of 192 numbers; two stretches of
+  the same voice give similar numbers. Chosen over WeSpeaker ResNet34 and the
+  3D-Speaker models because it was the only one that cleanly separated
+  different voices on recordings with known speakers (see diarization.py).
 
-They're saved to models/diarization/ (or DIARIZATION_MODEL_DIR), which Git ignores.
+They're saved to models/diarization/ (or DIARIZATION_MODEL_DIR). The repository
+keeps a copy there so the deployed API has them.
 """
 
 import shutil
@@ -26,7 +29,7 @@ from app.core.config import get_settings
 
 RELEASES = "https://github.com/k2-fsa/sherpa-onnx/releases/download"
 SEGMENTATION_URL = f"{RELEASES}/speaker-segmentation-models/sherpa-onnx-pyannote-segmentation-3-0.tar.bz2"
-EMBEDDING_URL = f"{RELEASES}/speaker-recongition-models/wespeaker_en_voxceleb_resnet34_LM.onnx"
+EMBEDDING_URL = f"{RELEASES}/speaker-recongition-models/nemo_en_titanet_small.onnx"
 
 
 def download(url: str, to: Path) -> None:

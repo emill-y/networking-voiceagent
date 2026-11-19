@@ -41,6 +41,8 @@ def test_your_saved_voice_is_voice_zero_in_sessions():
 class FakeDiarizer:
     """Recognizes uploads by their bytes."""
 
+    dim = 3  # voiceprint length, like the real model's 192
+
     VOICES = {
         b"me-reading": ChunkVoices([Turn(0, 15, 0)], {0: ME}, {0: 15.0}),
         b"too-short": ChunkVoices([Turn(0, 2, 0)], {0: ME}, {0: 2.0}),
@@ -134,3 +136,14 @@ def test_sessions_know_which_voice_is_yours(voice_client):
     with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as conn:
         assert conn.execute("select voices from ambient_sessions where id = %s", (session["id"],)).fetchone()[0] == []
     assert client.get("/me/voice").json()["saved"] is True
+
+
+def test_a_voice_saved_with_an_earlier_model_must_be_recorded_again(voice_client):
+    client = voice_client
+    with psycopg.connect(os.environ["TEST_DATABASE_URL"]) as conn:
+        conn.execute("insert into voiceprints (user_id, print, seconds) values (%s, %s, 14)",
+                     (USER_ID, json.dumps([0.1] * 256)))
+    assert client.get("/me/voice").json()["saved"] is False
+    # In a session, the old print is simply never matched.
+    mapping, known = match_voices(ChunkVoices([Turn(0, 8, 0)], {0: ME}, {0: 8.0}), [your_voice([0.1] * 256, 14.0)])
+    assert mapping == {0: 1} and [v["id"] for v in known] == [0, 1]

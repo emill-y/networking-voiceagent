@@ -33,6 +33,7 @@ from app.schemas.sessions import (
     SessionContact, SessionCreate, SessionCreated, SessionFinished, SessionOut, SessionSave, SessionUpdate,
 )
 from app.services.captures import save_capture
+from app.schemas.extraction import ExtractedPerson
 from app.services import session_notes
 from app.services import sessions as svc
 from app.services.diarization import Diarizer, get_diarizer
@@ -55,11 +56,24 @@ def _out(row: dict, model=SessionOut, conn: Connection | None = None, **extra):
         chunks=len(segments),
         audio_seconds=row["audio_seconds"],
         words=len(svc.full_transcript(segments).split()),
-        people=svc.merge_people(row["windows"] or {}, _event(row)),
+        people=_people(row),
         started_at=row["created_at"],
         ended_at=row["ended_at"],
         **extra,
     )
+
+
+def _people(row: dict) -> list[ExtractedPerson]:
+    """Everyone found so far. While recording, a voice that has said enough
+    shows up as a new person right away, before the model has read it."""
+    people = svc.merge_people(row["windows"] or {}, _event(row))
+    if row["status"] == "recording":
+        seen = {p.speaker for p in people if p.speaker}
+        for who in session_notes.voice_people(row["segments"] or []):
+            if who["speaker"] not in seen:
+                people.append(ExtractedPerson(label=f"Someone new (voice {who['speaker'].split()[-1]})",
+                                              speaker=who["speaker"], met_at=_event(row)))
+    return people
 
 
 def _event(row: dict) -> str | None:
@@ -141,15 +155,24 @@ def upload_chunk(
     result, heard = transcribe_and_diarize(audio, transcriber, diarizer, prompt)
     row = repo.get(conn, session_id, lock=True)
     saved_voice = voiceprints.get(conn, row["user_id"]) if heard is not None else None
+    heard_before = len(row["voices"] or [])
     text, voices = svc.label_chunk(result, heard, row["voices"] or [], saved_voice)
     segments = svc.add_segment(row["segments"] or [], seq, text, result.audio_seconds)
     seconds = sum(s["seconds"] for s in segments)
     windows = dict(row["windows"] or {})
     window = svc.window_of(seq)
-    found = svc.read_window(segments, window, llm, today or date.today(), row["title"],
-                            row["owner_name"], svc.known_people(windows, skip=window), voices)
-    if found is not None:
-        windows[str(window)] = found
+    # One model call per chunk at most, so a free model's per-minute limit holds:
+    # write the notes of someone whose conversation just went quiet, or else
+    # re-read the current minute or two (when someone new spoke, every other
+    # chunk otherwise) so new people show up while you're still talking.
+    due = session_notes.voice_due(segments, svc.voice_notes(windows), seq) if voices is not None else None
+    if due:
+        windows[svc.voice_key(due["speaker"])] = [session_notes.write_person(segments, due, llm, row["title"], row["owner_name"])]
+    elif voices is None or len(voices) > heard_before or seq % 2 == 1 or str(window) not in windows:
+        found = svc.read_window(segments, window, llm, today or date.today(), row["title"],
+                                row["owner_name"], svc.known_people(windows, skip=window), voices)
+        if found is not None:
+            windows[str(window)] = found
     repo.save_progress(conn, session_id, segments, seconds, windows, voices)
     return _out({**row, "segments": segments, "audio_seconds": seconds, "windows": windows})
 
@@ -164,19 +187,21 @@ def finish(
     row = _own(conn, user_id, session_id, lock=True)
     segments = row["segments"] or []
     windows = dict(row["windows"] or {})
-    # Read any window the model missed (or that never got a chunk since it failed).
-    for window in sorted({svc.window_of(s["seq"]) for s in segments}):
-        if str(window) not in windows or window == max(svc.window_of(s["seq"]) for s in segments):
-            found = svc.read_window(segments, window, llm, date.today(), row["title"],
-                                    row["owner_name"], svc.known_people(windows, skip=window), row["voices"] or [])
-            if found is not None:
-                windows[str(window)] = found
-    # The end-of-session read: tell everyone apart and write detailed notes on
-    # each (the live windows only ever see a minute or two at a time).
+    # The end-of-session read: everyone, told apart (one voice, one person when
+    # voices are labeled), with detailed notes on each. Notes written during the
+    # session are reused, so this mostly covers the last conversation or two.
     notes = session_notes.write_notes(segments, llm, date.today(), row["title"], row["owner_name"],
-                                      svc.known_people(windows))
+                                      svc.known_people(windows), stored=svc.voice_notes(windows))
     if notes:
         windows[svc.FULL_KEY] = notes
+    else:
+        # No end read: make sure every window has been read at least once.
+        for window in sorted({svc.window_of(s["seq"]) for s in segments}):
+            if str(window) not in windows or window == max(svc.window_of(s["seq"]) for s in segments):
+                found = svc.read_window(segments, window, llm, date.today(), row["title"],
+                                        row["owner_name"], svc.known_people(windows, skip=window), row["voices"] or [])
+                if found is not None:
+                    windows[str(window)] = found
     # Nobody found, but there was a conversation: keep it rather than lose it.
     if not svc.merge_people(windows, row["title"]):
         fallback = svc.conversation_fallback(segments, llm, row["title"])

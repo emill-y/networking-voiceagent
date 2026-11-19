@@ -10,8 +10,8 @@ Three steps:
 1. Within the chunk, sherpa-onnx (https://github.com/k2-fsa/sherpa-onnx) runs
    pyannote's segmentation model to find stretches of speech and groups them
    by voice: "voice A spoke 0-4s, voice B 4-9s, voice A again 9-15s".
-2. Across chunks, each voice gets a voiceprint (a list of 256 numbers from the
-   WeSpeaker model). Voiceprints of the same person point in nearly the same
+2. Across chunks, each voice gets a voiceprint (a list of 192 numbers from
+   NVIDIA's TitaNet-small model, free under CC-BY-4.0). Voiceprints of the same person point in nearly the same
    direction, so we compare them with cosine similarity: a close match to a
    voice heard earlier keeps that voice's number, otherwise it's a new voice.
 3. Whisper's timestamped pieces of text are given to the voice that was
@@ -41,16 +41,19 @@ from app.services.transcription import SAMPLE_RATE, decode_audio
 
 logger = logging.getLogger(__name__)
 
-# Cosine similarity at or above this means "the same voice as before". Measured
-# with these models: one voice scores 0.9+ against itself across clips; two
-# different (fairly similar) voices scored about 0.6.
-SAME_VOICE = 0.65
-# How readily the segmentation step splits a chunk into separate voices
-# (lower = splits more). 0.5 merged two clearly different voices; 0.3 split them.
-CLUSTER_THRESHOLD = 0.3
+# Cosine similarity at or above this means "the same voice as before".
+# Measured with TitaNet-small on recordings with known speakers (pyannote's
+# English sample, sherpa-onnx's four-speaker sample): turns of the same voice
+# scored 0.49 and up; different voices 0.35 and below. (The WeSpeaker model
+# used before scored different voices up to 0.74 and couldn't tell them apart.)
+SAME_VOICE = 0.45
+# How the segmentation step groups a chunk's turns into voices (sherpa-onnx
+# fast clustering; higher = splits more readily). 0.7 got both samples exactly
+# right, including a 1-second turn; 0.5 missed it, 0.9 merged two speakers.
+CLUSTER_THRESHOLD = 0.7
 # Your saved voice was recorded up close and quietly; in a session the phone may
 # be in a pocket in a loud room, so it's matched a little more loosely.
-SAME_VOICE_AS_YOU = 0.6
+SAME_VOICE_AS_YOU = 0.4
 YOU = 0  # the voice number reserved for the user's saved voice
 # Saving your voice needs at least this much of you talking, and nobody else.
 MIN_ENROLL_SECONDS = 6.0
@@ -107,6 +110,11 @@ class Diarizer:
                 self._embedder = sherpa_onnx.SpeakerEmbeddingExtractor(embedding)
                 self._diarizer = sherpa_onnx.OfflineSpeakerDiarization(config)
         return self._diarizer, self._embedder
+
+    @property
+    def dim(self) -> int:
+        """How many numbers a voiceprint from this model has."""
+        return self._load()[1].dim
 
     def chunk_voices(self, audio_path: str) -> ChunkVoices:
         audio = decode_audio(audio_path)
@@ -182,11 +190,15 @@ def match_voices(chunk: ChunkVoices, known: list[dict]) -> tuple[dict[int, int],
     """
     known = [dict(v) for v in known]
     mapping: dict[int, int] = {}
+    # A voiceprint from another model (a voice saved before the model changed)
+    # can't be compared: it's left out of matching until it's recorded again.
+    dims = {len(p) for p in chunk.prints.values()}
     # Longest talkers first: their voiceprints are the most reliable.
     for voice in sorted(chunk.prints, key=lambda v: -chunk.seconds.get(v, 0)):
         vec = chunk.prints[voice]
         # How far each known voice is above the bar it has to clear.
-        scores = [(_cosine(vec, k["print"]) - (SAME_VOICE_AS_YOU if k["id"] == YOU else SAME_VOICE), k) for k in known]
+        scores = [(_cosine(vec, k["print"]) - (SAME_VOICE_AS_YOU if k["id"] == YOU else SAME_VOICE), k)
+                  for k in known if len(k["print"]) in dims]
         best_score, best = max(scores, key=lambda s: s[0], default=(-1.0, None))
         talk = chunk.seconds.get(voice, 0.0)
         if best is not None and best_score >= 0:

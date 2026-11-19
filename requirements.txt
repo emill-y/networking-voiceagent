@@ -9,3 +9,4 @@ psycopg[binary]==3.3.6
 av==18.1.0
 numpy==2.5.3
 tzdata==2026.4  # event times in their own time zone (iCal TZID)
+sherpa-onnx==2.0.1  # voice differentiation in sessions (models in backend/models/diarization)
